@@ -25,6 +25,7 @@ public sealed class FlightScene : IScene
     private const float FrameTime = 1f / FrameRate;
 
     private readonly MeshRenderer _renderer;
+    private readonly CelestialRenderer _celestial;
     private readonly Starfield _starfield = new();
     private readonly FlightSim _sim;
     private readonly HudRenderer _hud;
@@ -35,10 +36,14 @@ public sealed class FlightScene : IScene
     public FlightScene(GraphicsDevice device, ViewCamera camera, FlightSim sim, HudRenderer hud)
     {
         _renderer = new MeshRenderer(device);
+        _celestial = new CelestialRenderer(device);
         _sim = sim;
         _hud = hud;
         Camera = camera;
     }
+
+    /// <summary>Draws the planet and the sun, as well as the ships.</summary>
+    public CelestialRenderer Celestial => _celestial;
 
     /// <summary>The simulation this scene is driving.</summary>
     public FlightSim Sim => _sim;
@@ -48,12 +53,72 @@ public sealed class FlightScene : IScene
     /// <summary>The last input read, exposed for diagnostics.</summary>
     public FlightInput LastInput { get; private set; }
 
-    public string StatusLine =>
-        $"Flight: speed {_sim.Speed}, roll rate {_sim.RollRate}, pitch rate {_sim.PitchRate}, " +
-        $"{_sim.Bubble.Count} object(s) in the bubble, drawn triangles {_renderer.LastTriangleCount}";
+    public string StatusLine
+    {
+        get
+        {
+            var text = new System.Text.StringBuilder();
+            text.Append(
+                $"Flight: speed {_sim.Speed}, roll rate {_sim.RollRate}, pitch rate {_sim.PitchRate}, " +
+                $"{_sim.Bubble.Count} object(s) in the bubble, drawn triangles {_renderer.LastTriangleCount}");
+
+            foreach (Ship ship in _sim.Bubble)
+            {
+                (int x, int y, int z) = ship.GetPosition();
+                double distance = Math.Sqrt(((double)x * x) + ((double)y * y) + ((double)z * z));
+                string kind = ship.Type switch
+                {
+                    ShipTypes.Sun => "sun",
+                    SystemArrival.PlanetTypeA or SystemArrival.PlanetTypeB => "planet",
+                    _ => "ship",
+                };
+                double radius = z > 0 ? Camera.FocalLength * SystemArrival.BodyRadius / z : 0;
+                text.Append(
+                    $"\n  {kind} type {ship.Type} '{ship.Name}' at ({x}, {y}, {z}) distance {distance:0} " +
+                    $"screen radius {(IsCelestial(ship.Type) ? radius : 0):0.0}");
+            }
+
+            return text.ToString();
+        }
+    }
 
     /// <summary>Registers the meshes the scene can draw, keyed by blueprint id.</summary>
     public void RegisterMesh(string blueprintId, ShipMesh mesh) => _meshes[blueprintId] = mesh;
+
+    /// <summary>
+    /// Places the planet and the sun for a system, as arriving in it does. Their colours come from
+    /// the system's seeds, so every system looks a little different.
+    /// </summary>
+    public void ArriveInSystem(EliteRemake.Core.Universe.StarSystem system)
+    {
+        _system = system;
+        SystemArrival.AddSystemBodies(_sim, system);
+
+        // Derive a muted colour for the planet from the seeds, so systems differ but stay tasteful
+        int hue = (system.Seeds.S2Lo * 360) / 256;
+        _celestial.PlanetColour = FromHue(hue, 0.30f, 0.80f);
+    }
+
+    private EliteRemake.Core.Universe.StarSystem? _system;
+
+    /// <summary>Converts a hue, saturation and value into a colour.</summary>
+    private static Color FromHue(float hue, float saturation, float value)
+    {
+        float c = value * saturation;
+        float x = c * (1 - MathF.Abs(((hue / 60f) % 2) - 1));
+        float m = value - c;
+        (float r, float g, float b) = hue switch
+        {
+            < 60 => (c, x, 0f),
+            < 120 => (x, c, 0f),
+            < 180 => (0f, c, x),
+            < 240 => (0f, x, c),
+            < 300 => (x, 0f, c),
+            _ => (c, 0f, x),
+        };
+
+        return new Color(r + m, g + m, b + m);
+    }
 
     /// <summary>Places the space station ahead of us, as the original does when we arrive in a system.</summary>
     public void SpawnStationAhead(int distance = 3000)
@@ -133,9 +198,35 @@ public sealed class FlightScene : IScene
         _starfield.Draw(spriteBatch, pixel, Camera);
         spriteBatch.End();
 
+        // The planet and the sun are circles rather than models, and they are so large and distant
+        // that they are always behind the ships, so they are drawn first as the backdrop
+        spriteBatch.Begin();
+        foreach (Ship body in _sim.Bubble)
+        {
+            if (!IsCelestial(body.Type))
+            {
+                continue;
+            }
+
+            (int bx, int by, int bz) = body.GetPosition();
+            _celestial.Draw(
+                spriteBatch,
+                Camera,
+                new System.Numerics.Vector3(bx, by, bz),
+                body.Type == ShipTypes.Sun,
+                body.Type == SystemArrival.PlanetTypeB ? 1f : 0f);
+        }
+
+        spriteBatch.End();
+
         _renderer.Begin();
         foreach (Ship ship in _sim.Bubble)
         {
+            if (IsCelestial(ship.Type))
+            {
+                continue;
+            }
+
             if (!_meshes.TryGetValue(ship.BlueprintId, out ShipMesh? mesh))
             {
                 continue;
@@ -166,4 +257,8 @@ public sealed class FlightScene : IScene
         ShipTypes.Coriolis => Palette.StationHull,
         _ => Palette.Hull,
     };
+
+    /// <summary>True for the planet and the sun, which are drawn as discs.</summary>
+    private static bool IsCelestial(int shipType) =>
+        shipType is ShipTypes.Sun or SystemArrival.PlanetTypeA or SystemArrival.PlanetTypeB;
 }

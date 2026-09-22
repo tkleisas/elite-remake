@@ -115,6 +115,62 @@ public static class ShipMovement
     }
 
     /// <summary>
+    /// MV40: rotate a planet or sun's location by our pitch and roll.
+    /// </summary>
+    /// <remarks>
+    /// The original uses a separate routine for the planet and the sun, because they sit millions
+    /// of units away and their coordinates need all 23 bits of their magnitude. The routine that
+    /// moves ordinary ships works on two-byte coordinates and treats the third byte as a pure sign,
+    /// which would destroy the planet's distance; MV40 works in wider arithmetic instead. The
+    /// formulas are the same small-angle rotation, applied to the full 24-bit values.
+    /// </remarks>
+    public static void RotateBodyLocationByOurPitchAndRoll(
+        Span<byte> position,
+        byte alp1,
+        byte alp2,
+        byte bet1,
+        byte bet2)
+    {
+        long x = Read24(position, X);
+        long y = Read24(position, Y);
+        long z = Read24(position, Z);
+
+        // The angles are the magnitudes with the sign of ALP2 and BET2
+        long alpha = (alp2 & 0x80) != 0 ? -alp1 : alp1;
+        long beta = (bet2 & 0x80) != 0 ? -bet1 : bet1;
+
+        long k2 = y - ((x * alpha) / 256);
+        z += (beta * k2) / 256;
+        y = k2 - ((beta * z) / 256);
+        x += (alpha * y) / 256;
+
+        Write24(position, X, x);
+        Write24(position, Y, y);
+        Write24(position, Z, z);
+    }
+
+    /// <summary>Reads a 24-bit sign-magnitude coordinate.</summary>
+    public static int Read24(ReadOnlySpan<byte> position, int offset)
+    {
+        int magnitude = position[offset] | (position[offset + 1] << 8) | ((position[offset + 2] & 0x7F) << 16);
+        return (position[offset + 2] & 0x80) != 0 ? -magnitude : magnitude;
+    }
+
+    /// <summary>Writes a 24-bit sign-magnitude coordinate.</summary>
+    public static void Write24(Span<byte> position, int offset, long value)
+    {
+        long magnitude = Math.Abs(value);
+        if (magnitude > 0x7FFFFF)
+        {
+            magnitude = 0x7FFFFF;
+        }
+
+        position[offset] = (byte)(magnitude & 0xFF);
+        position[offset + 1] = (byte)((magnitude >> 8) & 0xFF);
+        position[offset + 2] = (byte)(((magnitude >> 16) & 0x7F) | (value < 0 ? 0x80 : 0x00));
+    }
+
+    /// <summary>
     /// MVEIT part 3: move the ship forward along its own nose vector by its own speed.
     /// The displacement is nosev_hi * speed / 64 on each axis.
     /// </summary>

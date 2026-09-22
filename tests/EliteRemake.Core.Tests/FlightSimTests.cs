@@ -160,6 +160,80 @@ public class FlightSimTests
     }
 
     [Fact]
+    public void CoordinatesUseTheFullTwentyThreeBits()
+    {
+        // The planet and sun sit millions of units away, so coordinates must keep the high bits in
+        // the third byte rather than truncating at 16 bits
+        var ship = new Ship(2, "coriolis", "Test");
+
+        ship.SetCoordinate(ShipDataBlock.Z, 4 << 16);
+        Assert.Equal(4 << 16, ship.GetCoordinate(ShipDataBlock.Z));
+
+        ship.SetCoordinate(ShipDataBlock.Z, -(7 << 16));
+        Assert.Equal(-(7 << 16), ship.GetCoordinate(ShipDataBlock.Z));
+
+        ship.SetCoordinate(ShipDataBlock.X, 1234567);
+        Assert.Equal(1234567, ship.GetCoordinate(ShipDataBlock.X));
+
+        ship.SetCoordinate(ShipDataBlock.Y, -7654321);
+        Assert.Equal(-7654321, ship.GetCoordinate(ShipDataBlock.Y));
+    }
+
+    [Fact]
+    public void ArrivingInASystemPlacesThePlanetAndSun()
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"));
+        EliteRemake.Core.Universe.StarSystem lave = EliteRemake.Core.Universe.Galaxy
+            .GenerateGalaxy(0)
+            .First(s => s.Name == "LAVE");
+
+        SystemArrival.AddSystemBodies(sim, lave);
+
+        Ship sun = sim.Bubble.Single(s => s.Type == ShipTypes.Sun);
+        Ship planet = sim.Bubble.Single(s => s.Type is SystemArrival.PlanetTypeA or SystemArrival.PlanetTypeB);
+
+        // The sun is behind us, the planet ahead to the upper right, both millions of units away
+        Assert.True(sun.GetCoordinate(ShipDataBlock.Z) < 0, "the sun should be behind us");
+        Assert.True(planet.GetCoordinate(ShipDataBlock.Z) > 0, "the planet should be ahead of us");
+        Assert.True(planet.GetCoordinate(ShipDataBlock.Z) >= 3 << 16, "the planet should be distant");
+
+        double sunDistance = sun.GetPosition().Z / 65536.0;
+        Assert.InRange(sunDistance, -7, -1);
+    }
+
+    [Fact]
+    public void ThePlanetKeepsItsDistanceWhileWeManoeuvre()
+    {
+        // The planet sits millions of units away, so its coordinates need all 23 bits of their
+        // magnitude. The original moves it with MV40 for exactly this reason.
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"));
+        EliteRemake.Core.Universe.StarSystem lave = EliteRemake.Core.Universe.Galaxy
+            .GenerateGalaxy(0)
+            .First(s => s.Name == "LAVE");
+
+        SystemArrival.AddSystemBodies(sim, lave);
+        Ship planet = sim.Bubble.Single(s => s.Type is SystemArrival.PlanetTypeA or SystemArrival.PlanetTypeB);
+        int before = planet.GetCoordinate(ShipDataBlock.Z);
+
+        Assert.True(before > 100000, $"the planet should start far away, z = {before}");
+
+        // Roll, pitch and accelerate for a couple of seconds
+        for (int i = 0; i < 100; i++)
+        {
+            sim.Step(new FlightInput(RollLeft: true, PullUp: true, SpeedUp: true));
+        }
+
+        int after = planet.GetCoordinate(ShipDataBlock.Z);
+        Assert.True(after > 100000, $"the planet's distance collapsed to z = {after}");
+
+        double distance = Math.Sqrt(
+            Math.Pow(planet.GetCoordinate(ShipDataBlock.X), 2) +
+            Math.Pow(planet.GetCoordinate(ShipDataBlock.Y), 2) +
+            Math.Pow(planet.GetCoordinate(ShipDataBlock.Z), 2));
+        Assert.InRange(distance, 100000, 500000);
+    }
+
+    [Fact]
     public void KilledShipsAreRemoved()
     {
         var (sim, station) = CreateSim();

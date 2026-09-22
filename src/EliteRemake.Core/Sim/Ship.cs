@@ -167,10 +167,14 @@ public sealed class Ship
         set => Flags = value ? (byte)(Flags | ShipDataBlock.FlagKilled) : (byte)(Flags & ~ShipDataBlock.FlagKilled);
     }
 
-    /// <summary>Reads one of the ship's coordinates as a signed value.</summary>
+    /// <summary>
+    /// Reads one of the ship's coordinates. A coordinate is three bytes — low, high, sign — with
+    /// the sign in bit 7 of the third byte, so its magnitude has 23 bits and values run to over
+    /// eight million, which is what lets the planet and sun sit millions of units away.
+    /// </summary>
     public int GetCoordinate(int offset)
     {
-        int magnitude = _data[offset] | (_data[offset + 1] << 8);
+        int magnitude = _data[offset] | (_data[offset + 1] << 8) | ((_data[offset + 2] & 0x7F) << 16);
         return (_data[offset + 2] & 0x80) != 0 ? -magnitude : magnitude;
     }
 
@@ -179,8 +183,8 @@ public sealed class Ship
     {
         int magnitude = Math.Abs(value);
         _data[offset] = (byte)(magnitude & 0xFF);
-        _data[offset + 1] = (byte)((magnitude >> 8) & 0x7F);
-        _data[offset + 2] = (byte)(value < 0 ? 0x80 : 0x00);
+        _data[offset + 1] = (byte)((magnitude >> 8) & 0xFF);
+        _data[offset + 2] = (byte)(((magnitude >> 16) & 0x7F) | (value < 0 ? 0x80 : 0x00));
     }
 
     /// <summary>The ship's position as a signed vector, for rendering.</summary>

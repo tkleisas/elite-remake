@@ -157,6 +157,10 @@ public sealed class FlightSim
         PitchSign = bet2;
     }
 
+    /// <summary>True for the planet and the sun, which the original moves with MV40.</summary>
+    public static bool IsCelestial(int shipType) =>
+        shipType is ShipTypes.Sun or SystemArrival.PlanetTypeA or SystemArrival.PlanetTypeB;
+
     /// <summary>
     /// MVEIT: moves one ship for this frame, in the original's order.
     /// </summary>
@@ -180,21 +184,45 @@ public sealed class FlightSim
             ShipMovement.MoveShipForward(ship.Data, ship.Orientation.AsSpan(Orientation.Nosev), ship.Speed);
         }
 
-        // Part 5: rotate the ship's location by our pitch and roll, as the universe turns around us
-        ShipMovement.RotateLocationByOurPitchAndRoll(
-            ship.Data,
-            RollAngle,
-            RollSign,
-            PitchAngleValue,
-            PitchSign);
+        // Part 5: rotate the ship's location by our pitch and roll, as the universe turns around
+        // us. The planet and sun take the original's separate MV40 path, which keeps the full
+        // 24-bit coordinates intact so their great distances survive.
+        if (IsCelestial(ship.Type))
+        {
+            ShipMovement.RotateBodyLocationByOurPitchAndRoll(
+                ship.Data,
+                RollAngle,
+                RollSign,
+                PitchAngleValue,
+                PitchSign);
+        }
+        else
+        {
+            ShipMovement.RotateLocationByOurPitchAndRoll(
+                ship.Data,
+                RollAngle,
+                RollSign,
+                PitchAngleValue,
+                PitchSign);
+        }
 
         // Part 6: move the ship backwards by our speed, as it is we who are travelling. The
         // original skips this for the sun, which returns from MVEIT before its own rotation.
-        ShipMovement.MoveShipByOurSpeed(ship.Data, Speed);
+        if (!IsCelestial(ship.Type))
+        {
+            ShipMovement.MoveShipByOurSpeed(ship.Data, Speed);
+        }
+        else if (Speed != 0)
+        {
+            // Bodies still rush past us as we fly, but in 24-bit arithmetic
+            int z = ShipMovement.Read24(ship.Data, ShipDataBlock.Z) - Speed;
+            ShipMovement.Write24(ship.Data, ShipDataBlock.Z, z);
+        }
 
         // Part 7: rotate the ship's orientation vectors by our pitch and roll, so its heading stays
-        // correct in our rotating frame. The sun is the exception: it has no meaningful heading.
-        if (ship.Type != ShipTypes.Sun)
+        // correct in our rotating frame. The planet and sun are the exception: they have no
+        // meaningful heading.
+        if (!IsCelestial(ship.Type))
         {
             ShipMath.Mvs4(ship.Orientation, Orientation.Nosev, RollAngle, PitchAngleValue);
             ShipMath.Mvs4(ship.Orientation, Orientation.Roofv, RollAngle, PitchAngleValue);

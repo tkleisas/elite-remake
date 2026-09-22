@@ -48,6 +48,10 @@ public static class SceneFactory
             scene.RegisterMesh(entry.Id, entry.Mesh);
         }
 
+        // Start in Lave, the system the default commander is docked at
+        var lave = EliteRemake.Core.Universe.Galaxy.GenerateGalaxy(0)
+            .First(s => s.Name == "LAVE");
+        scene.ArriveInSystem(lave);
         scene.SpawnStationAhead(options.StationDistance);
 
         if (!options.EmptySystem)
