@@ -45,9 +45,11 @@ public sealed class CelestialRenderer : IDisposable
         bool isSun,
         float focus)
     {
-        // The original draws the body at a distance of z and hides it once z_hi reaches 48, which is
-        // where the distance exceeds what its 16-bit projection can hold
-        if (position.Z <= 0 || position.Z / 256f >= 48)
+        // The original hides the body once z_sign reaches 48 — that is the *sign* byte, the top
+        // byte of the 24-bit coordinate, so the test is on z >> 16 and not on z >> 8. Dividing by
+        // 256 here instead culled every planet and sun in the game, since their distances are in
+        // the hundreds of thousands.
+        if (position.Z <= 0 || (int)(position.Z / 65536f) >= 48)
         {
             return false;
         }
