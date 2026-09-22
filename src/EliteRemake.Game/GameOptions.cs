@@ -137,6 +137,8 @@ public sealed class GameOptions
                     options.StartScreen = (Next() ?? "market").ToLowerInvariant() switch
                     {
                         "equipment" or "equip" => DockedScreen.Equipment,
+                        "short" or "shortchart" => DockedScreen.ShortRangeChart,
+                        "long" or "longchart" => DockedScreen.LongRangeChart,
                         _ => DockedScreen.Market,
                     };
                     break;

@@ -21,6 +21,8 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
     private FlightScene? _flightScene;
     private MarketScene? _marketScene;
     private EquipmentScene? _equipmentScene;
+    private ChartScene? _shortChartScene;
+    private ChartScene? _longChartScene;
     private GameSession _session = null!;
     private int _frame;
     private bool _screenshotWritten;
@@ -77,11 +79,21 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
             return _session.Screen switch
             {
                 DockedScreen.Equipment => _equipmentScene ??= new EquipmentScene(Camera, _session, _text),
+                DockedScreen.ShortRangeChart => _shortChartScene ??= OpenChart(ChartRange.Short),
+                DockedScreen.LongRangeChart => _longChartScene ??= OpenChart(ChartRange.Long),
                 _ => _marketScene ??= new MarketScene(Camera, _session, _text),
             };
         }
 
         return _flightScene ??= SceneFactory.CreateFlightScene(_options, GraphicsDevice, Camera, Layout, _text, _session);
+    }
+
+    /// <summary>Builds a chart scene, with the crosshairs starting on the current system.</summary>
+    private ChartScene OpenChart(ChartRange range)
+    {
+        var scene = new ChartScene(Camera, _session, _text, range);
+        scene.SelectSystem(_session.System);
+        return scene;
     }
 
     /// <summary>Keeps the projection in step with the window size.</summary>

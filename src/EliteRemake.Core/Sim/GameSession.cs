@@ -10,6 +10,12 @@ public enum DockedScreen
 
     /// <summary>The equipment shop.</summary>
     Equipment,
+
+    /// <summary>The short-range chart.</summary>
+    ShortRangeChart,
+
+    /// <summary>The long-range chart.</summary>
+    LongRangeChart,
 }
 
 /// <summary>Where the player is: flying, or docked at the station.</summary>

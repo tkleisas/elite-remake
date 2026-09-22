@@ -76,6 +76,16 @@ public sealed class EquipmentScene : IScene
             _session.Screen = DockedScreen.Market;
         }
 
+        if (IsNewPress(keys, Keys.F1))
+        {
+            _session.Screen = DockedScreen.ShortRangeChart;
+        }
+
+        if (IsNewPress(keys, Keys.F2))
+        {
+            _session.Screen = DockedScreen.LongRangeChart;
+        }
+
         if (IsNewPress(keys, Keys.Escape))
         {
             _session.Launch();
@@ -150,7 +160,7 @@ public sealed class EquipmentScene : IScene
         y += cellHeight;
         _text.Draw(spriteBatch, _session.Message, left, y, scale, Palette.Cyan);
         y += cellHeight;
-        _text.Draw(spriteBatch, "1-9 SELECT   B BUY   F FUEL +10 LY   M MARKET   ESC LAUNCH", left, y, scale, dim);
+        _text.Draw(spriteBatch, "1-9 SELECT  B BUY  F FUEL  M MARKET  F1/F2 CHARTS  ESC LAUNCH", left, y, scale, dim);
 
         spriteBatch.End();
     }
