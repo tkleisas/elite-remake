@@ -2077,10 +2077,10 @@ public class DockingComputerTests
         station.Orientation.SetUnity(Core.Maths.Orientation.Nosev, Core.Maths.Orientation.Z, -1.0);
         sim.Spawn(station);
 
-        (FlightInput input, bool linedUp) = DockingComputer.Fly(station, sim.Speed, sim.RollRate, sim.PitchRate);
+        DockingComputer.Manoeuvre input = DockingComputer.Fly(station, sim.Speed);
 
-        Assert.True(linedUp);
-        Assert.False(input.PullUp || input.PitchDown, "there is nothing to correct in pitch");
+        Assert.True(input.LinedUp);
+        Assert.Equal(128, input.PitchCounter); // nothing to correct in pitch
         Assert.True(input.SpeedUp, "it should close the distance");
     }
 
@@ -2092,8 +2092,11 @@ public class DockingComputerTests
         bool linedUp = false;
         for (int frame = 0; frame < 1500 && !linedUp; frame++)
         {
-            (FlightInput input, linedUp) = DockingComputer.Fly(station, sim.Speed, sim.RollRate, sim.PitchRate);
-            sim.Step(input);
+            DockingComputer.Manoeuvre move = DockingComputer.Fly(station, sim.Speed);
+            linedUp = move.LinedUp;
+            sim.SetRotationCounters(move.RollCounter, move.PitchCounter);
+            sim.Step(new FlightInput(SpeedUp: move.SpeedUp, SlowDown: move.SlowDown));
+            sim.ClearRotationCounters();
         }
 
         Assert.True(linedUp, "the autopilot should line up with the slot");
@@ -2103,9 +2106,9 @@ public class DockingComputerTests
     public void TheAutopilotDoesNotFire()
     {
         var (sim, station) = SetUp(stationDistance: 3000);
-        (FlightInput input, _) = DockingComputer.Fly(station, sim.Speed, sim.RollRate, sim.PitchRate);
+        DockingComputer.Manoeuvre input = DockingComputer.Fly(station, sim.Speed);
 
-        Assert.False(input.Fire);
+        Assert.True(input.SpeedUp || input.SlowDown || input.RollCounter != 128 || input.PitchCounter != 128);
     }
 }
 
@@ -2222,13 +2225,15 @@ public class DockingComputerControlTests
         int rolling = 0;
         for (int frame = 0; frame < 400; frame++)
         {
-            (FlightInput input, _) = DockingComputer.Fly(station, sim.Speed, sim.RollRate, sim.PitchRate);
-            if (input.RollLeft || input.RollRight)
+            DockingComputer.Manoeuvre move = DockingComputer.Fly(station, sim.Speed);
+            if ((move.RollCounter & 0x7F) > DockingComputer.TurnThreshold)
             {
                 rolling++;
             }
 
-            sim.Step(input);
+            sim.SetRotationCounters(move.RollCounter, move.PitchCounter);
+            sim.Step(new FlightInput(SpeedUp: move.SpeedUp, SlowDown: move.SlowDown));
+            sim.ClearRotationCounters();
         }
 
         Assert.True(rolling < 400, $"the autopilot should let go of the controls, but rolled on {rolling} of 400 frames");
@@ -2260,11 +2265,11 @@ public class DockingComputerControlTests
         station.Orientation.SetUnity(Core.Maths.Orientation.Nosev, Core.Maths.Orientation.Z, -1.0);
         sim.Spawn(station);
 
-        (FlightInput close, _) = DockingComputer.Fly(station, 30, sim.RollRate, sim.PitchRate);
+        DockingComputer.Manoeuvre close = DockingComputer.Fly(station, 30);
         Assert.True(close.SlowDown, "at 3000 units and full speed it should be slowing down");
 
         station.SetPosition(0, 0, 20000);
-        (FlightInput far, _) = DockingComputer.Fly(station, 1, sim.RollRate, sim.PitchRate);
+        DockingComputer.Manoeuvre far = DockingComputer.Fly(station, 1);
         Assert.True(far.SpeedUp, "far away and slow, it should be speeding up");
         Assert.False(far.SlowDown);
     }

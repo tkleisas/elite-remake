@@ -677,14 +677,61 @@ public sealed class FlightSim
     /// Applies the roll and pitch keys to their rates and works out the angles the universe will be
     /// rotated by.
     /// </summary>
+    /// <summary>
+    /// Rotation counters set directly, as the original's docking computer does when it writes to
+    /// INWK+29 and INWK+30. A counter is how far to turn this frame rather than a rate to hold, so
+    /// it is converted into the rate the rest of the simulation uses: the centre is 128, and a
+    /// larger counter is a faster turn, which means a smaller rate.
+    /// </summary>
+    /// <param name="rollCounter">The roll counter, with bit 7 as the sign.</param>
+    /// <param name="pitchCounter">The pitch counter, with bit 7 as the sign.</param>
+    public void SetRotationCounters(byte rollCounter, byte pitchCounter)
+    {
+        _rotationOverride = (rollCounter, pitchCounter);
+    }
+
+    /// <summary>Clears any counter override, returning the ship to its own controls.</summary>
+    public void ClearRotationCounters() => _rotationOverride = null;
+
+    private (byte Roll, byte Pitch)? _rotationOverride;
+
     private void UpdateRotation(FlightInput input)
     {
+        // The docking computer's counters, when it has set any, bypass the keys and the damping:
+        // the original's manoeuvring code writes the counters and lets the flight model fly the ship
+        if (_rotationOverride is { } counters)
+        {
+            RollRate = CounterToRate(counters.Roll);
+            PitchRate = CounterToRate(counters.Pitch);
+            UpdateAngles();
+            return;
+        }
+
         // The original applies the key presses first, then damps the rates towards the centre and
         // stores the damped values back into JSTX and JSTY
         RollRate = FlightControls.ApplyRollKeys(RollRate, input.RollLeft, input.RollRight, AutoRecentre);
         PitchRate = FlightControls.ApplyPitchKeys(PitchRate, input.PullUp, input.PitchDown, AutoRecentre);
         RollRate = FlightControls.DampRollRate(RollRate, DampingDisabled);
         PitchRate = FlightControls.DampPitchRate(PitchRate, DampingDisabled);
+
+        UpdateAngles();
+    }
+
+    /// <summary>Turns a rotation counter into the rate the simulation flies with.</summary>
+    private static byte CounterToRate(byte counter)
+    {
+        int magnitude = counter & 0x7F;
+        bool clockwise = (counter & 0x80) != 0;
+        int rate = clockwise
+            ? FlightControls.Centre - magnitude
+            : FlightControls.Centre + magnitude;
+
+        return (byte)Math.Clamp(rate, 0, 255);
+    }
+
+    /// <summary>Derives the roll and pitch angles from the current rates.</summary>
+    private void UpdateAngles()
+    {
 
         (byte alp1, byte alp2, _) = FlightControls.RollAngle(RollRate);
         (byte bet1, byte bet2, _) = FlightControls.PitchAngle(PitchRate);

@@ -58,15 +58,28 @@ public static class DockingComputer
     /// <summary>One nose vector, in the original's units, where 96 is a unit vector.</summary>
     private const int UnitVector = 96;
 
+    /// <summary>The manoeuvre the docking computer wants this frame.</summary>
+    /// <param name="RollCounter">The roll counter to set, as DOCKIT writes to INWK+29.</param>
+    /// <param name="PitchCounter">The pitch counter to set, as DOCKIT writes to INWK+30.</param>
+    /// <param name="SpeedUp">Whether to thrust.</param>
+    /// <param name="SlowDown">Whether to brake.</param>
+    /// <param name="LinedUp">Whether we are lined up well enough for the slot's cone.</param>
+    public readonly record struct Manoeuvre(
+        byte RollCounter,
+        byte PitchCounter,
+        bool SpeedUp,
+        bool SlowDown,
+        bool LinedUp);
+
     /// <summary>
-    /// Works out the docking computer's manoeuvre for this frame. Returns the controls to apply, and
-    /// whether we are lined up well enough for the slot's cone to accept us.
+    /// Works out the docking computer's manoeuvre for this frame, as counters and a speed rather
+    /// than as key presses — which is what DOCKIT actually produces.
     /// </summary>
     /// <param name="station">The space station.</param>
     /// <param name="speed">Our current speed.</param>
     /// <param name="rollRate">Our roll rate, which the original centres on 128.</param>
     /// <param name="pitchRate">Our pitch rate, which the original centres on 128.</param>
-    public static (FlightInput Input, bool LinedUp) Fly(Ship station, int speed, int rollRate, int pitchRate)
+    public static Manoeuvre Fly(Ship station, int speed)
     {
         (int sx, int sy, int sz) = station.GetPosition();
         var stationPosition = new Vector3(sx, sy, sz);
@@ -74,7 +87,7 @@ public static class DockingComputer
 
         if (distance < 1)
         {
-            return (default, true);
+            return default;
         }
 
         Vector3 toStation = stationPosition / distance;
@@ -93,93 +106,73 @@ public static class DockingComputer
         {
             Vector3 ideal = stationPosition + (slot * IdealDockingSteps * UnitVector);
             Vector3 aim = ideal.LengthSquared() > 0 ? Vector3.Normalize(ideal) : toStation;
-            return (
-                Steer(
-                    aim,
-                    speed,
-                    distance,
-                    rollRate,
-                    pitchRate,
-                    matchStationRoll: true,
-                    station.Data[ShipDataBlock.RollCounter]),
-                linedUp);
+            return Steer(aim, speed, distance, matchStationRoll: true, station.Data[ShipDataBlock.RollCounter], linedUp);
         }
 
         // PH2: too close and badly placed, so turn away rather than press on into the hull
         if (distance < TooCloseDistance && Math.Abs(approach) < 0.5f)
         {
-            return (Steer(-toStation, speed, distance, rollRate, pitchRate, false), linedUp);
+            return Steer(-toStation, speed, distance, false, 0, linedUp);
         }
 
         // PH3: refine the approach, rolling and pitching towards the station
-        return (Steer(toStation, speed, distance, rollRate, pitchRate, false), linedUp);
+        return Steer(toStation, speed, distance, false, 0, linedUp);
     }
 
     /// <summary>
-    /// Turns us towards a direction using the original's counters: the roll and pitch counters are
-    /// set to the turn magnitude when the aim is off by more than the threshold, and released once
-    /// the ship is already turning that way, so the turn settles instead of overshooting.
+    /// Turns us towards a direction the way DOCKIT does: by setting the roll and pitch counters,
+    /// which the flight model then flies the ship with. This is the part that cannot be expressed as
+    /// key presses — the original's docking computer does not hold the controls down, it sets the
+    /// counters and lets MVEIT do the rest.
     /// </summary>
-    private static FlightInput Steer(
+    private static Manoeuvre Steer(
         Vector3 aim,
         int speed,
         float distance,
-        int rollRate,
-        int pitchRate,
         bool matchStationRoll,
-        int stationRollCounter = 0)
+        int stationRollCounter,
+        bool linedUp)
     {
         // We face along +z in the world's terms, because the universe turns around us, so the aim's
         // world components are the aim relative to our own axes
         int rollAngle = (int)(aim.X * UnitVector);
         int pitchAngle = (int)(aim.Y * UnitVector);
 
-        bool rollLeft = false;
-        bool rollRight = false;
-        bool pullUp = false;
-        bool pitchDown = false;
+        byte rollCounter = 128;  // centred: no roll
+        byte pitchCounter = 128; // centred: no pitch
 
         if (matchStationRoll)
         {
             // PH1 rolls to match the space station's own roll, so the slot stays lined up as the
             // station turns. The station's roll counter says how fast it is turning and which way,
-            // with bit 7 as the sign, so we roll with it rather than rolling blindly.
-            int stationRoll = stationRollCounter;
-            int magnitude = stationRoll & 0x7F;
-            bool clockwise = (stationRoll & 0x80) != 0;
-
-            rollRight = magnitude > TurnThreshold && clockwise;
-            rollLeft = magnitude > TurnThreshold && !clockwise;
+            // with bit 7 as the sign, so we roll with it rather than rolling blindly. The original
+            // uses no damping for this.
+            int magnitude = stationRollCounter & 0x7F;
+            bool clockwise = (stationRollCounter & 0x80) != 0;
+            if (magnitude > TurnThreshold)
+            {
+                rollCounter = (byte)(magnitude | (clockwise ? 0x00 : 0x80));
+            }
         }
         else
         {
-            // Roll towards the station when it is off to one side, and release once the rate is
-            // already carrying us round
+            // Roll towards the station when it is off to one side, and pitch towards it, using the
+            // original's turn magnitude
             if (Math.Abs(rollAngle) > TurnThreshold)
             {
-                rollRight = rollAngle > 0 && rollRate >= 128 - TurnCounter;
-                rollLeft = rollAngle < 0 && rollRate <= 128 + TurnCounter;
+                rollCounter = (byte)(TurnCounter | (rollAngle > 0 ? 0x00 : 0x80));
             }
 
-            // Pitch towards it, releasing in the same way
             if (Math.Abs(pitchAngle) > TurnThreshold)
             {
-                pullUp = pitchAngle > 0 && pitchRate >= 128 - TurnCounter;
-                pitchDown = pitchAngle < 0 && pitchRate <= 128 + TurnCounter;
+                pitchCounter = (byte)(TurnCounter | (pitchAngle > 0 ? 0x00 : 0x80));
             }
         }
 
         // The original caps the docking speed, easing in rather than charging at the station
         int allowed = (int)Math.Clamp(distance / 160f, 4, DockingSpeed);
 
-        return new FlightInput(
-            RollLeft: rollLeft,
-            RollRight: rollRight,
-            PullUp: pullUp,
-            PitchDown: pitchDown,
-            SpeedUp: speed < allowed,
-            SlowDown: speed > allowed,
-            Fire: false);
+        return new Manoeuvre(rollCounter, pitchCounter, speed < allowed, speed > allowed, linedUp);
     }
 
     /// <summary>Reads one of a ship's orientation vectors as a unit vector.</summary>

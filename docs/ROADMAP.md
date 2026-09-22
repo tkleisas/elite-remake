@@ -186,6 +186,20 @@ Commodore 64 only, and the altitude indicator is Apple II only.
   product of 35, a docking speed of 22) and the speed discipline, which now uses the original's cap
   rather than an invented glide slope. It still does not dock, and the reason is now clear:
 
+  **The counter override is in, and the docking computer now docks a well-placed approach.** The
+  simulation accepts rotation counters set directly — `SetRotationCounters`, which the original's
+  manoeuvring code does with `STA INWK+29` and `STA INWK+30` — and DOCKIT's phases now fly as
+  written: with the station straight ahead, the autopilot completes a docking (frame 507 in the
+  test harness). That was the blocker identified a round earlier, and it was a change of shape
+  rather than more tuning.
+
+  An approach from off to one side still overshoots: it flies past the station instead of turning
+  onto the slot. The likely cause is that the Coriolis does not turn in this implementation. In the
+  original the station rolls continuously, which is precisely what PH1's roll matching matches — it
+  sets a fixed, undamped roll so the ship turns with the station and the slot stays lined up. A
+  station that never rolls gives the matching nothing to match, so the ship's roll drifts and the
+  approach misses. Giving the station its rotation is the next step.
+
   **DOCKIT writes the ship's roll and pitch counters directly** — `STA INWK+29` and `STA INWK+30` —
   rather than holding the controls down. The original's docking computer is not a pilot pressing
   keys: it *sets the rotation rates* and lets MVEIT fly the ship. This port returns a
