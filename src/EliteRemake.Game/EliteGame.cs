@@ -20,6 +20,7 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
     private IScene _scene = null!;
     private FlightScene? _flightScene;
     private MarketScene? _marketScene;
+    private EquipmentScene? _equipmentScene;
     private GameSession _session = null!;
     private int _frame;
     private bool _screenshotWritten;
@@ -73,7 +74,11 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
     {
         if (_session.Mode == GameMode.Docked)
         {
-            return _marketScene ??= new MarketScene(Camera, _session, _text);
+            return _session.Screen switch
+            {
+                DockedScreen.Equipment => _equipmentScene ??= new EquipmentScene(Camera, _session, _text),
+                _ => _marketScene ??= new MarketScene(Camera, _session, _text),
+            };
         }
 
         return _flightScene ??= SceneFactory.CreateFlightScene(_options, GraphicsDevice, Camera, Layout, _text, _session);

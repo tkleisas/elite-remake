@@ -83,10 +83,12 @@ Primary target variant: **`versions/disc`, variant `sth` (Stairway to Hell)**, w
   the legal status that shooting innocents costs, and the missile lock indicator. Still to do: enemy
   missile launches against us, energy bombs, and the full death sequence.
 - **M5 — Docked screens & missions.** In progress. Done: the commander data block with the
-  original's default commander (100 credits, full tank, front pulse laser, three missiles, docked at
-  Lave), the trade table and its price and availability formulas (GVL/TT151), a game session that
-  regenerates the market on docking, and the market screen itself with buying and selling. Still to
-  do: equipment, shipyard, charts, Data on System, save/load, missions, galactic hyperspace.
+  original's default commander, the trade table and its price and availability formulas (GVL/TT151),
+  the market screen with buying and selling, and the equipment shop — the original's fourteen items
+  with their prices, gated by tech level the way EQSHP does it (three plus the tech level, capped at
+  fourteen), with fuel sold by the light year at 2 credits each and each purchase applying its
+  effect. Still to do: the shipyard, the charts, Data on System, save/load, missions, and galactic
+  hyperspace.
 - **M6 — Audio, polish, parity sweep.** Synthesized beeper SFX + docking music, gamepad/rebinding,
   settings, full feature sweep against the original, performance pass.
 

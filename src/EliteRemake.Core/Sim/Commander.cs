@@ -81,6 +81,9 @@ public sealed class Commander
     /// <summary>Whether an energy bomb is carried.</summary>
     public bool EnergyBomb { get; set; }
 
+    /// <summary>Whether an energy unit is fitted, which doubles the recharge rate.</summary>
+    public bool EnergyUnit { get; set; }
+
     /// <summary>Whether the docking computer is fitted.</summary>
     public bool DockingComputer { get; set; }
 

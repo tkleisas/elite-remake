@@ -2,6 +2,16 @@ using EliteRemake.Core.Universe;
 
 namespace EliteRemake.Core.Sim;
 
+/// <summary>The station's screens.</summary>
+public enum DockedScreen
+{
+    /// <summary>The market, where cargo is bought and sold.</summary>
+    Market,
+
+    /// <summary>The equipment shop.</summary>
+    Equipment,
+}
+
 /// <summary>Where the player is: flying, or docked at the station.</summary>
 public enum GameMode
 {
@@ -56,6 +66,9 @@ public sealed class GameSession
 
     /// <summary>Whether we are flying or docked.</summary>
     public GameMode Mode { get; private set; } = GameMode.Flying;
+
+    /// <summary>Which station screen we are looking at, when docked.</summary>
+    public DockedScreen Screen { get; set; } = DockedScreen.Market;
 
     /// <summary>An optional message to show the player, such as the result of a trade.</summary>
     public string Message { get; set; } = string.Empty;
@@ -145,6 +158,19 @@ public sealed class GameSession
     {
         Mode = GameMode.Flying;
         Message = string.Empty;
+    }
+
+    /// <summary>
+    /// Buys an equipment item from the station's shop, applying its effect to the commander.
+    /// </summary>
+    public string? BuyEquipment(int item, int lightYears = 0)
+    {
+        string? result = Universe.Outfitting.Buy(Commander, System, item, lightYears);
+        Message = result ?? string.Empty;
+
+        // A few items change how our ship behaves in flight
+        Flight.Player.HasEnergyUnit = Commander.EnergyUnit;
+        return result;
     }
 
     /// <summary>Buys as much of an item as the credits and the hold allow.</summary>

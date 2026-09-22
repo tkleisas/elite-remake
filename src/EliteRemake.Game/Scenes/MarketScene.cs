@@ -72,6 +72,11 @@ public sealed class MarketScene : IScene
             }
         }
 
+        if (IsNewPress(keys, Keys.E))
+        {
+            _session.Screen = DockedScreen.Equipment;
+        }
+
         if (IsNewPress(keys, Keys.Escape))
         {
             _session.Launch();
@@ -149,7 +154,7 @@ public sealed class MarketScene : IScene
         y += cellHeight;
         _text.Draw(spriteBatch, _session.Message, left, y, scale, Palette.Cyan);
         y += cellHeight;
-        _text.Draw(spriteBatch, "1-0 SELECT   B BUY   S SELL   ESC LAUNCH", left, y, scale, new Color(120, 128, 140));
+        _text.Draw(spriteBatch, "1-0 SELECT   B BUY   S SELL   E EQUIPMENT   ESC LAUNCH", left, y, scale, new Color(120, 128, 140));
 
         spriteBatch.End();
     }

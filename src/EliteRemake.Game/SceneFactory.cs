@@ -57,6 +57,7 @@ public static class SceneFactory
         if (options.StartDocked)
         {
             session.Dock();
+            session.Screen = options.StartScreen;
         }
 
         return session;

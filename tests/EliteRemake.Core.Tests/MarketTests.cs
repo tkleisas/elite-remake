@@ -1216,3 +1216,141 @@ public class BountyTests
         Assert.Equal(6400 * 500, session.Commander.Cash - 1000);
     }
 }
+
+/// <summary>
+/// Checks the equipment shop: what a system stocks, the prices, and what each purchase does.
+/// </summary>
+public class OutfittingTests
+{
+    private static StarSystem SystemWithTechLevel(int techLevel)
+    {
+        StarSystem lave = Galaxy.GenerateGalaxy(0).First(s => s.Name == "LAVE");
+        return lave with { TechLevel = techLevel };
+    }
+
+    [Fact]
+    public void TheTechLevelDecidesWhatIsStocked()
+    {
+        // The original adds three to the tech level and caps it at fourteen
+        Assert.Equal(3, Outfitting.ItemsStocked(SystemWithTechLevel(0)));
+        Assert.Equal(7, Outfitting.ItemsStocked(SystemWithTechLevel(4)));
+        Assert.Equal(14, Outfitting.ItemsStocked(SystemWithTechLevel(11)));
+        Assert.Equal(14, Outfitting.ItemsStocked(SystemWithTechLevel(15)));
+
+        // So a poor system sells fuel, missiles and a cargo bay, and not much else
+        StarSystem poor = SystemWithTechLevel(0);
+        Assert.True(Outfitting.IsStocked(poor, 0));
+        Assert.True(Outfitting.IsStocked(poor, 2));
+        Assert.False(Outfitting.IsStocked(poor, 6));  // fuel scoops
+        Assert.False(Outfitting.IsStocked(poor, 12)); // military lasers
+
+        // Lave's tech level of 4 stocks the first seven
+        Assert.True(Outfitting.IsStocked(SystemWithTechLevel(4), 6));
+        Assert.False(Outfitting.IsStocked(SystemWithTechLevel(4), 7));
+    }
+
+    [Fact]
+    public void PricesAreTheOriginals()
+    {
+        Assert.Equal(300, Outfitting.Items[1].Price);   // missile, 30.0 Cr
+        Assert.Equal(4000, Outfitting.Items[2].Price);  // large cargo bay, 400.0 Cr
+        Assert.Equal(6000, Outfitting.Items[3].Price);  // E.C.M., 600.0 Cr
+        Assert.Equal(5250, Outfitting.Items[6].Price);  // fuel scoops, 525.0 Cr
+        Assert.Equal(1000, Outfitting.Items[7].Price);  // escape pod, 100.0 Cr
+        Assert.Equal(7000, Outfitting.Items[9].Price);  // energy unit, 700.0 Cr
+        Assert.Equal(30000, Outfitting.Items[11].Price); // galactic hyperdrive, 3000.0 Cr
+        Assert.Equal(19000, Outfitting.Items[12].Price); // military lasers, 1900.0 Cr
+    }
+
+    [Fact]
+    public void FuelIsPricedByTheLightYear()
+    {
+        Commander commander = Commander.CreateDefault();
+        StarSystem system = SystemWithTechLevel(4);
+        commander.Fuel = 60; // 10 light years of space
+        int cash = commander.Cash;
+
+        // Buying 20 light years only fills the tank, and only costs for 10
+        string? result = Outfitting.Buy(commander, system, 0, lightYears: 20);
+
+        Assert.NotNull(result);
+        Assert.Equal(70, commander.Fuel);
+        Assert.Equal(cash - (10 * Outfitting.FuelPricePerLightYear), commander.Cash);
+        Assert.Contains("10 light years", result);
+
+        // And a full tank cannot be filled again
+        Assert.Contains("full", Outfitting.Buy(commander, system, 0, lightYears: 5)!);
+    }
+
+    [Fact]
+    public void BuyingEquipmentSpendsCashAndFitsIt()
+    {
+        Commander commander = Commander.CreateDefault();
+        StarSystem system = SystemWithTechLevel(15);
+        commander.Cash = 100000;
+
+        Assert.NotNull(Outfitting.Buy(commander, system, 3)); // E.C.M.
+        Assert.True(commander.Ecm);
+        Assert.Equal(100000 - 6000, commander.Cash);
+
+        Assert.NotNull(Outfitting.Buy(commander, system, 6)); // fuel scoops
+        Assert.True(commander.FuelScoops);
+
+        Assert.NotNull(Outfitting.Buy(commander, system, 9)); // energy unit
+        Assert.True(commander.EnergyUnit);
+        Assert.Contains("already", Outfitting.Buy(commander, system, 9)!);
+
+        Assert.NotNull(Outfitting.Buy(commander, system, 2)); // large cargo bay
+        Assert.Equal(35, commander.CargoCapacity);
+    }
+
+    [Fact]
+    public void CannotBuyWithoutTheCredits()
+    {
+        Commander commander = Commander.CreateDefault(); // 100 credits
+        StarSystem system = SystemWithTechLevel(15);
+
+        string? result = Outfitting.Buy(commander, system, 11); // galactic hyperdrive, 3000 Cr
+        Assert.Contains("Not enough", result!);
+        Assert.False(commander.GalacticHyperdrive);
+        Assert.Equal(1000, commander.Cash);
+    }
+
+    [Fact]
+    public void MissilesFillTheRackAndLasersFillTheMounts()
+    {
+        Commander commander = Commander.CreateDefault();
+        StarSystem system = SystemWithTechLevel(15);
+        commander.Cash = 1000000;
+
+        Assert.Equal(3, commander.Missiles);
+        Outfitting.Buy(commander, system, 1);
+        Assert.Equal(4, commander.Missiles);
+        Assert.Contains("full", Outfitting.Buy(commander, system, 1)!);
+
+        // The extra laser items upgrade the front mount or fill an empty one
+        Outfitting.Buy(commander, system, 5); // beam lasers
+        Assert.Equal(LaserType.Beam, commander.GetLaser(LaserMount.Front));
+
+        Outfitting.Buy(commander, system, 12); // military lasers
+        Assert.Equal(LaserType.Military, commander.GetLaser(LaserMount.Front));
+    }
+
+    [Fact]
+    public void AbuyChangesTheShipAsWellAsTheCommander()
+    {
+        // Dock somewhere that actually stocks an energy unit
+        StarSystem rich = SystemWithTechLevel(15);
+        Commander commander = Commander.CreateDefault();
+        commander.CurrentSystem = rich;
+        commander.Cash = 100000;
+
+        var player = new Ship(11, "cobra-mk-3", "Cobra Mk III");
+        var session = new GameSession(commander, new FlightSim(player));
+        session.Dock();
+
+        Assert.False(session.Flight.Player.HasEnergyUnit);
+        session.BuyEquipment(9);
+        Assert.True(session.Flight.Player.HasEnergyUnit);
+    }
+}

@@ -59,6 +59,9 @@ public sealed class GameOptions
     /// <summary>If set, start docked at the station rather than in flight.</summary>
     public bool StartDocked { get; private set; }
 
+    /// <summary>Which docked screen to show, when starting docked.</summary>
+    public DockedScreen StartScreen { get; private set; } = DockedScreen.Market;
+
     /// <summary>The type of laser to fit before starting, for testing.</summary>
     public LaserType FrontLaser { get; private set; } = LaserType.Pulse;
 
@@ -131,6 +134,11 @@ public sealed class GameOptions
                     break;
                 case "--dock":
                     options.StartDocked = true;
+                    options.StartScreen = (Next() ?? "market").ToLowerInvariant() switch
+                    {
+                        "equipment" or "equip" => DockedScreen.Equipment,
+                        _ => DockedScreen.Market,
+                    };
                     break;
                 case "--font-sheet":
                     options.PrintFontSheet = true;
@@ -197,7 +205,7 @@ public sealed class GameOptions
               --hold <controls>       hold controls during the warmup: left, right, up, down,
                                       faster, slower, fire (comma separated)
               --font-sheet            draw every character in the font and exit
-              --dock                  start docked at the station
+              --dock [screen]         start docked, at the market or the equipment shop
               --laser <type>          fit a pulse, beam, military or none laser to the front
               --fully-equipped        start with every piece of equipment
               --screenshot <path>   write a PNG of frame --frame and exit
