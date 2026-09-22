@@ -38,7 +38,16 @@ Commodore 64 only, and the altitude indicator is Apple II only.
 1. **Data is extracted, never retyped.** Ship blueprints, market/equipment tables, text tokens and
    galaxy seeds come from the asm library through `tools/EliteDataExtractor`, and extraction is
    verified against the reference binaries in `versions/disc/3-assembled-output/*.bin`.
-2. **Maths is ported, not reinvented.** 8-bit unit vectors (magnitude 256), the `SNE` sine table,
+2. **Use the original algorithms.** Every behaviour comes from the original's routines where one
+   exists, and the routine is named in the code and the commit. Where an invention has crept in, it
+   is a bug to be replaced, not a variation to be kept. The list of things built by hand and later
+   replaced by the original's own algorithm is a standing embarrassment and a useful reminder: an
+   invented PD controller for the docking computer, where DOCKIT has three phases and matches the
+   station's roll; key presses for rotation, where DOCKIT writes INWK+29 and INWK+30; and a
+   constant station roll of 6, where the main game loop gives the station a random clockwise roll.
+   Each was found by reading the source *after* writing the invention, which is the wrong order.
+
+3. **Maths is ported, not reinvented.** 8-bit unit vectors (magnitude 256), the `SNE` sine table,
    `MULT1`/`MLTU2`/`FMLTU` truncating multiplies, 16-bit seeds for galaxy generation — so numbers
    match the original where the original is observable.
 3. **Gameplay constants keep original units** (speed, energy, fuel, cash in tenths of a credit,
