@@ -44,12 +44,17 @@ Primary target variant: **`versions/disc`, variant `sth` (Stairway to Hell)**, w
   system data (`TT25`), economy & prices, token-based text printing. Verified against canonical
   values (galaxy 0: *Tibedied* is system 0, seeds `&5A4A/&0248/&B753`; **Lave** is at (20, 173)
   and is "most famous for its vast rain forests and the Laveian tree grub").
-- **M3 — Flight & rendering.** In progress: solid-face 3D renderer with painter's-algorithm depth
-  sorting and the original's visibility rules ✅; view camera matching the original's projection ✅;
-  ported flight maths (`MVS4`/`MVS5`/`TIDY`/`MVEIT` part 5) ✅; flight controls ✅. Still to do: the
-  flight scene itself, the dashboard/HUD, sun/planet/station objects, hyperspace arrival.
+- **M3 — Flight & rendering.** In progress. Done: solid-face 3D renderer with painter's-algorithm
+  depth sorting and the original's visibility rules; view camera matching the original's projection;
+  ported flight maths (`MVS4`/`MVS5`/`TIDY`/`MVEIT` parts 1/3/5/6/7); flight controls with keyboard
+  auto-recentre; the flight scene itself, running at the original's fixed 50 Hz with the universe
+  rotating around us; a first-pass dashboard (crosshair, shields, fuel, temperatures, missiles,
+  energy banks, speed, roll and pitch indicators, compass). Still to do: the sun and planet objects,
+  the authentic dial coordinates from `dials_part_*`, the bitmap font and dashboard text, detail
+  edge lines for close ships, and hyperspace arrival.
 - **M4 — Combat & AI.** Lasers, missiles, ECM, energy banks, shields, `TACTICS` ship AI, spawning,
-  explosions, escape pods, bounty, rating.
+  explosions, escape pods, bounty, rating. (The flight loop already runs the original's TIDY
+  schedule and per-ship own-motion; tactics and the rest come here.)
 - **M5 — Docked screens & missions.** Launch/docking (manual + docking computer), market, equipment,
   shipyard, short/long-range charts, Data on System, commander save/load, missions (Constrictor,
   Thargoid documents), galactic hyperspace (8 galaxies).

@@ -61,15 +61,27 @@ public static class FlightControls
     }
 
     /// <summary>
-    /// The roll angle alpha: the magnitude in ALP1 and the two sign flags the original keeps in
-    /// ALP2 (the sign of the angle) and ALP2+1 (the sign of the rate).
+    /// Applies the keyboard damping to the roll rate. The original calls cntr twice per frame for
+    /// roll, so the rate creeps towards the centre by two.
     /// </summary>
-    public static (byte Alp1, byte Alp2, byte Alp2Flipped) RollAngle(byte jstx, bool dampingDisabled = false)
-    {
-        // The original applies the keyboard damping twice for roll
-        byte x = ShipMath.Cntr(ShipMath.Cntr(jstx, dampingDisabled), dampingDisabled);
+    public static byte DampRollRate(byte jstx, bool dampingDisabled = false) =>
+        ShipMath.Cntr(ShipMath.Cntr(jstx, dampingDisabled), dampingDisabled);
 
-        byte a = (byte)(x ^ 0x80);
+    /// <summary>
+    /// Applies the keyboard damping to the pitch rate. The original calls cntr once per frame for
+    /// pitch.
+    /// </summary>
+    public static byte DampPitchRate(byte jsty, bool dampingDisabled = false) =>
+        ShipMath.Cntr(jsty, dampingDisabled);
+
+    /// <summary>
+    /// The roll angle alpha from an already-damped roll rate: the magnitude in ALP1 and the two
+    /// sign flags the original keeps in ALP2 (the sign of the angle) and ALP2+1 (the sign of the
+    /// rate).
+    /// </summary>
+    public static (byte Alp1, byte Alp2, byte Alp2Flipped) RollAngle(byte jstx)
+    {
+        byte a = (byte)(jstx ^ 0x80);
         byte alp2 = (byte)(a & 0x80);           // ALP2
         byte alp2Flipped = (byte)((a ^ 0x80) & 0x80); // ALP2+1
 
@@ -89,13 +101,12 @@ public static class FlightControls
     }
 
     /// <summary>
-    /// The pitch angle beta: the magnitude in BET1 and the sign flags BET2 and BET2+1.
+    /// The pitch angle beta from an already-damped pitch rate: the magnitude in BET1 and the sign
+    /// flags BET2 and BET2+1.
     /// </summary>
-    public static (byte Bet1, byte Bet2, byte Bet2Flipped) PitchAngle(byte jsty, bool dampingDisabled = false)
+    public static (byte Bet1, byte Bet2, byte Bet2Flipped) PitchAngle(byte jsty)
     {
-        byte x = ShipMath.Cntr(jsty, dampingDisabled);
-
-        byte a = (byte)(x ^ 0x80);
+        byte a = (byte)(jsty ^ 0x80);
         byte bet2Flipped = (byte)(a & 0x80);            // BET2+1
         byte bet2 = (byte)((a ^ 0x80) & 0x80);          // BET2
 
@@ -131,15 +142,18 @@ public static class FlightControls
         return jstx;
     }
 
-    /// <summary>Applies the pitch keys to the pitch rate.</summary>
-    public static byte ApplyPitchKeys(byte jsty, bool pitchUp, bool pitchDown, bool autoRecentre)
+    /// <summary>
+    /// Applies the pitch keys to the pitch rate. Note the original's directions: the "X" key pulls
+    /// the nose up and *decreases* the rate, while "S" pitches down and increases it.
+    /// </summary>
+    public static byte ApplyPitchKeys(byte jsty, bool pullUp, bool pitchDown, bool autoRecentre)
     {
-        if (pitchDown)
+        if (pullUp)
         {
             jsty = Redu2(jsty, PitchStep, autoRecentre);
         }
 
-        if (pitchUp)
+        if (pitchDown)
         {
             jsty = Bump2(jsty, PitchStep, autoRecentre);
         }

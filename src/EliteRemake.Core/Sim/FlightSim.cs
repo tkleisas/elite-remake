@@ -1,0 +1,222 @@
+using EliteRemake.Core.Maths;
+
+namespace EliteRemake.Core.Sim;
+
+/// <summary>The player's control inputs for one frame.</summary>
+/// <param name="RollLeft">The "&lt;" key: roll left.</param>
+/// <param name="RollRight">The "&gt;" key: roll right.</param>
+/// <param name="PullUp">The "X" key: pull the nose up.</param>
+/// <param name="PitchDown">The "S" key: pitch the nose down.</param>
+/// <param name="SpeedUp">The Space key.</param>
+/// <param name="SlowDown">The "?" key.</param>
+public readonly record struct FlightInput(
+    bool RollLeft = false,
+    bool RollRight = false,
+    bool PullUp = false,
+    bool PitchDown = false,
+    bool SpeedUp = false,
+    bool SlowDown = false);
+
+/// <summary>
+/// The flight simulation: our ship at the centre of its own universe, with everything else moving
+/// around it.
+/// </summary>
+/// <remarks>
+/// The original never tracks our own position or orientation in flight. Instead, our ship sits at
+/// the origin facing along +z, and when we pitch or roll it is the rest of the universe that moves:
+/// MVEIT rotates every ship's location (part 5) and orientation vectors (part 7) by our pitch and
+/// roll in the opposite direction, and moves each one backwards by our speed (part 6) because it is
+/// we who are travelling. Each ship also flies forward along its own nose vector (part 3) and has
+/// its vectors tidied on a rolling schedule (part 1).
+///
+/// This class runs that loop. It is deliberately free of any rendering or platform code so the
+/// simulation can be tested on its own and replayed deterministically.
+/// </remarks>
+public sealed class FlightSim
+{
+    /// <summary>The number of ship slots in the local bubble (the original's NOSH).</summary>
+    public const int MaxShipsInBubble = 12;
+
+    /// <summary>The maximum speed the player can reach (the original caps DELTA at 40).</summary>
+    public const byte MaxSpeed = 40;
+
+    private readonly List<Ship> _bubble = [];
+
+    /// <summary>Creates a flight simulation with our ship and an empty bubble.</summary>
+    /// <param name="player">Our ship. Its position and orientation are not used in flight.</param>
+    public FlightSim(Ship player) => Player = player;
+
+    /// <summary>Our ship.</summary>
+    public Ship Player { get; }
+
+    /// <summary>The ships in the local bubble of universe, in slot order.</summary>
+    public IReadOnlyList<Ship> Bubble => _bubble;
+
+    /// <summary>Our speed, the original's DELTA.</summary>
+    public byte Speed { get; set; }
+
+    /// <summary>The roll rate, the original's JSTX, where 128 is the centre.</summary>
+    public byte RollRate { get; private set; } = FlightControls.Centre;
+
+    /// <summary>The pitch rate, the original's JSTY, where 128 is the centre.</summary>
+    public byte PitchRate { get; private set; } = FlightControls.Centre;
+
+    /// <summary>Whether keyboard auto-recentre is enabled (the original's DJD).</summary>
+    public bool AutoRecentre { get; set; } = true;
+
+    /// <summary>Whether keyboard damping is disabled (the original's DAMP).</summary>
+    public bool DampingDisabled { get; set; }
+
+    /// <summary>The main loop counter, which the original uses to schedule work across frames.</summary>
+    public int MainLoopCounter { get; private set; }
+
+    /// <summary>The roll angle applied this frame (ALP1), for diagnostics and the dashboard.</summary>
+    public byte RollAngle { get; private set; }
+
+    /// <summary>The roll direction applied this frame (ALP2).</summary>
+    public byte RollSign { get; private set; }
+
+    /// <summary>The pitch angle applied this frame (BET1).</summary>
+    public byte PitchAngleValue { get; private set; }
+
+    /// <summary>The pitch direction applied this frame (BET2).</summary>
+    public byte PitchSign { get; private set; }
+
+    /// <summary>Adds a ship to the local bubble, up to the original's slot limit.</summary>
+    public bool Spawn(Ship ship)
+    {
+        if (_bubble.Count >= MaxShipsInBubble)
+        {
+            return false;
+        }
+
+        _bubble.Add(ship);
+        return true;
+    }
+
+    /// <summary>Removes a ship from the local bubble.</summary>
+    public bool Remove(Ship ship) => _bubble.Remove(ship);
+
+    /// <summary>Removes every ship whose status has marked it for removal.</summary>
+    public int RemoveKilledShips() => _bubble.RemoveAll(ship => ship.IsKilled);
+
+    /// <summary>Advances the simulation by one frame (the original runs at 50 frames a second).</summary>
+    public void Step(FlightInput input = default)
+    {
+        UpdateSpeed(input);
+        UpdateRotation(input);
+
+        for (int slot = 0; slot < _bubble.Count; slot++)
+        {
+            Mveit(_bubble[slot], slot);
+        }
+
+        MainLoopCounter++;
+    }
+
+    /// <summary>
+    /// Applies the speed keys. The original changes DELTA by one per frame, caps it at 40 and never
+    /// lets it drop below 1.
+    /// </summary>
+    private void UpdateSpeed(FlightInput input)
+    {
+        if (input.SpeedUp && Speed < MaxSpeed)
+        {
+            Speed++;
+        }
+
+        if (input.SlowDown)
+        {
+            Speed--;
+            if (Speed == 0)
+            {
+                Speed = 1;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Applies the roll and pitch keys to their rates and works out the angles the universe will be
+    /// rotated by.
+    /// </summary>
+    private void UpdateRotation(FlightInput input)
+    {
+        // The original applies the key presses first, then damps the rates towards the centre and
+        // stores the damped values back into JSTX and JSTY
+        RollRate = FlightControls.ApplyRollKeys(RollRate, input.RollLeft, input.RollRight, AutoRecentre);
+        PitchRate = FlightControls.ApplyPitchKeys(PitchRate, input.PullUp, input.PitchDown, AutoRecentre);
+        RollRate = FlightControls.DampRollRate(RollRate, DampingDisabled);
+        PitchRate = FlightControls.DampPitchRate(PitchRate, DampingDisabled);
+
+        (byte alp1, byte alp2, _) = FlightControls.RollAngle(RollRate);
+        (byte bet1, byte bet2, _) = FlightControls.PitchAngle(PitchRate);
+
+        RollAngle = alp1;
+        RollSign = alp2;
+        PitchAngleValue = bet1;
+        PitchSign = bet2;
+    }
+
+    /// <summary>
+    /// MVEIT: moves one ship for this frame, in the original's order.
+    /// </summary>
+    private void Mveit(Ship ship, int slot)
+    {
+        // Part 1: tidy the ship's orientation vectors every 16 frames, one slot at a time. The
+        // original compares the main loop counter with the slot number modulo 16.
+        if (((MainLoopCounter ^ slot) & 15) == 0 && !ship.IsExploding && !ship.IsKilled)
+        {
+            ShipMath.Tidy(ship.Orientation);
+        }
+
+        if (ship.IsExploding || ship.IsKilled)
+        {
+            return;
+        }
+
+        // Part 3: move the ship forward along its own nose vector by its own speed
+        if (ship.Speed != 0)
+        {
+            ShipMovement.MoveShipForward(ship.Data, ship.Orientation.AsSpan(Orientation.Nosev), ship.Speed);
+        }
+
+        // Part 5: rotate the ship's location by our pitch and roll, as the universe turns around us
+        ShipMovement.RotateLocationByOurPitchAndRoll(
+            ship.Data,
+            RollAngle,
+            RollSign,
+            PitchAngleValue,
+            PitchSign);
+
+        // Part 6: move the ship backwards by our speed, as it is we who are travelling. The
+        // original skips this for the sun, which returns from MVEIT before its own rotation.
+        ShipMovement.MoveShipByOurSpeed(ship.Data, Speed);
+
+        // Part 7: rotate the ship's orientation vectors by our pitch and roll, so its heading stays
+        // correct in our rotating frame. The sun is the exception: it has no meaningful heading.
+        if (ship.Type != ShipTypes.Sun)
+        {
+            ShipMath.Mvs4(ship.Orientation, Orientation.Nosev, RollAngle, PitchAngleValue);
+            ShipMath.Mvs4(ship.Orientation, Orientation.Roofv, RollAngle, PitchAngleValue);
+            ShipMath.Mvs4(ship.Orientation, Orientation.Sidev, RollAngle, PitchAngleValue);
+        }
+    }
+}
+
+/// <summary>
+/// The ship types the simulation itself cares about. The rest come from the original's XX21 table.
+/// </summary>
+public static class ShipTypes
+{
+    /// <summary>The sun, which the original gives the type number 129.</summary>
+    public const int Sun = 129;
+
+    /// <summary>The planet.</summary>
+    public const int Planet = -1;
+
+    /// <summary>The Coriolis space station.</summary>
+    public const int Coriolis = 2;
+
+    /// <summary>The escape pod.</summary>
+    public const int EscapePod = 3;
+}

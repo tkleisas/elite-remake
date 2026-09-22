@@ -1,3 +1,5 @@
+using EliteRemake.Core.Sim;
+
 namespace EliteRemake.Game;
 
 /// <summary>
@@ -38,6 +40,18 @@ public sealed class GameOptions
 
     /// <summary>Distance to place the ship from the camera in the viewer.</summary>
     public float? ViewerDistance { get; private set; }
+
+    /// <summary>How far ahead of us to place the space station in the flight scene.</summary>
+    public int StationDistance { get; private set; } = 3000;
+
+    /// <summary>If set, the flight scene starts with an empty system.</summary>
+    public bool EmptySystem { get; private set; }
+
+    /// <summary>Number of frames to run the flight simulation before the first frame is drawn.</summary>
+    public int SimWarmupFrames { get; private set; }
+
+    /// <summary>Controls to hold down during the simulation warmup, e.g. "left,up".</summary>
+    public FlightInput WarmupInput { get; private set; }
 
     public static GameOptions Parse(string[] args)
     {
@@ -82,6 +96,18 @@ public sealed class GameOptions
                 case "--viewer-distance":
                     options.ViewerDistance = float.Parse(Next() ?? "0");
                     break;
+                case "--station-distance":
+                    options.StationDistance = int.Parse(Next() ?? "6000");
+                    break;
+                case "--empty":
+                    options.EmptySystem = true;
+                    break;
+                case "--sim-warmup":
+                    options.SimWarmupFrames = int.Parse(Next() ?? "0");
+                    break;
+                case "--hold":
+                    options.WarmupInput = ParseControls(Next() ?? string.Empty);
+                    break;
                 case "--help":
                 case "-h":
                     PrintHelp();
@@ -96,6 +122,27 @@ public sealed class GameOptions
         }
 
         return options;
+    }
+
+    /// <summary>Turns a comma-separated list of control names into a flight input.</summary>
+    public static FlightInput ParseControls(string value)
+    {
+        var input = new FlightInput();
+        foreach (string name in value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            input = name.ToLowerInvariant() switch
+            {
+                "left" => input with { RollLeft = true },
+                "right" => input with { RollRight = true },
+                "up" => input with { PullUp = true },
+                "down" => input with { PitchDown = true },
+                "faster" => input with { SpeedUp = true },
+                "slower" => input with { SlowDown = true },
+                _ => throw new ArgumentException($"Unknown control: {name}"),
+            };
+        }
+
+        return input;
     }
 
     private static void PrintHelp()
@@ -113,6 +160,11 @@ public sealed class GameOptions
               --viewer-heading <deg>  hold the viewed ship at this heading
               --viewer-pitch <deg>    hold the viewed ship at this pitch
               --viewer-distance <d>   place the viewed ship this far away
+              --station-distance <d>  place the space station this far ahead (default 6000)
+              --empty                 start the flight scene with an empty system
+              --sim-warmup <frames>   run the flight simulation this many frames before drawing
+              --hold <controls>       hold controls during the warmup: left, right, up, down,
+                                      faster, slower (comma separated)
               --screenshot <path>   write a PNG of frame --frame and exit
               --frame <n>           frame to capture (default 60)
             """);

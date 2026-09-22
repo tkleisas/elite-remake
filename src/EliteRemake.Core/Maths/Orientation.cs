@@ -24,13 +24,37 @@ public sealed class Orientation
     /// <summary>Byte offset of sidev.</summary>
     public const int Sidev = 12;
 
-    private readonly byte[] _bytes = new byte[18];
+    private readonly byte[] _bytes;
+    private readonly int _offset;
+
+    /// <summary>Creates an orientation with its own storage.</summary>
+    public Orientation()
+        : this(new byte[18], 0)
+    {
+    }
+
+    /// <summary>
+    /// Creates an orientation that is a view over part of another buffer, so a ship's orientation
+    /// can live inside its data block exactly as it does in the original's INWK workspace.
+    /// </summary>
+    /// <param name="storage">The buffer holding the 18 bytes.</param>
+    /// <param name="offset">Offset of the first byte of nosev.</param>
+    public Orientation(byte[] storage, int offset)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(offset, 0);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(offset + 18, storage.Length);
+        _bytes = storage;
+        _offset = offset;
+    }
 
     /// <summary>Raw byte access, matching the original's byte-addressed workspace.</summary>
-    public ref byte this[int index] => ref _bytes[index];
+    public ref byte this[int index] => ref _bytes[_offset + index];
 
     /// <summary>A span over all 18 bytes, for the routines that take a vector window.</summary>
-    public Span<byte> AsSpan() => _bytes.AsSpan();
+    public Span<byte> AsSpan() => _bytes.AsSpan(_offset, 18);
+
+    /// <summary>A span over one 6-byte vector, for the routines that work on a single vector.</summary>
+    public Span<byte> AsSpan(int vector) => _bytes.AsSpan(_offset + vector, 6);
 
     /// <summary>Reads a component as a sign-magnitude 16-bit value.</summary>
     public ushort GetComponent(int vector, int axis) =>

@@ -40,6 +40,9 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
     /// <summary>The view camera, sized to the current space view.</summary>
     public ViewCamera Camera { get; private set; } = null!;
 
+    /// <summary>Where the space view and the dashboard sit in the window.</summary>
+    public ScreenLayout Layout { get; private set; }
+
     protected override void LoadContent()
     {
         // MonoGame calls LoadContent from Initialize, so the graphics device is ready here but
@@ -48,18 +51,31 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
         _pixel = new Texture2D(GraphicsDevice, 1, 1);
         _pixel.SetData([Color.White]);
 
+        Layout = ScreenLayout.ForWindow(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
         Camera = CreateCamera();
-        _scene = SceneFactory.Create(_options, GraphicsDevice, Camera);
+        _scene = SceneFactory.Create(_options, GraphicsDevice, Camera, Layout);
+
+        if (_options.SimWarmupFrames > 0 && _scene is Scenes.FlightScene flight)
+        {
+            flight.Warmup(_options.SimWarmupFrames, _options.WarmupInput);
+        }
     }
 
     /// <summary>Keeps the projection in step with the window size.</summary>
     private void UpdateCameraToViewport()
     {
         var viewport = GraphicsDevice.Viewport;
-        if (Math.Abs(Camera.ViewportWidth - viewport.Width) > 0.5f ||
-            Math.Abs(Camera.ViewportHeight - viewport.Height) > 0.5f)
+        ScreenLayout layout = ScreenLayout.ForWindow(viewport.Width, viewport.Height);
+        if (layout.View != Layout.View)
         {
-            Camera.Resize(viewport.Width, viewport.Height, viewport.Width / 2f, viewport.Height / 2f);
+            Layout = layout;
+        }
+
+        Rectangle view = Layout.View;
+        if (Math.Abs(Camera.ViewportWidth - view.Width) > 0.5f ||
+            Math.Abs(Camera.ViewportHeight - view.Height) > 0.5f)
+        {
+            Camera.Resize(view.Width, view.Height, view.Width / 2f, view.Height / 2f);
         }
     }
 
@@ -72,12 +88,12 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
 
     private ViewCamera CreateCamera()
     {
-        var viewport = GraphicsDevice.Viewport;
+        Rectangle view = Layout.View;
         return new ViewCamera(
-            viewport.Width,
-            viewport.Height,
-            viewport.Width / 2f,
-            viewport.Height / 2f);
+            view.Width,
+            view.Height,
+            view.Width / 2f,
+            view.Height / 2f);
     }
 
     protected override void Update(GameTime gameTime)

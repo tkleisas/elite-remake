@@ -109,12 +109,14 @@ public sealed class MeshRenderer : IDisposable
         Color colour,
         float visibilityDistance)
     {
-        // The original reduces the ship's z distance to the range 0-31 and hides detail whose
-        // visibility value is smaller than that
+        // The original reduces the ship's z distance to the range 0-31 by dividing by 128 (its
+        // LL9 part 2 shifts the 16-bit z value right seven times), and hides detail whose
+        // visibility value is smaller than that. Beyond the blueprint's visibility distance, which
+        // is compared against z_hi, the ship is drawn as a single dot.
         float z = MathF.Max(position.Z, 0);
-        int visibility = Math.Clamp((int)(z / 8), 0, 31);
+        int visibility = Math.Clamp((int)(z / 128), 0, 31);
 
-        if (z > visibilityDistance)
+        if ((z / 256) > visibilityDistance)
         {
             DrawDot(camera, position, colour);
             return;
