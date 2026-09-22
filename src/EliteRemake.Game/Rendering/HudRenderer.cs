@@ -21,13 +21,19 @@ public sealed class HudRenderer
     private readonly Rectangle _view;
     private readonly Rectangle _dashboard;
     private readonly float _scale;
+    private readonly TextRenderer _text;
 
-    public HudRenderer(ScreenLayout layout)
+    public HudRenderer(ScreenLayout layout, TextRenderer text)
     {
         _view = layout.View;
         _dashboard = layout.Dashboard;
         _scale = MathF.Max(layout.Scale, 0.5f);
+        _text = text;
     }
+
+    /// <summary>The text scale that gives eight-by-eight characters of a readable size.</summary>
+    private int TextScale => Math.Max(1, (int)MathF.Round(_scale));
+    private int LineHeight => TextRenderer.CellHeight(TextScale);
 
     /// <summary>The colour of an indicator that is switched on.</summary>
     public Color On { get; set; } = Palette.White;
@@ -40,6 +46,9 @@ public sealed class HudRenderer
 
     /// <summary>The colour of the crosshair in the middle of the space view.</summary>
     public Color Crosshair { get; set; } = new(210, 220, 235);
+
+    /// <summary>How many missile indicators are lit, which the commander's loadout will drive.</summary>
+    public int MissilesArmed { get; set; } = 3;
 
     /// <summary>Draws the whole dashboard and the crosshair.</summary>
     public void Draw(SpriteBatch spriteBatch, Texture2D pixel, ViewCamera camera, FlightSim sim)
@@ -93,18 +102,19 @@ public sealed class HudRenderer
     /// <summary>Shields, fuel and the missile indicators.</summary>
     private void DrawLeftPanel(SpriteBatch spriteBatch, Texture2D pixel, FlightSim sim)
     {
-        float left = _dashboard.Left + (_dashboard.Width * 0.05f);
+        // Leave room on the left for the two-letter instrument labels
+        float left = _dashboard.Left + (_dashboard.Width * 0.075f);
         float top = _dashboard.Top + (_dashboard.Height * 0.12f);
         float width = MathF.Min(_dashboard.Width * 0.32f, 200 * _scale);
         float height = MathF.Max(4f, _dashboard.Height * 0.075f);
         float spacing = _dashboard.Height * 0.135f;
 
         // Fore and aft shields, then fuel and the two temperatures, as on the original panel
-        DrawBar(spriteBatch, pixel, left, top, width, height, 1.0f, Palette.Cyan, "FS");
-        DrawBar(spriteBatch, pixel, left, top + spacing, width, height, 1.0f, Palette.Cyan, "AS");
-        DrawBar(spriteBatch, pixel, left, top + (spacing * 2), width, height, 0.7f, Palette.Yellow, "FU");
-        DrawBar(spriteBatch, pixel, left, top + (spacing * 3), width, height, 0.25f, Palette.Red, "CT");
-        DrawBar(spriteBatch, pixel, left, top + (spacing * 4), width, height, 0.15f, Palette.Red, "LT");
+        DrawLabelledBar(spriteBatch, pixel, left, top, width, height, 1.0f, Palette.Cyan, "FS");
+        DrawLabelledBar(spriteBatch, pixel, left, top + spacing, width, height, 1.0f, Palette.Cyan, "AS");
+        DrawLabelledBar(spriteBatch, pixel, left, top + (spacing * 2), width, height, 0.7f, Palette.Yellow, "FU");
+        DrawLabelledBar(spriteBatch, pixel, left, top + (spacing * 3), width, height, 0.25f, Palette.Red, "CT");
+        DrawLabelledBar(spriteBatch, pixel, left, top + (spacing * 4), width, height, 0.15f, Palette.Red, "LT");
 
         // Missile indicators: four boxes that fill in as missiles are armed
         _missiles.Clear();
@@ -122,10 +132,18 @@ public sealed class HudRenderer
 
         for (int i = 0; i < _missiles.Count; i++)
         {
-            bool armed = i < sim.Player.Energy % 5;
+            bool armed = i < MissilesArmed;
             spriteBatch.Draw(pixel, _missiles[i], armed ? Palette.Yellow : Off);
             DrawOutline(spriteBatch, pixel, _missiles[i], Frame);
         }
+
+        _text.Draw(
+            spriteBatch,
+            "MISSILES",
+            _missiles[^1].Right + (int)(6 * _scale),
+            _missiles[0].Top,
+            TextScale,
+            Frame);
     }
 
     /// <summary>Energy banks, speed and the roll and pitch indicators.</summary>
@@ -141,15 +159,19 @@ public sealed class HudRenderer
         // Four energy banks, drawn from the right
         for (int i = 0; i < 4; i++)
         {
-            DrawBar(spriteBatch, pixel, left, top + (i * spacing), width, height, 1.0f, Palette.Green, null);
+            DrawLabelledBar(spriteBatch, pixel, left, top + (i * spacing), width, height, 1.0f, Palette.Green, "EN");
         }
 
         // Speed: a bar that fills as we accelerate, plus the roll and pitch indicators below it,
         // which is how the original's RL and DC dials read
         float speedY = top + (spacing * 5.2f);
-        DrawBar(spriteBatch, pixel, left, speedY, width, height, sim.Speed / (float)FlightSim.MaxSpeed, Palette.White, null);
-        DrawCentreBar(spriteBatch, pixel, left, speedY + spacing, width, height, sim.RollRate, Palette.Cyan);
-        DrawCentreBar(spriteBatch, pixel, left, speedY + (spacing * 2), width, height, sim.PitchRate, Palette.Cyan);
+        DrawLabelledBar(spriteBatch, pixel, left, speedY, width, height, sim.Speed / (float)FlightSim.MaxSpeed, Palette.White, "SP");
+        DrawCentreBar(spriteBatch, pixel, left, speedY + spacing, width, height, sim.RollRate, "RL");
+        DrawCentreBar(spriteBatch, pixel, left, speedY + (spacing * 2), width, height, sim.PitchRate, "DC");
+
+        // The speed figure itself, as the original prints it beside the dial
+        string speed = sim.Speed.ToString();
+        _text.Draw(spriteBatch, speed, (int)(right + (6 * _scale)), (int)speedY, TextScale, Palette.White);
     }
 
     /// <summary>The compass: a circle with a dot showing where the space station is.</summary>
@@ -163,6 +185,23 @@ public sealed class HudRenderer
         DrawCircle(spriteBatch, pixel, cx, cy, radius * 0.55f, new Color(60, 66, 78), 24);
     }
 
+    /// <summary>Draws a labelled bar, with the label to its left as the original does.</summary>
+    private void DrawLabelledBar(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        float x,
+        float y,
+        float width,
+        float height,
+        float fraction,
+        Color colour,
+        string label)
+    {
+        int labelWidth = TextRenderer.Measure(label, TextScale).X;
+        _text.Draw(spriteBatch, label, (int)(x - labelWidth - (4 * _scale)), (int)y, TextScale, Frame);
+        DrawBar(spriteBatch, pixel, x, y, width, height, fraction, colour);
+    }
+
     /// <summary>Draws a horizontal bar that fills from the left.</summary>
     private void DrawBar(
         SpriteBatch spriteBatch,
@@ -172,10 +211,8 @@ public sealed class HudRenderer
         float width,
         float height,
         float fraction,
-        Color colour,
-        string? label)
+        Color colour)
     {
-        _ = label;
         DrawOutline(spriteBatch, pixel, new Rectangle((int)x, (int)y, (int)width, (int)height), Frame);
         float filled = Math.Clamp(fraction, 0f, 1f) * (width - 2);
         if (filled > 0)
@@ -193,9 +230,12 @@ public sealed class HudRenderer
         float width,
         float height,
         byte rate,
-        Color colour)
+        string label)
     {
+        int labelWidth = TextRenderer.Measure(label, TextScale).X;
+        _text.Draw(spriteBatch, label, (int)(x - labelWidth - (4 * _scale)), (int)y, TextScale, Frame);
         DrawOutline(spriteBatch, pixel, new Rectangle((int)x, (int)y, (int)width, (int)height), Frame);
+        Color colour = Palette.Cyan;
 
         float centre = x + (width / 2);
         DrawRect(spriteBatch, pixel, centre, y, MathF.Max(1, _scale), height, new Color(80, 86, 98));

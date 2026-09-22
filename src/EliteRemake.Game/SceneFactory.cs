@@ -9,7 +9,7 @@ namespace EliteRemake.Game;
 /// <summary>Builds the scene the game should start in.</summary>
 public static class SceneFactory
 {
-    public static IScene Create(GameOptions options, GraphicsDevice device, ViewCamera camera, ScreenLayout layout)
+    public static IScene Create(GameOptions options, GraphicsDevice device, ViewCamera camera, ScreenLayout layout, TextRenderer text)
     {
         if (options.ViewerShip is { } shipName)
         {
@@ -24,14 +24,14 @@ public static class SceneFactory
                 fixedPitch: options.ViewerPitch);
         }
 
-        return CreateFlightScene(options, device, camera, layout);
+        return CreateFlightScene(options, device, camera, layout, text);
     }
 
     /// <summary>
     /// Sets up a flight scene: our Cobra, a space station ahead of us and a few other ships to fly
     /// around, which is enough to exercise the flight model and the renderer.
     /// </summary>
-    private static IScene CreateFlightScene(GameOptions options, GraphicsDevice device, ViewCamera camera, ScreenLayout layout)
+    private static IScene CreateFlightScene(GameOptions options, GraphicsDevice device, ViewCamera camera, ScreenLayout layout, TextRenderer text)
     {
         var player = new Ship(11, "cobra-mk-3", "Cobra Mk III")
         {
@@ -41,7 +41,7 @@ public static class SceneFactory
         player.Energy = 150;
 
         var sim = new FlightSim(player);
-        var scene = new FlightScene(device, camera, sim, new HudRenderer(layout));
+        var scene = new FlightScene(device, camera, sim, new HudRenderer(layout, text));
 
         foreach (ShipCatalog.Entry entry in ShipCatalog.All)
         {

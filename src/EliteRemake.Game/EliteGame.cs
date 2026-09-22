@@ -15,6 +15,7 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
     private readonly GraphicsDeviceManager _graphics;
     private SpriteBatch _spriteBatch = null!;
     private Texture2D _pixel = null!;
+    private TextRenderer _text = null!;
     private IScene _scene = null!;
     private int _frame;
     private bool _screenshotWritten;
@@ -53,7 +54,8 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
 
         Layout = ScreenLayout.ForWindow(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
         Camera = CreateCamera();
-        _scene = SceneFactory.Create(_options, GraphicsDevice, Camera, Layout);
+        _text = new TextRenderer(GraphicsDevice, Data.FontData.Font);
+        _scene = SceneFactory.Create(_options, GraphicsDevice, Camera, Layout, _text);
 
         if (_options.SimWarmupFrames > 0 && _scene is Scenes.FlightScene flight)
         {
@@ -81,6 +83,7 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
 
     protected override void UnloadContent()
     {
+        _text?.Dispose();
         _pixel?.Dispose();
         _spriteBatch?.Dispose();
         base.UnloadContent();
@@ -124,6 +127,18 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
             Console.WriteLine(_scene.StatusLine);
         }
 
+        if (_options.PrintFontSheet && _frame == 3)
+        {
+            WriteFontSheet();
+
+            if (_options.ScreenshotPath is { } sheetPath)
+            {
+                SaveScreenshot(sheetPath);
+            }
+
+            Exit();
+        }
+
         if (_options.ScreenshotPath is { } path && !_screenshotWritten && _frame >= _options.ScreenshotFrame)
         {
             SaveScreenshot(path);
@@ -135,6 +150,32 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
         {
             Exit();
         }
+    }
+
+    /// <summary>
+    /// Draws every character the font defines, so the glyphs can be inspected at a glance.
+    /// </summary>
+    public void WriteFontSheet()
+    {
+        GraphicsDevice.Clear(new Color(0, 0, 0));
+        _spriteBatch.Begin();
+
+        const string rows =
+            " !\"#$%&'()*+,-./0123456789:;<=>?@" +
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_" +
+            "`abcdefghijklmnopqrstuvwxyz{|}~";
+
+        int scale = 3;
+        int cell = TextRenderer.CellWidth(scale) + 2;
+        int columns = 32;
+        for (int i = 0; i < rows.Length; i++)
+        {
+            int x = (i % columns) * cell;
+            int y = (i / columns) * (TextRenderer.CellHeight(scale) + 4);
+            _text.Draw(_spriteBatch, rows[i].ToString(), x, y, scale, Color.White);
+        }
+
+        _spriteBatch.End();
     }
 
     /// <summary>Writes the current back buffer to a PNG file.</summary>

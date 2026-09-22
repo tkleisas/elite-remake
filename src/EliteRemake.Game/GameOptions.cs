@@ -53,6 +53,9 @@ public sealed class GameOptions
     /// <summary>Controls to hold down during the simulation warmup, e.g. "left,up".</summary>
     public FlightInput WarmupInput { get; private set; }
 
+    /// <summary>If set, draw the whole font as a contact sheet and exit.</summary>
+    public bool PrintFontSheet { get; private set; }
+
     public static GameOptions Parse(string[] args)
     {
         var options = new GameOptions();
@@ -104,6 +107,9 @@ public sealed class GameOptions
                     break;
                 case "--sim-warmup":
                     options.SimWarmupFrames = int.Parse(Next() ?? "0");
+                    break;
+                case "--font-sheet":
+                    options.PrintFontSheet = true;
                     break;
                 case "--hold":
                     options.WarmupInput = ParseControls(Next() ?? string.Empty);
@@ -165,6 +171,7 @@ public sealed class GameOptions
               --sim-warmup <frames>   run the flight simulation this many frames before drawing
               --hold <controls>       hold controls during the warmup: left, right, up, down,
                                       faster, slower (comma separated)
+              --font-sheet            draw every character in the font and exit
               --screenshot <path>   write a PNG of frame --frame and exit
               --frame <n>           frame to capture (default 60)
             """);

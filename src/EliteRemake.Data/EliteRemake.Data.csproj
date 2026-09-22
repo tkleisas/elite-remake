@@ -6,6 +6,9 @@
   <ItemGroup>
     <ProjectReference Include="..\EliteRemake.Core\EliteRemake.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\data\font8x8.txt" LogicalName="EliteRemake.Data.data.font8x8.txt" />
+  </ItemGroup>
   <!-- The extracted data lives at the repository root, two levels up from this project. It is
        embedded so the game never needs an external data directory; the logical name is the one
        ShipData.ResourceName looks for. -->
