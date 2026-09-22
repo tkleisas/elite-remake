@@ -142,8 +142,9 @@ public sealed class TokenPrinter
                 break;
 
             case 3:
-                // The selected system's name
-                Emit(systemName);
+                // The selected system's name, which is a proper noun: it keeps its capital
+                // wherever it appears in the sentence
+                EmitProperNoun(systemName);
                 break;
 
             case 12:
@@ -159,6 +160,23 @@ public sealed class TokenPrinter
         }
     }
 
+    /// <summary>
+    /// Adds a proper noun, capitalising its first letter and leaving the rest as the tables give it,
+    /// so a system's name reads correctly in the middle of a lower case sentence.
+    /// </summary>
+    private void EmitProperNoun(string text)
+    {
+        if (text.Length == 0)
+        {
+            return;
+        }
+
+        _output.Append(char.ToUpperInvariant(text[0]));
+        _output.Append(text[1..].ToLowerInvariant());
+        _singleCap = false;
+        _startOfSentence = false;
+    }
+
     /// <summary>Adds text, applying whatever case the tokens have asked for.</summary>
     private void Emit(string text)
     {
@@ -170,15 +188,20 @@ public sealed class TokenPrinter
                 continue;
             }
 
-            if (_lowerCase)
-            {
-                _output.Append(char.ToLowerInvariant(character));
-                _startOfSentence = false;
-            }
-            else if (_singleCap)
+            // A single capital takes precedence over lower case: {single cap} capitalises the next
+            // letter and then lower case resumes, which is how the system name keeps its capital
+            // inside an otherwise lower case description
+            if (_singleCap)
             {
                 _output.Append(char.ToUpperInvariant(character));
                 _singleCap = false;
+                _startOfSentence = false;
+                continue;
+            }
+
+            if (_lowerCase)
+            {
+                _output.Append(char.ToLowerInvariant(character));
                 _startOfSentence = false;
             }
             else if (_sentenceCase && _startOfSentence)

@@ -26,6 +26,16 @@ public static class TokenExtractor
     /// <summary>The extended token that holds the description.</summary>
     public const int DescriptionToken = 5;
 
+    /// <summary>
+    /// The build flags the description tokens are read with: the disc version's docked code, which
+    /// is the one that shows system descriptions.
+    /// </summary>
+    private static readonly HashSet<string> TrueFlags = new(StringComparer.Ordinal)
+    {
+        "_DISC_VERSION",
+        "_DISC_DOCKED",
+    };
+
     /// <summary>Extracts the description tokens from the source library.</summary>
     /// <param name="sourceRoot">The root of the source library.</param>
     /// <returns>The JSON document as a string.</returns>
@@ -86,8 +96,26 @@ public static class TokenExtractor
         var tokens = new Dictionary<int, List<Element>>();
         List<Element>? current = null;
 
+        // Token definitions contain IF/ELIF/ELSE blocks for the different versions of the game.
+        // Reading them all in would splice two versions of a word together — reading an
+        // unconditional "UNREMAR" and then the NES "UNM..." gives "unremarunremar..." — so the
+        // conditionals are evaluated for the disc version's docked build.
+        var branches = new Stack<(bool Taken, bool Active)>();
+
         foreach (string raw in File.ReadLines(path))
         {
+            string? directive = Conditional(raw, branches);
+            if (directive == "skip")
+            {
+                continue;
+            }
+
+            bool active = branches.Count == 0 || branches.Peek().Active;
+            if (!active)
+            {
+                continue;
+            }
+
             // The token number is given in a trailing comment on the first line of each token.
             // Only start a new token when we are not already inside one: comments inside a token
             // often mention other token numbers, and following those would split the token apart.
@@ -116,6 +144,7 @@ public static class TokenExtractor
                 continue;
             }
 
+
             Element? element = ParseElement(code);
             if (element is not null)
             {
@@ -124,6 +153,105 @@ public static class TokenExtractor
         }
 
         return tokens;
+    }
+
+    /// <summary>
+    /// Handles a conditional directive, updating the branch stack. Returns "skip" when the line is
+    /// a directive that should not be treated as token data.
+    /// </summary>
+    private static string? Conditional(string raw, Stack<(bool Taken, bool Active)> branches)
+    {
+        int comment = raw.IndexOf('\\');
+        string code = (comment >= 0 ? raw[..comment] : raw).Trim();
+        string[] parts = code.Split(' ', 2, StringSplitOptions.TrimEntries);
+        if (parts.Length == 0)
+        {
+            return null;
+        }
+
+        switch (parts[0])
+        {
+            case "IF":
+            {
+                bool condition = Evaluate(parts.Length > 1 ? parts[1] : string.Empty);
+                branches.Push((condition, condition));
+                return "skip";
+            }
+
+            case "ELIF":
+            {
+                if (branches.Count == 0)
+                {
+                    return "skip";
+                }
+
+                (bool taken, _) = branches.Pop();
+                bool condition = !taken && Evaluate(parts.Length > 1 ? parts[1] : string.Empty);
+                branches.Push((taken || condition, condition));
+                return "skip";
+            }
+
+            case "ELSE":
+            {
+                if (branches.Count == 0)
+                {
+                    return "skip";
+                }
+
+                (bool taken, _) = branches.Pop();
+                branches.Push((true, !taken));
+                return "skip";
+            }
+
+            case "ENDIF":
+                if (branches.Count > 0)
+                {
+                    branches.Pop();
+                }
+
+                return "skip";
+
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>Evaluates a condition such as <c>NOT(_NES_VERSION)</c> or <c>A OR B</c>.</summary>
+    private static bool Evaluate(string expression)
+    {
+        string text = expression.Trim();
+
+        if (text.StartsWith("NOT(", StringComparison.Ordinal) && text.EndsWith(')'))
+        {
+            return !Evaluate(text[4..^1]);
+        }
+
+        if (text.Contains(" OR ", StringComparison.Ordinal))
+        {
+            return text.Split(" OR ", StringSplitOptions.TrimEntries).Any(Evaluate);
+        }
+
+        if (text.Contains(" AND ", StringComparison.Ordinal))
+        {
+            return text.Split(" AND ", StringSplitOptions.TrimEntries).All(Evaluate);
+        }
+
+        if (text.Contains(" EOR ", StringComparison.Ordinal))
+        {
+            return text.Split(" EOR ", StringSplitOptions.TrimEntries).Count(Evaluate) % 2 == 1;
+        }
+
+        if (text is "TRUE" or "1")
+        {
+            return true;
+        }
+
+        if (text is "FALSE" or "0" || text.Length == 0)
+        {
+            return false;
+        }
+
+        return TrueFlags.Contains(text);
     }
 
     private static Element? ParseElement(string code)

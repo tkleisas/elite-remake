@@ -130,6 +130,22 @@ public class DescriptionTests
     }
 
     [Fact]
+    public void TheSystemNameIsCapitalisedWhereverItAppears()
+    {
+        // The name is a proper noun, so it keeps its capital even in the middle of a lower case
+        // sentence such as "The planet Lave is ..."
+        for (uint seed = 1; seed <= 200; seed++)
+        {
+            string description = Data.DescriptionData.Describe(
+                "LAVE",
+                new EliteRemake.Core.Sim.EliteRandom(seed));
+
+            Assert.DoesNotContain("LAVE", description);   // never shouted
+            Assert.Contains("Lave", description);          // always capitalised
+        }
+    }
+
+    [Fact]
     public void DescriptionsVaryWithTheRandomNumberGenerator()
     {
         // The original picks its phrases with the game's random number generator, so different

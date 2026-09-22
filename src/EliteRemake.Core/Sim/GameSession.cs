@@ -91,6 +91,18 @@ public sealed class GameSession
     /// <summary>The system the charts have selected, which a hyperspace jump will take us to.</summary>
     public StarSystem SelectedSystem { get; set; }
 
+    /// <summary>
+    /// How many times we have arrived somewhere, so a screen can tell a new visit from a redraw.
+    /// </summary>
+    public int Visit { get; private set; }
+
+    /// <summary>
+    /// The generator the system descriptions draw their phrases from. It advances as descriptions
+    /// are generated, so the same system can be described differently on different visits — which
+    /// is what the original's random phrase choice does.
+    /// </summary>
+    public EliteRandom DescriptionRandom { get; } = new();
+
     /// <summary>Frames left on the hyperspace countdown, or 0 when we are not jumping.</summary>
     public int HyperspaceCountdown { get; private set; }
 
@@ -147,6 +159,7 @@ public sealed class GameSession
         Commander.Fuel -= distance;
         Commander.CurrentSystem = SelectedSystem;
         System = SelectedSystem;
+        Visit++;
         Market = Universe.Market.Build(System, _random.Next());
         Message = $"Arrived in the {System.Name} system.";
         return true;

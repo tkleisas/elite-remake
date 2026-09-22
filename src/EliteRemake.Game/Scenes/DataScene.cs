@@ -26,11 +26,62 @@ public sealed class DataScene : IScene
     private readonly TextRenderer _text;
     private KeyboardState _previousKeys;
 
+    private readonly List<string> _description = [];
+    private StarSystem _described;
+    private int _visits;
+
     public DataScene(ViewCamera camera, GameSession session, TextRenderer text)
     {
         Camera = camera;
         _session = session;
         _text = text;
+        Regenerate();
+    }
+
+    /// <summary>
+    /// Builds a description of the selected system, wrapped to the 32-column grid. A fresh
+    /// description is generated whenever the selection or the visit changes, as the original's
+    /// phrase choice is random.
+    /// </summary>
+    private void Regenerate()
+    {
+        StarSystem system = _session.SelectedSystem;
+        if (system.Seeds == _described.Seeds && _visits == _session.Visit)
+        {
+            return;
+        }
+
+        _described = system;
+        _visits = _session.Visit;
+
+        string text = EliteRemake.Data.DescriptionData.Describe(system.Name, _session.DescriptionRandom);
+        _description.Clear();
+        _description.AddRange(Wrap(text, Columns - 2));
+    }
+
+    /// <summary>Wraps text to a column limit, breaking on spaces.</summary>
+    private static IEnumerable<string> Wrap(string text, int width)
+    {
+        foreach (string paragraph in text.Split('\n'))
+        {
+            string remaining = paragraph.Trim();
+            while (remaining.Length > width)
+            {
+                int split = remaining.LastIndexOf(' ', width);
+                if (split <= 0)
+                {
+                    split = width;
+                }
+
+                yield return remaining[..split];
+                remaining = remaining[(split + 1)..].TrimStart();
+            }
+
+            if (remaining.Length > 0)
+            {
+                yield return remaining;
+            }
+        }
     }
 
     public ViewCamera Camera { get; }
@@ -43,6 +94,7 @@ public sealed class DataScene : IScene
     {
         _ = elapsedSeconds;
 
+        Regenerate();
         KeyboardState keys = Keyboard.GetState();
 
         if (IsNewPress(keys, Keys.Escape) || IsNewPress(keys, Keys.F3))
@@ -110,11 +162,14 @@ public sealed class DataScene : IScene
         y += cellHeight;
         _text.Draw(spriteBatch, "DESCRIPTION", left + cellWidth, y, scale, label);
         y += cellHeight;
-        _text.Draw(spriteBatch, "Not yet generated. The phrases", left + cellWidth, y, scale, dim);
-        y += cellHeight;
-        _text.Draw(spriteBatch, "live in the original's extended", left + cellWidth, y, scale, dim);
-        y += cellHeight;
-        _text.Draw(spriteBatch, "token table, still to be ported.", left + cellWidth, y, scale, dim);
+
+        // The description is assembled from the original's extended tokens, with the phrases picked
+        // at random, so it changes between visits as it does in the original
+        foreach (string line in _description)
+        {
+            _text.Draw(spriteBatch, line, left + cellWidth, y, scale, normal);
+            y += cellHeight;
+        }
 
         y += cellHeight * 2;
         _text.Draw(spriteBatch, _session.Message, left + cellWidth, y, scale, Palette.Cyan);
