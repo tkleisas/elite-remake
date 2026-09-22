@@ -59,6 +59,7 @@ public sealed class HudRenderer
         spriteBatch.Begin();
 
         DrawCrosshair(spriteBatch, pixel);
+        DrawViewFrustum(spriteBatch, pixel);
         DrawDashboardBackground(spriteBatch, pixel);
         DrawLeftPanel(spriteBatch, pixel, sim);
         DrawRightPanel(spriteBatch, pixel, sim);
@@ -204,6 +205,27 @@ public sealed class HudRenderer
             new Vector2(length, thickness),
             SpriteEffects.None,
             0f);
+    }
+
+    /// <summary>
+    /// Draws the view frustum: two lines fanning out from just below the gunsight to the bottom
+    /// corners of the space view, showing the cone the front of the ship covers.
+    /// </summary>
+    /// <remarks>
+    /// This is a presentation addition rather than the BBC disc version's own rendering: the only
+    /// cones in the disc sources are the docking approach tests, and the space view there is stars,
+    /// ships and the gunsight. It comes from the NES version's dashboard, which is also where the
+    /// dotted scanner comes from.
+    /// </remarks>
+    private void DrawViewFrustum(SpriteBatch spriteBatch, Texture2D pixel)
+    {
+        float cx = _view.Width / 2f;
+        float top = _view.Center.Y + (10 * _scale);
+        float bottom = _view.Bottom;
+        var colour = new Color(90, 190, 200);
+
+        DrawLine(spriteBatch, pixel, cx, top, _view.Left, bottom, MathF.Max(1f, _scale * 0.6f), colour);
+        DrawLine(spriteBatch, pixel, cx, top, _view.Right, bottom, MathF.Max(1f, _scale * 0.6f), colour);
     }
 
     /// <summary>Draws the fixed gunsight at the centre of the space view.</summary>

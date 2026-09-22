@@ -382,3 +382,20 @@ long the approach is.
 
 So the next step is not another trace: it is to port `RefineApproach` and its helpers, as DOCKIT
 itself was ported, and delete the fixed-counter simplification.
+
+## Presentation additions, listed in one place
+
+These are deliberate departures from the BBC disc version's own rendering, made because the remake
+is being taken to the look of the reference dashboard. They are listed together so none of them can
+be mistaken for disc fidelity later:
+
+1. **Dotted scanner.** The disc draws the scanner's ellipse as a continuous line with its CIRCLE
+   routine, and marks ships with dashes (`CPIX2`, "draw a single-height dash"). This draws dots for
+   both.
+2. **View frustum.** Two lines fanning from the gunsight to the bottom corners of the space view,
+   showing the cone the front of the ship covers. The disc has no such thing: the only cones in its
+   sources are the docking approach tests, and its space view is stars, ships and the gunsight.
+
+Both come from the NES version's dashboard. Everything else in the dashboard — the instrument set
+and their arrangement, the scanner's projection and height sticks, the compass dot — is the disc
+version's own.
