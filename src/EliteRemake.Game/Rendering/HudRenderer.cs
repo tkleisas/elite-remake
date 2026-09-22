@@ -111,15 +111,25 @@ public sealed class HudRenderer
             new Rectangle((int)(cx - (width / 2)), (int)cy, (int)width, (int)MathF.Max(1f, _scale)),
             Frame);
 
-        // The forward view wedge: two lines from the bottom of the scanner fanning up and out, so
-        // you can see at a glance which contacts are in front of you. Forward is up the scanner, so
-        // the wedge opens upwards from the point the ship occupies.
-        float wedgeArm = width * 0.62f;
-        float wedgeUp = height * 0.92f;
+        // The forward view wedge. It opens upwards because forward is up the scanner, and it starts
+        // at the centre of the ellipse, which is where the ship is. Each arm runs to the point where
+        // it meets the ellipse rather than past it, so the wedge stays inside the scanner.
+        const float wedgeDegrees = 35f;
+        float wedgeRadians = wedgeDegrees * MathF.PI / 180f;
         var wedgeColour = new Color(90, 190, 200);
+        float wedgeThickness = MathF.Max(1f, scannerScale * 0.6f);
 
-        DrawLine(spriteBatch, pixel, cx, cy + (height * 0.5f), cx - wedgeArm, cy + (height * 0.5f) - wedgeUp, MathF.Max(1f, scannerScale * 0.6f), wedgeColour);
-        DrawLine(spriteBatch, pixel, cx, cy + (height * 0.5f), cx + wedgeArm, cy + (height * 0.5f) - wedgeUp, MathF.Max(1f, scannerScale * 0.6f), wedgeColour);
+        float rx = width / 2f;
+        float ry = height / 2f;
+        foreach (int direction in new[] { -1, 1 })
+        {
+            // The direction of the arm, then the distance at which it meets the ellipse
+            float dx = MathF.Sin(wedgeRadians) * direction;
+            float dy = -MathF.Cos(wedgeRadians);
+            float reach = 1f / MathF.Sqrt(((dx / rx) * (dx / rx)) + ((dy / ry) * (dy / ry)));
+
+            DrawLine(spriteBatch, pixel, cx, cy, cx + (dx * reach), cy + (dy * reach), wedgeThickness, wedgeColour);
+        }
 
         foreach (Ship ship in sim.Bubble)
         {
