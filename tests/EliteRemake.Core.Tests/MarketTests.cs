@@ -827,10 +827,13 @@ public class SpawnerTests
         Assert.True(sim.Bubble.Count > 0, "an anarchy system should spawn ships");
         Assert.True(sim.Bubble.Count <= FlightSim.MaxShipsInBubble);
 
-        // Everything that spawned is a piloted ship type from the original's tables
+        // Everything that spawned is either a piloted ship from the original's tables or a bit of
+        // junk
         foreach (Ship ship in sim.Bubble)
         {
-            Assert.True(Tactics.IsUnderPilotControl(ship.Type), $"type {ship.Type} should be piloted");
+            Assert.True(
+                Tactics.IsUnderPilotControl(ship.Type) || Debris.IsJunk(ship.Type),
+                $"type {ship.Type} should be a ship or junk");
         }
     }
 
@@ -849,5 +852,155 @@ public class SpawnerTests
         }
 
         Assert.Empty(sim.Bubble);
+    }
+}
+
+/// <summary>
+/// Checks the debris: what spawns, what a destroyed rock leaves behind, and scooping it up.
+/// </summary>
+public class DebrisTests
+{
+    [Fact]
+    public void JunkSpawnsThirteenPercentOfTheTimeAndOnlyThreeAtOnce()
+    {
+        var random = new EliteRandom(42);
+        int spawned = 0;
+
+        for (int i = 0; i < 5000; i++)
+        {
+            if (Debris.ChooseJunk(random, junkInBubble: 0) != 0)
+            {
+                spawned++;
+            }
+        }
+
+        // The original's 13% chance
+        Assert.InRange(spawned / 5000.0, 0.10, 0.17);
+
+        // And nothing spawns once three bits of junk are already about
+        for (int i = 0; i < 1000; i++)
+        {
+            Assert.Equal(0, Debris.ChooseJunk(random, junkInBubble: Debris.MaxJunk));
+        }
+    }
+
+    [Fact]
+    public void JunkTypesFollowTheOriginalsSplit()
+    {
+        var random = new EliteRandom(11);
+        var counts = new Dictionary<int, int>();
+
+        for (int i = 0; i < 20000; i++)
+        {
+            int type = 0;
+            while (type == 0)
+            {
+                type = Debris.ChooseJunk(random, 0);
+            }
+
+            counts[type] = counts.GetValueOrDefault(type) + 1;
+        }
+
+        // 2% cargo canisters, 50% boulders, 48% asteroids
+        int total = counts.Values.Sum();
+        Assert.InRange(counts[Debris.Canister] / (double)total, 0.0, 0.05);
+        Assert.InRange(counts[Debris.Boulder] / (double)total, 0.42, 0.58);
+        Assert.InRange(counts[Debris.Asteroid] / (double)total, 0.40, 0.56);
+    }
+
+    [Fact]
+    public void MiningLasersBreakRocksIntoSplinters()
+    {
+        var random = new EliteRandom(3);
+
+        // A mining laser on an asteroid gives one to three splinters
+        var counts = new HashSet<int>();
+        for (int i = 0; i < 200; i++)
+        {
+            (int type, int count) = Debris.DestructionDrops(Debris.Asteroid, Combat.MiningLaserPower, random);
+            Assert.Equal(Debris.Splinter, type);
+            Assert.InRange(count, 1, 3);
+            counts.Add(count);
+        }
+
+        Assert.True(counts.Count > 1, "asteroids should break into a variable number of splinters");
+
+        // Any other laser simply leaves a cargo canister
+        (int otherType, int otherCount) = Debris.DestructionDrops(Debris.Asteroid, Combat.PulseLaserPower, random);
+        Assert.Equal(Debris.Canister, otherType);
+        Assert.Equal(1, otherCount);
+
+        // A boulder only gives up a splinter half the time
+        int boulderSplinters = 0;
+        for (int i = 0; i < 400; i++)
+        {
+            (int type, int count) = Debris.DestructionDrops(Debris.Boulder, Combat.MiningLaserPower, random);
+            if (type == Debris.Splinter && count > 0)
+            {
+                boulderSplinters++;
+            }
+        }
+
+        Assert.InRange(boulderSplinters / 400.0, 0.4, 0.6);
+    }
+
+    [Fact]
+    public void ScoopingNeedsFuelScoopsAndHoldSpace()
+    {
+        Commander commander = Commander.CreateDefault();
+        var canister = new Ship(Debris.Canister, "canister", "Cargo canister");
+
+        // Without fuel scoops nothing can be scooped
+        Assert.Null(Debris.TryScoop(canister, commander, marketItem: 0));
+
+        commander.FuelScoops = true;
+        (int Item, int Amount)? scooped = Debris.TryScoop(canister, commander, marketItem: 0);
+        Assert.NotNull(scooped);
+        Assert.Equal(0, scooped!.Value.Item); // food, from the canister's blueprint
+        Assert.Equal(1, commander.GetCargo(0));
+        Assert.True(canister.IsKilled, "a scooped item is removed from the bubble");
+
+        // A full hold has nowhere to put anything
+        commander.AddCargo(1, commander.CargoFree);
+        var second = new Ship(Debris.Canister, "canister", "Cargo canister");
+        Assert.Null(Debris.TryScoop(second, commander, marketItem: 0));
+    }
+
+    [Fact]
+    public void SplintersScoopAsMinerals()
+    {
+        Commander commander = Commander.CreateDefault();
+        commander.FuelScoops = true;
+        var splinter = new Ship(Debris.Splinter, "splinter", "Splinter");
+
+        (int Item, int Amount)? scooped = Debris.TryScoop(splinter, commander, marketItem: 99);
+        Assert.NotNull(scooped);
+        Assert.Equal(12, scooped!.Value.Item); // minerals
+        Assert.Equal(1, commander.GetCargo(12));
+    }
+
+    [Fact]
+    public void FlyingAtAJunkItemScoopsIt()
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = false,
+        };
+
+        Commander commander = Commander.CreateDefault();
+        commander.FuelScoops = true;
+        sim.ScoopCommander = commander;
+        sim.ScoopItemProvider = _ => 0;
+
+        // A canister just ahead of us, inside the scooping range
+        var canister = new Ship(Debris.Canister, "canister", "Cargo canister");
+        canister.SetPosition(0, 0, Debris.ScoopRange - 20);
+        sim.Spawn(canister);
+
+        sim.Step();
+
+        Assert.NotNull(sim.ScoopedThisFrame);
+        Assert.Equal(1, commander.GetCargo(0));
+        Assert.True(canister.IsKilled);
     }
 }

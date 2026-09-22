@@ -226,6 +226,22 @@ public sealed class FlightScene : IScene
         }
 
         _starfield.Update(_sim.Speed * steps);
+
+        // Spawn whatever the last destroyed ship left behind
+        if (_sim.DropsThisFrame.Count > 0 && Session is not null)
+        {
+            for (int i = 0; i < _sim.DropsThisFrame.Count; i++)
+            {
+                var drop = new Ship(_sim.DropsThisFrame.Type, string.Empty, $"Type {_sim.DropsThisFrame.Type}");
+                if (_sim.DestroyedThisFrame is { } wreck)
+                {
+                    (int x, int y, int z) = wreck.GetPosition();
+                    drop.SetPosition(x + (i * 64), y, z);
+                }
+
+                _sim.Spawn(drop);
+            }
+        }
     }
 
     /// <summary>Maps the modern keyboard and gamepad onto the original's flight controls.</summary>

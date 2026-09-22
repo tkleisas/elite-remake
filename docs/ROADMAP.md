@@ -73,8 +73,12 @@ Primary target variant: **`versions/disc`, variant `sth` (Stairway to Hell)**, w
   pack-hunter types and otherwise a lone bounty hunter flying one of four from the Cobra Mk III
   pirate to the Fer-de-lance), spawned ships placed 9728 units ahead with a random heading and
   dressed from their blueprints, and distant ships leaving the bubble so the twelve slots do not
-  silt up. Still to do: missiles, E.C.M., energy bombs, bounty payouts, the kill-to-rating wiring,
-  asteroids and cargo, and the full death sequence.
+  silt up. Also done: asteroids, boulders, cargo canisters and splinters, with the original's 13%
+  spawn chance and three-bit junk limit, its tumbling rocks, the laser-type split (2% canisters,
+  50% boulders, 48% asteroids), mining lasers that shatter asteroids into one to three scoopable
+  splinters and boulders into one half the time, ordinary lasers that leave a cargo canister, and
+  scooping with fuel scoops. Still to do: missiles, E.C.M., energy bombs, bounty payouts, the
+  kill-to-rating wiring, and the full death sequence.
 - **M5 — Docked screens & missions.** In progress. Done: the commander data block with the
   original's default commander (100 credits, full tank, front pulse laser, three missiles, docked at
   Lave), the trade table and its price and availability formulas (GVL/TT151), a game session that

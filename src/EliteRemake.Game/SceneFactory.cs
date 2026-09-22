@@ -107,6 +107,14 @@ public static class SceneFactory
                 : 55 * 55;
 
         sim.System = session.System;
+        sim.ScoopCommander = session.Commander;
+
+        // What a canister holds comes from its blueprint's scoop market item
+        sim.ScoopItemProvider = ship =>
+            ShipCatalog.ByType(ship.Type) is { } canister &&
+            EliteRemake.Data.Ships.ShipData.ById(canister.Id) is { } canisterBlueprint
+                ? canisterBlueprint.Header.ScoopMarketItem
+                : 0;
 
         // Give any ship that spawns a name and a blueprint from the catalogue, so it can be drawn
         sim.ShipSpawned = ship =>

@@ -178,6 +178,9 @@ public sealed class FlightSim
         Combat.RechargeShields(Player);
         Combat.RechargeEnergy(Player);
 
+        // Scoop anything we are flying at, if we have the equipment for it
+        UpdateScooping();
+
         // Ships that have drifted out of range leave the bubble, as they do in the original
         RemoveDistantShips();
 
@@ -211,6 +214,62 @@ public sealed class FlightSim
 
     /// <summary>What spawned this frame, for the game to report.</summary>
     public SpawnKind LastSpawn { get; private set; }
+
+    /// <summary>The type of junk spawned this frame, or 0.</summary>
+    public int LastJunkSpawned { get; private set; }
+
+    /// <summary>
+    /// What a destroyed ship left behind this frame: the type and how many, for the game to spawn.
+    /// </summary>
+    public (int Type, int Count) DropsThisFrame { get; private set; }
+
+    /// <summary>Scooped cargo this frame, if any, for the game to report.</summary>
+    public (int Item, int Amount)? ScoopedThisFrame { get; private set; }
+
+    /// <summary>The commander, so scooping knows what is fitted and where cargo goes.</summary>
+    public Commander? ScoopCommander { get; set; }
+
+    /// <summary>How a canister's contents are decided, from the blueprints.</summary>
+    public Func<Ship, int> ScoopItemProvider { get; set; } = _ => 0;
+
+    /// <summary>
+    /// Scoops up anything scoopable that we are close enough to. The original checks each item in
+    /// the bubble as part of its flight loop and collects it if we have fuel scoops fitted.
+    /// </summary>
+    private void UpdateScooping()
+    {
+        if (ScoopCommander is null)
+        {
+            return;
+        }
+
+        foreach (Ship ship in _bubble)
+        {
+            if (!Debris.IsScoopable(ship.Type) || ship.IsKilled)
+            {
+                continue;
+            }
+
+            (int x, int y, int z) = ship.GetPosition();
+            if (z <= 0)
+            {
+                continue;
+            }
+
+            double distance = Math.Sqrt(((double)x * x) + ((double)y * y) + ((double)z * z));
+            if (distance > Debris.ScoopRange)
+            {
+                continue;
+            }
+
+            (int Item, int Amount)? scooped = Debris.TryScoop(ship, ScoopCommander, ScoopItemProvider(ship));
+            if (scooped is not null)
+            {
+                ScoopedThisFrame = scooped;
+                break;
+            }
+        }
+    }
 
     /// <summary>Removes ships that have drifted beyond the bubble's range.</summary>
     private void RemoveDistantShips()
@@ -247,6 +306,28 @@ public sealed class FlightSim
             _spawnDelay--;
             return;
         }
+
+        // Junk first, as the original checks for rocks before it considers ships
+        int junk = 0;
+        foreach (Ship existing in _bubble)
+        {
+            if (Debris.IsJunk(existing.Type))
+            {
+                junk++;
+            }
+        }
+
+        int junkType = Debris.ChooseJunk(Random, junk);
+        if (junkType != 0)
+        {
+            Spawn(Debris.CreateJunk(junkType, Random));
+            LastSpawn = SpawnKind.None;
+            LastJunkSpawned = junkType;
+            _spawnDelay = Spawner.SpawnDelay / 2;
+            return;
+        }
+
+        LastJunkSpawned = 0;
 
         SpawnKind kind = Spawner.ChooseSpawn(System.Value, Random);
         if (kind == SpawnKind.None)
@@ -324,6 +405,8 @@ public sealed class FlightSim
         FiringLaserPower = 0;
         LaserTarget = null;
         DestroyedThisFrame = null;
+        DropsThisFrame = (0, 0);
+        ScoopedThisFrame = null;
 
         LaserType laser = Commander?.GetLaser(ActiveMount) ?? LaserType.Pulse;
         int power = Combat.Power(laser);
@@ -352,6 +435,9 @@ public sealed class FlightSim
                         ship.IsExploding = true;
                         ship.Flags |= 0x40; // the original's bit 6: an explosion is running
                         DestroyedThisFrame = ship;
+
+                        // Rocks and ships leave something behind when they are destroyed
+                        DropsThisFrame = Debris.DestructionDrops(ship.Type, power, Random);
                     }
 
                     break;
