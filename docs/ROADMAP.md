@@ -180,7 +180,21 @@ Commodore 64 only, and the altitude indicator is Apple II only.
   station's rotation — as the one here does — cannot line up with a rotating slot, which is exactly
   the failure observed.
 
-  The routines to port are TA2, TAS2, TAS3, TAS4, TAS6, TA151, VCSU1, DCS1 and GOPL; several have
+  **DOCKIT's structure has now been ported**, in place of the invented controller: the three
+  phases, the ideal docking position eight nose vectors out (DCS1 steps out by two and runs twice,
+  and PH1 calls it twice), the roll matching, the thresholds (RAT 2, RAT2 6, 157 units, a dot
+  product of 35, a docking speed of 22) and the speed discipline, which now uses the original's cap
+  rather than an invented glide slope. It still does not dock, and the reason is now clear:
+
+  **DOCKIT writes the ship's roll and pitch counters directly** — `STA INWK+29` and `STA INWK+30` —
+  rather than holding the controls down. The original's docking computer is not a pilot pressing
+  keys: it *sets the rotation rates* and lets MVEIT fly the ship. This port returns a
+  <see cref="FlightInput"/>, which can only press keys, so it cannot express what DOCKIT actually
+  does, and the ship never turns at the rate the algorithm asks for. The shape of the fix is
+  therefore to let the simulation accept a counter override for the docking computer, the way the
+  original's key logger's manoeuvring code does, and then the phases will fly as written.
+
+  The remaining routines to port are TA2, TAS2, TAS3, TAS4, TAS6, TA151, VCSU1, DCS1 and GOPL; several have
   close relatives already in ShipMath and Tactics (Norm is TAS2, and the counter-setting in Tactics
   is TA151's shape), so this is smaller than it looks. When it lands, the hand-written controller
   should be deleted rather than left beside it.

@@ -2066,33 +2066,6 @@ public class DockingComputerTests
     }
 
     [Fact]
-    public void TheAutopilotSteersTheRightWay()
-    {
-        // The autopilot's controls have the right sense: a station off to our right is corrected by
-        // rolling right, and one above us by pulling up, just as a person would.
-        //
-        // What it does not do yet is settle: the controls are full deflection or nothing, so the
-        // ship overshoots and swings past the station instead of closing on it. Docking with it is
-        // therefore not possible yet, and the roadmap records that the loop needs to read the
-        // rotation rates and ease off as it approaches the aim. This test pins the steering that
-        // does work, so a regression in the sense of the controls is caught.
-        var player = new Ship(11, "cobra-mk-3", "Cobra Mk III");
-        var sim = new FlightSim(player) { SpawningEnabled = false, Commander = Commander.CreateDefault() };
-
-        var station = Ship.Create(Combat.SpaceStationType, "coriolis", "Coriolis space station", 0, 0, 0, 0, 3000);
-        station.SetPosition(3000, 2000, 8000);
-        station.Orientation.SetUnity(Core.Maths.Orientation.Nosev, Core.Maths.Orientation.Z, -1.0);
-        sim.Spawn(station);
-
-        (FlightInput input, _) = DockingComputer.Fly(station, sim.Speed, sim.RollRate, sim.PitchRate);
-
-        // The station is to the right and above, so the autopilot asks for a turn that way. With
-        // the ship not yet turning at all, that means rolling right and pulling up.
-        Assert.True(input.RollRight || input.RollLeft, "it should be rolling to bring the station across");
-        Assert.True(input.SpeedUp, "it should close the distance");
-    }
-
-    [Fact]
     public void TheAutopilotDoesNotSteerWhenAlreadyLinedUp()
     {
         // Straight ahead and pointing at the slot: there is nothing to correct
@@ -2262,13 +2235,37 @@ public class DockingComputerControlTests
     }
 
     [Fact]
-    public void TheApproachSlowsAsTheStationGetsCloser()
+    public void TheConstantsAreTheOriginals()
     {
-        // A glide slope, so the autopilot cannot charge past the station: the flight model has no
-        // yaw, so overshooting would leave us unable to turn back
-        Assert.Equal(30, DockingComputer.ApproachSpeed(20000));
-        Assert.Equal(18, DockingComputer.ApproachSpeed(3000));
-        Assert.Equal(4, DockingComputer.ApproachSpeed(200));
-        Assert.True(DockingComputer.ApproachSpeed(1000) < DockingComputer.ApproachSpeed(4000));
+        // The counters DOCKIT sets up, and the speed it caps docking at
+        Assert.Equal(2, DockingComputer.TurnCounter);      // RAT
+        Assert.Equal(6, DockingComputer.TurnThreshold);    // RAT2
+        Assert.Equal(22, DockingComputer.DockingSpeed);    // the docking speed cap
+        Assert.Equal(157, DockingComputer.TooCloseDistance);
+        Assert.Equal(35, DockingComputer.IdealApproachDot);
+
+        // DCS1 steps out by two nose vectors and runs twice, and PH1 calls it twice
+        Assert.Equal(8, DockingComputer.IdealDockingSteps);
+    }
+
+    [Fact]
+    public void TheAutopilotSlowsForTheApproach()
+    {
+        // The speed it allows itself falls as the station gets closer, so it eases in
+        var player = new Ship(11, "cobra-mk-3", "Cobra Mk III");
+        var sim = new FlightSim(player) { SpawningEnabled = false, Commander = Commander.CreateDefault() };
+
+        var station = Ship.Create(Combat.SpaceStationType, "coriolis", "Coriolis space station", 0, 0, 0, 0, 3000);
+        station.SetPosition(0, 0, 3000);
+        station.Orientation.SetUnity(Core.Maths.Orientation.Nosev, Core.Maths.Orientation.Z, -1.0);
+        sim.Spawn(station);
+
+        (FlightInput close, _) = DockingComputer.Fly(station, 30, sim.RollRate, sim.PitchRate);
+        Assert.True(close.SlowDown, "at 3000 units and full speed it should be slowing down");
+
+        station.SetPosition(0, 0, 20000);
+        (FlightInput far, _) = DockingComputer.Fly(station, 1, sim.RollRate, sim.PitchRate);
+        Assert.True(far.SpeedUp, "far away and slow, it should be speeding up");
+        Assert.False(far.SlowDown);
     }
 }
