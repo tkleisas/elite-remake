@@ -56,6 +56,9 @@ public sealed class GameOptions
     /// <summary>If set, draw the whole font as a contact sheet and exit.</summary>
     public bool PrintFontSheet { get; private set; }
 
+    /// <summary>If set, start docked at the station rather than in flight.</summary>
+    public bool StartDocked { get; private set; }
+
     public static GameOptions Parse(string[] args)
     {
         var options = new GameOptions();
@@ -107,6 +110,9 @@ public sealed class GameOptions
                     break;
                 case "--sim-warmup":
                     options.SimWarmupFrames = int.Parse(Next() ?? "0");
+                    break;
+                case "--dock":
+                    options.StartDocked = true;
                     break;
                 case "--font-sheet":
                     options.PrintFontSheet = true;
@@ -172,6 +178,7 @@ public sealed class GameOptions
               --hold <controls>       hold controls during the warmup: left, right, up, down,
                                       faster, slower (comma separated)
               --font-sheet            draw every character in the font and exit
+              --dock                  start docked at the station
               --screenshot <path>   write a PNG of frame --frame and exit
               --frame <n>           frame to capture (default 60)
             """);

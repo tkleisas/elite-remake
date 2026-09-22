@@ -1,4 +1,5 @@
 using EliteRemake.Core.Graphics;
+using EliteRemake.Core.Sim;
 using EliteRemake.Game.Rendering;
 using EliteRemake.Game.Scenes;
 using Microsoft.Xna.Framework;
@@ -17,6 +18,9 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
     private Texture2D _pixel = null!;
     private TextRenderer _text = null!;
     private IScene _scene = null!;
+    private FlightScene? _flightScene;
+    private MarketScene? _marketScene;
+    private GameSession _session = null!;
     private int _frame;
     private bool _screenshotWritten;
 
@@ -55,12 +59,24 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
         Layout = ScreenLayout.ForWindow(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
         Camera = CreateCamera();
         _text = new TextRenderer(GraphicsDevice, Data.FontData.Font);
-        _scene = SceneFactory.Create(_options, GraphicsDevice, Camera, Layout, _text);
+        _session = SceneFactory.CreateSession(_options);
+        _scene = CreateSceneForMode();
 
         if (_options.SimWarmupFrames > 0 && _scene is Scenes.FlightScene flight)
         {
             flight.Warmup(_options.SimWarmupFrames, _options.WarmupInput);
         }
+    }
+
+    /// <summary>Builds (once) and returns the scene for the session's current mode.</summary>
+    private IScene CreateSceneForMode()
+    {
+        if (_session.Mode == GameMode.Docked)
+        {
+            return _marketScene ??= new MarketScene(Camera, _session, _text);
+        }
+
+        return _flightScene ??= SceneFactory.CreateFlightScene(_options, GraphicsDevice, Camera, Layout, _text, _session);
     }
 
     /// <summary>Keeps the projection in step with the window size.</summary>
@@ -107,6 +123,14 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
         }
 
         UpdateCameraToViewport();
+
+        // The session decides whether we are flying or docked; follow it
+        IScene wanted = CreateSceneForMode();
+        if (!ReferenceEquals(wanted, _scene))
+        {
+            _scene = wanted;
+            Console.WriteLine(_scene.StatusLine);
+        }
 
         if (!_options.Paused)
         {

@@ -24,14 +24,11 @@ public static class SceneFactory
                 fixedPitch: options.ViewerPitch);
         }
 
-        return CreateFlightScene(options, device, camera, layout, text);
+        return CreateFlightScene(options, device, camera, layout, text, CreateSession(options));
     }
 
-    /// <summary>
-    /// Sets up a flight scene: our Cobra, a space station ahead of us and a few other ships to fly
-    /// around, which is enough to exercise the flight model and the renderer.
-    /// </summary>
-    private static IScene CreateFlightScene(GameOptions options, GraphicsDevice device, ViewCamera camera, ScreenLayout layout, TextRenderer text)
+    /// <summary>Creates the game session: the commander and their flight simulation.</summary>
+    public static GameSession CreateSession(GameOptions options)
     {
         var player = new Ship(11, "cobra-mk-3", "Cobra Mk III")
         {
@@ -40,18 +37,41 @@ public static class SceneFactory
 
         player.Energy = 150;
 
-        var sim = new FlightSim(player);
-        var scene = new FlightScene(device, camera, sim, new HudRenderer(layout, text));
+        var commander = Commander.CreateDefault();
+        var session = new GameSession(commander, new FlightSim(player));
+
+        if (options.StartDocked)
+        {
+            session.Dock();
+        }
+
+        return session;
+    }
+
+    /// <summary>
+    /// Sets up a flight scene: our Cobra, a space station ahead of us and a few other ships to fly
+    /// around, which is enough to exercise the flight model and the renderer.
+    /// </summary>
+    public static FlightScene CreateFlightScene(
+        GameOptions options,
+        GraphicsDevice device,
+        ViewCamera camera,
+        ScreenLayout layout,
+        TextRenderer text,
+        GameSession session)
+    {
+        FlightSim sim = session.Flight;
+        var scene = new FlightScene(device, camera, sim, new HudRenderer(layout, text))
+        {
+            Session = session,
+        };
 
         foreach (ShipCatalog.Entry entry in ShipCatalog.All)
         {
             scene.RegisterMesh(entry.Id, entry.Mesh);
         }
 
-        // Start in Lave, the system the default commander is docked at
-        var lave = EliteRemake.Core.Universe.Galaxy.GenerateGalaxy(0)
-            .First(s => s.Name == "LAVE");
-        scene.ArriveInSystem(lave);
+        scene.ArriveInSystem(session.System);
         scene.SpawnStationAhead(options.StationDistance);
 
         if (!options.EmptySystem)

@@ -32,6 +32,7 @@ public sealed class FlightScene : IScene
     private readonly Dictionary<string, ShipMesh> _meshes = [];
     private float _accumulator;
     private bool _stationSpawned;
+    private bool _dockingRequested;
 
     public FlightScene(GraphicsDevice device, ViewCamera camera, FlightSim sim, HudRenderer hud)
     {
@@ -149,9 +150,27 @@ public sealed class FlightScene : IScene
         _starfield.Update(_sim.Speed * frames);
     }
 
+    /// <summary>The session this scene is flying in, so docking can be requested.</summary>
+    public GameSession? Session { get; set; }
+
     public void Update(float elapsedSeconds)
     {
         LastInput = ReadInput();
+
+        // Docking is a debug shortcut for now: flying into the station's slot comes with the
+        // docking milestone
+        if (Session is not null &&
+            Microsoft.Xna.Framework.Input.Keyboard.GetState().IsKeyDown(Microsoft.Xna.Framework.Input.Keys.D) &&
+            !_dockingRequested)
+        {
+            _dockingRequested = true;
+            Session.Dock();
+        }
+        else if (Session is not null &&
+                 !Microsoft.Xna.Framework.Input.Keyboard.GetState().IsKeyDown(Microsoft.Xna.Framework.Input.Keys.D))
+        {
+            _dockingRequested = false;
+        }
 
         // Run the simulation at the original's fixed rate, so the ported maths stays in its
         // original units however fast the display refreshes

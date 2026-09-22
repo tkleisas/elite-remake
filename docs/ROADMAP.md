@@ -40,7 +40,8 @@ Primary target variant: **`versions/disc`, variant `sth` (Stairway to Hell)**, w
   **byte-for-byte** against the original's own binaries: 17 ship sets (`D.MOA`–`D.MOP` plus the
   docked hangar block inside `T.CODE`), 527 XX21 slots, 204 blueprints, 0 mismatches. Text tokens,
   galaxy seeds, market and equipment tables come next.
-- **M2 — Core maths & universe.** In progress. Done: fixed-point maths ✅; the procedural galaxy ✅
+- **M2 — Core maths & universe.** In progress. Done: fixed-point maths ✅; the procedural galaxy ✅;
+  the market and the commander's starting state ✅
   (`TT54` twist, `cpl` name generation from the two-letter tokens, `TT24` system data, `TT111`
   closest-system search, `GHY` galactic jumps), verified against the original's own universe —
   **TIBEDIED** is system 0 of galaxy 0 from seeds `&5A4A/&0248/&B753`, and **LAVE** comes out at
@@ -58,9 +59,11 @@ Primary target variant: **`versions/disc`, variant `sth` (Stairway to Hell)**, w
 - **M4 — Combat & AI.** Lasers, missiles, ECM, energy banks, shields, `TACTICS` ship AI, spawning,
   explosions, escape pods, bounty, rating. (The flight loop already runs the original's TIDY
   schedule and per-ship own-motion; tactics and the rest come here.)
-- **M5 — Docked screens & missions.** Launch/docking (manual + docking computer), market, equipment,
-  shipyard, short/long-range charts, Data on System, commander save/load, missions (Constrictor,
-  Thargoid documents), galactic hyperspace (8 galaxies).
+- **M5 — Docked screens & missions.** In progress. Done: the commander data block with the
+  original's default commander (100 credits, full tank, front pulse laser, three missiles, docked at
+  Lave), the trade table and its price and availability formulas (GVL/TT151), a game session that
+  regenerates the market on docking, and the market screen itself with buying and selling. Still to
+  do: equipment, shipyard, charts, Data on System, save/load, missions, galactic hyperspace.
 - **M6 — Audio, polish, parity sweep.** Synthesized beeper SFX + docking music, gamepad/rebinding,
   settings, full feature sweep against the original, performance pass.
 
