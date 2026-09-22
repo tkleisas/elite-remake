@@ -352,3 +352,33 @@ With the sign corrected, a docking dead ahead still completes (frame 507) and th
 approach from off to one side still does not dock, so something else in DOCKIT's phases is still
 not faithful. The next step is the same instrumented trace, but following which phase is entered
 with the station off to one side and why the refinement does not converge — not another guess.
+
+## Docking computer: what the phase trace shows
+
+Tracing which phase is entered on an approach from off to one side gives the answer, and it is the
+same failure mode as before — a simplification standing in for an original routine.
+
+The approach starts at (400, 300, 6000), offset 500 to one side of the slot. The trace:
+
+| frame | phase | distance | approach | counters |
+| --- | --- | --- | --- | --- |
+| 0 | Refine | 6020 | -1.00 | (128, 128) |
+| 150 | Refine | 3006 | -0.99 | (2, 2) |
+| 375 | Refine | 868 | -0.82 | (2, 2) |
+| 525 | IdealPosition | 576 | -0.16 | (191, 128) |
+| 825 | IdealPosition | 2177 | +0.87 | (191, 128) |
+
+The refine phase turns with counters of **2**, the smallest the original has, and holds them for
+hundreds of frames. The lateral offset never shrinks — it is still (400, 300) all the way in — so
+the approach angle degrades from -1.00 to -0.62 as the distance closes, until the ship is no longer
+squarely facing the slot, at which point it falls into PH1, matches the station's roll and circles
+for ever without closing.
+
+**The cause is that PH3 does not use the original's `RefineApproach` routine.** That routine works
+out how far off the aim is and sets the counters accordingly; this implementation sets a fixed
+counter of 2 whenever the aim is off by more than the dead band, which is a simplification invented
+here. Small constant turns cannot correct a 500-unit lateral offset in the time available, however
+long the approach is.
+
+So the next step is not another trace: it is to port `RefineApproach` and its helpers, as DOCKIT
+itself was ported, and delete the fixed-counter simplification.

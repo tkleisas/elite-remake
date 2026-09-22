@@ -58,6 +58,22 @@ public static class DockingComputer
     /// <summary>One nose vector, in the original's units, where 96 is a unit vector.</summary>
     private const int UnitVector = 96;
 
+    /// <summary>Which of DOCKIT's phases the last manoeuvre came from.</summary>
+    public enum Phase
+    {
+        /// <summary>PH1: head for the ideal docking position out along the slot.</summary>
+        IdealPosition,
+
+        /// <summary>PH2: too close and badly placed, so turn away.</summary>
+        TurnAway,
+
+        /// <summary>PH3: refine the approach.</summary>
+        Refine,
+    }
+
+    /// <summary>The phase the last manoeuvre came from, for tracing what the autopilot is doing.</summary>
+    public static Phase LastPhase { get; private set; }
+
     /// <summary>The manoeuvre the docking computer wants this frame.</summary>
     /// <param name="RollCounter">The roll counter to set, as DOCKIT writes to INWK+29.</param>
     /// <param name="PitchCounter">The pitch counter to set, as DOCKIT writes to INWK+30.</param>
@@ -111,6 +127,7 @@ public static class DockingComputer
         // the default branch, which left the ship rolling to match the station for ever.
         if (approach * UnitVector > -IdealApproachDot)
         {
+            LastPhase = Phase.IdealPosition;
             Vector3 ideal = stationPosition + (slot * IdealDockingSteps * UnitVector);
             Vector3 aim = ideal.LengthSquared() > 0 ? Vector3.Normalize(ideal) : toStation;
             return Steer(aim, speed, distance, matchStationRoll: true, station.Data[ShipDataBlock.RollCounter], linedUp);
@@ -119,10 +136,12 @@ public static class DockingComputer
         // PH2: too close and badly placed, so turn away rather than press on into the hull
         if (distance < TooCloseDistance && Math.Abs(approach) < 0.5f)
         {
+            LastPhase = Phase.TurnAway;
             return Steer(-toStation, speed, distance, false, 0, linedUp);
         }
 
         // PH3: refine the approach, rolling and pitching towards the station
+        LastPhase = Phase.Refine;
         return Steer(toStation, speed, distance, false, 0, linedUp);
     }
 
