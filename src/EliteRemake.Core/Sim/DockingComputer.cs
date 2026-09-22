@@ -98,11 +98,18 @@ public static class DockingComputer
         // How squarely we are looking at the slot, which is the original's dot product test
         float approach = Vector3.Dot(toStation, slot);
 
-        // Straight ahead and down the slot's axis: the docking checks will accept us
+        // The station's nose points out of its slot, so when the slot faces us the nose points
+        // from the station towards us and the vector to the station points the other way: a
+        // squarely lined-up approach gives a dot product of -1.
         bool linedUp = toStation.Z > 0.99f && approach < -0.99f;
 
-        // PH1: fly for the ideal docking position, out along the slot, and match the station's roll
-        if (approach > -0.2f || approach * UnitVector < IdealApproachDot)
+        // PH1: fly for the ideal docking position, out along the slot, and match the station's roll.
+        // The original tests its dot product against 35 of 96 and goes to the ideal position when
+        // the slot is not facing us squarely enough. Its dot product runs the other way to this
+        // one — the original's is the slot against the line to us, this is the line to the station
+        // against the slot — so the comparison is reversed here. Getting this backwards made PH1
+        // the default branch, which left the ship rolling to match the station for ever.
+        if (approach * UnitVector > -IdealApproachDot)
         {
             Vector3 ideal = stationPosition + (slot * IdealDockingSteps * UnitVector);
             Vector3 aim = ideal.LengthSquared() > 0 ? Vector3.Normalize(ideal) : toStation;

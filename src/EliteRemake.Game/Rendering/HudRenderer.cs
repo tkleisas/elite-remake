@@ -300,7 +300,7 @@ public sealed class HudRenderer
     private float ScannerHalfWidth => Scanner.HalfWidth * MathF.Min(_scale, _dashboard.Width * 0.30f / (Scanner.HalfWidth * 2f));
 
     /// <summary>The gap between a panel and the scanner's edge.</summary>
-    private float PanelGap => MathF.Max(4f, 14 * _scale);
+    private float PanelGap => MathF.Max(6f, 22 * _scale);
 
     /// <summary>Energy banks, speed and the roll and pitch indicators.</summary>
     private void DrawRightPanel(SpriteBatch spriteBatch, Texture2D pixel, FlightSim sim)
@@ -344,8 +344,9 @@ public sealed class HudRenderer
     {
         // The original's compass sits to the right of the scanner, just inside its edge
         float scale = MathF.Min(_scale, _dashboard.Width * 0.02f);
+        // Inside the scanner's right edge, so the compass never reaches the panel beside it
         float scannerHalfWidth = Scanner.HalfWidth * MathF.Min(_scale, _dashboard.Width * 0.30f / (Scanner.HalfWidth * 2f));
-        float cx = _dashboard.Center.X + scannerHalfWidth - (12 * scale);
+        float cx = _dashboard.Center.X + (scannerHalfWidth * 0.58f);
         float cy = _dashboard.Top + (_dashboard.Height * 0.62f);
         float radius = 10 * scale;
 

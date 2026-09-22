@@ -337,3 +337,18 @@ the **NES** version's dashboard, which also has the `$ ELITE` panel along the to
 
 So the dots are a presentation choice, not the disc version's own rendering. If strict disc parity
 is ever wanted here, the change is localised to `DrawEllipse` and the blip size in `HudRenderer`.
+
+## Docking computer, as of round 38
+
+The branch test was wrong in a way the tests caught. DOCKIT's dot product is the station's slot
+against the line to us; this implementation's runs the other way — the line to the station against
+the slot — so the comparison is reversed. Getting it the wrong way round made PH1 the default
+branch, which left the ship rolling to match the station's roll for ever instead of ever refining
+its approach. The trace that found it is worth repeating: the station sat behind the ship at
+approach +0.99 with the slot facing it perfectly, and the autopilot held roll counter 191 — the
+station's own roll — for thousands of frames.
+
+With the sign corrected, a docking dead ahead still completes (frame 507) and the tests pass. An
+approach from off to one side still does not dock, so something else in DOCKIT's phases is still
+not faithful. The next step is the same instrumented trace, but following which phase is entered
+with the station off to one side and why the refinement does not converge — not another guess.
