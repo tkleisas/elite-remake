@@ -43,8 +43,21 @@ public static class Debris
     /// <summary>True for the types that count as junk for the original's limit.</summary>
     public static bool IsJunk(int shipType) => shipType is Canister or Boulder or Asteroid or Splinter;
 
-    /// <summary>True for the types that can be scooped up.</summary>
-    public static bool IsScoopable(int shipType) => shipType is Canister or Splinter or 3;
+    /// <summary>The escape pod's ship type, which scoops as slaves.</summary>
+    public const int EscapePod = 3;
+
+    /// <summary>The Thargon's ship type, which scoops as alien items.</summary>
+    public const int Thargon = 20;
+
+    /// <summary>
+    /// True for the types that can be scooped up. The disc version does not keep a list of these:
+    /// the high nibble of the first byte of a ship's blueprint says whether it is scoopable and what
+    /// it gives when scooped, which is why a canister holds whatever its blueprint says, an escape
+    /// pod scoops as slaves (three tonnes of them), a splinter as minerals and a Thargon as alien
+    /// items. This list is the fallback for when no blueprint is available.
+    /// </summary>
+    public static bool IsScoopable(int shipType) =>
+        shipType is Canister or Splinter or EscapePod or Thargon;
 
     /// <summary>
     /// The original's junk spawn: a 13% chance of a rock or a canister, provided there are fewer
@@ -130,7 +143,25 @@ public static class Debris
     /// <param name="marketItem">The commodity a canister of this type carries.</param>
     public static (int Item, int Amount)? TryScoop(Ship item, Commander commander, int marketItem)
     {
-        if (!commander.FuelScoops || !IsScoopable(item.Type) || item.IsKilled)
+        if (!commander.FuelScoops || item.IsKilled)
+        {
+            return null;
+        }
+
+        // The blueprint's scoop item is the authority, as it is in the disc version: a zero there
+        // means the ship cannot be scooped at all. Where no blueprint is available — the Core used
+        // on its own — fall back to the types the original gives a commodity of their own.
+        int commodity = marketItem != 0
+            ? marketItem
+            : item.Type switch
+            {
+                Splinter => 12,      // minerals
+                EscapePod => 3,      // slaves
+                Thargon => 16,       // alien items
+                _ => 0,
+            };
+
+        if (commodity == 0 || !IsScoopable(item.Type))
         {
             return null;
         }
@@ -139,9 +170,6 @@ public static class Debris
         {
             return null; // nowhere to put it
         }
-
-        // Splinters are pure minerals; canisters carry whatever their blueprint says
-        int commodity = item.Type == Splinter ? 12 : marketItem;
         int added = commander.AddCargo(commodity, 1);
         if (added == 0)
         {

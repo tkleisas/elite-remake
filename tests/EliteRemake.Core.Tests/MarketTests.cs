@@ -951,20 +951,24 @@ public class DebrisTests
         Commander commander = Commander.CreateDefault();
         var canister = new Ship(Debris.Canister, "canister", "Cargo canister");
 
-        // Without fuel scoops nothing can be scooped
+        // A zero in the blueprint means the ship cannot be scooped at all, as it does in the disc
+        // version, where the high nibble of the first blueprint byte is the scoop market item
         Assert.Null(Debris.TryScoop(canister, commander, marketItem: 0));
 
+        // Without fuel scoops nothing can be scooped either
+        Assert.Null(Debris.TryScoop(canister, commander, marketItem: 1));
+
         commander.FuelScoops = true;
-        (int Item, int Amount)? scooped = Debris.TryScoop(canister, commander, marketItem: 0);
+        (int Item, int Amount)? scooped = Debris.TryScoop(canister, commander, marketItem: 1);
         Assert.NotNull(scooped);
-        Assert.Equal(0, scooped!.Value.Item); // food, from the canister's blueprint
-        Assert.Equal(1, commander.GetCargo(0));
+        Assert.Equal(1, scooped!.Value.Item); // whatever the canister's blueprint says it holds
+        Assert.Equal(1, commander.GetCargo(1));
         Assert.True(canister.IsKilled, "a scooped item is removed from the bubble");
 
         // A full hold has nowhere to put anything
         commander.AddCargo(1, commander.CargoFree);
         var second = new Ship(Debris.Canister, "canister", "Cargo canister");
-        Assert.Null(Debris.TryScoop(second, commander, marketItem: 0));
+        Assert.Null(Debris.TryScoop(second, commander, marketItem: 1));
     }
 
     [Fact]
@@ -974,10 +978,16 @@ public class DebrisTests
         commander.FuelScoops = true;
         var splinter = new Ship(Debris.Splinter, "splinter", "Splinter");
 
-        (int Item, int Amount)? scooped = Debris.TryScoop(splinter, commander, marketItem: 99);
+        (int Item, int Amount)? scooped = Debris.TryScoop(splinter, commander, marketItem: 12);
         Assert.NotNull(scooped);
-        Assert.Equal(12, scooped!.Value.Item); // minerals
+        Assert.Equal(12, scooped!.Value.Item); // minerals, from the splinter's blueprint
         Assert.Equal(1, commander.GetCargo(12));
+
+        // And with no blueprint, a splinter still scoops as minerals
+        var bare = new Ship(Debris.Splinter, "splinter", "Splinter");
+        var commander2 = Commander.CreateDefault();
+        commander2.FuelScoops = true;
+        Assert.Equal(12, Debris.TryScoop(bare, commander2, marketItem: 0)!.Value.Item);
     }
 
     [Fact]
@@ -991,7 +1001,7 @@ public class DebrisTests
         Commander commander = Commander.CreateDefault();
         commander.FuelScoops = true;
         sim.ScoopCommander = commander;
-        sim.ScoopItemProvider = _ => 0;
+        sim.ScoopItemProvider = _ => 1; // the canister's blueprint item
 
         // A canister just ahead of us, inside the scooping range
         var canister = new Ship(Debris.Canister, "canister", "Cargo canister");
@@ -1001,7 +1011,7 @@ public class DebrisTests
         sim.Step();
 
         Assert.NotNull(sim.ScoopedThisFrame);
-        Assert.Equal(1, commander.GetCargo(0));
+        Assert.Equal(1, commander.GetCargo(1));
         Assert.True(canister.IsKilled);
     }
 }
@@ -2402,5 +2412,54 @@ public class AltitudeCheckTests
         }
 
         Assert.False(far.HitABody);
+    }
+}
+
+/// <summary>
+/// Checks what scooping gives for the ships the disc version grants a commodity of their own: the
+/// high nibble of the first byte of a ship's blueprint is the scoop market item, and zero there
+/// means the ship cannot be scooped at all.
+/// </summary>
+public class ScoopItemTests
+{
+    private static Commander Scoopable()
+    {
+        Commander commander = Commander.CreateDefault();
+        commander.FuelScoops = true;
+        return commander;
+    }
+
+    [Fact]
+    public void AnEscapePodScoopsAsSlaves()
+    {
+        Commander commander = Scoopable();
+        var pod = new Ship(Debris.EscapePod, "escape-pod", "Escape pod");
+
+        // The original scoops an escape pod as slaves, three tonnes of them, and its blueprint's
+        // scoop item is 3 in the extracted data
+        Assert.Equal(3, Debris.TryScoop(pod, commander, marketItem: 3)!.Value.Item);
+        Assert.Equal(1, commander.GetCargo(3));
+    }
+
+    [Fact]
+    public void AThargonScoopsAsAlienItems()
+    {
+        Commander commander = Scoopable();
+        var thargon = new Ship(Debris.Thargon, "thargon", "Thargon");
+
+        Assert.Equal(16, Debris.TryScoop(thargon, commander, marketItem: 16)!.Value.Item);
+        Assert.Equal(1, commander.GetCargo(16));
+    }
+
+    [Fact]
+    public void AShipWithNoScoopItemCannotBeScooped()
+    {
+        Commander commander = Scoopable();
+
+        // A Cobra has no scoop item in its blueprint, which is the disc version's way of saying it
+        // cannot be scooped up
+        var cobra = new Ship(11, "cobra-mk-3", "Cobra Mk III");
+        Assert.Null(Debris.TryScoop(cobra, commander, marketItem: 0));
+        Assert.False(Debris.IsScoopable(11));
     }
 }
