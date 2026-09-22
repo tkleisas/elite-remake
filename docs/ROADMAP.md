@@ -392,9 +392,11 @@ be mistaken for disc fidelity later:
 1. **Dotted scanner.** The disc draws the scanner's ellipse as a continuous line with its CIRCLE
    routine, and marks ships with dashes (`CPIX2`, "draw a single-height dash"). This draws dots for
    both.
-2. **View frustum.** Two lines fanning from the gunsight to the bottom corners of the space view,
-   showing the cone the front of the ship covers. The disc has no such thing: the only cones in its
-   sources are the docking approach tests, and its space view is stars, ships and the gunsight.
+2. **Forward view wedge on the scanner.** Two lines from the bottom of the scanner fanning up and
+   out, so you can see at a glance which contacts are in front of you. Forward is up the scanner, so
+   the wedge opens upward from the point the ship occupies. The disc has no such thing: the only
+   cones in its sources are the docking approach tests, and its scanner shows contacts without any
+   indication of the view cone.
 
 Both come from the NES version's dashboard. Everything else in the dashboard — the instrument set
 and their arrangement, the scanner's projection and height sticks, the compass dot — is the disc
