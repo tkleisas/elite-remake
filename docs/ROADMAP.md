@@ -313,3 +313,13 @@ the original algorithms" is now rule 2 of the fidelity rules.
 
 The lesson worth keeping: look at the game after every change, and read the source before writing
 anything.
+
+## Dashboard layout
+
+The scanner is drawn as a thin continuous ellipse — joined line segments rather than a ring of
+little blocks, which is what made it look chunky — and it keeps the original's shape: 128 by 52 in a
+256-wide dashboard, a little over twice as wide as it is tall. The instrument bars are narrower than
+they need to be so the scanner has room between the two panels, which is closer to the original's
+arrangement. The EN and SP labels still sit very close to the scanner's right edge and the compass
+tucks into its lower right; a proper layout pass would space the panels from the scanner rather than
+from fixed fractions of the dashboard width.

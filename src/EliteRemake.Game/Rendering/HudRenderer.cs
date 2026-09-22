@@ -90,7 +90,10 @@ public sealed class HudRenderer
         // The scanner occupies a 128 by 54 patch of the original's 256-wide dashboard, but it has
         // to fit the gap between the two instrument panels here, so the scale is capped to whatever
         // room is left in the middle
-        float gap = _dashboard.Width * 0.32f;
+        // The scanner has to fit between the two instrument panels without touching either, and it
+        // keeps the original's shape: its ellipse is 128 by 52 in a 256-wide dashboard, a little
+        // over twice as wide as it is tall
+        float gap = _dashboard.Width * 0.30f;
         float scannerScale = MathF.Min(_scale, gap / (Scanner.HalfWidth * 2f));
 
         float width = Scanner.HalfWidth * 2 * scannerScale;
@@ -153,20 +156,55 @@ public sealed class HudRenderer
         float ry,
         Color colour)
     {
-        // Enough steps that consecutive points overlap into a solid ring
-        int steps = Math.Max(48, (int)(rx + ry));
-        float thickness = MathF.Max(1.5f, ry / 9f);
+        // A thin, continuous outline: each step is joined to the next by a line, rather than being
+        // drawn as a block of its own, which is what made the scanner look chunky. The original's
+        // scanner is a single-pixel ellipse.
+        float thickness = MathF.Max(1f, MathF.Round(ry / 26f));
+        int steps = Math.Max(96, (int)((rx + ry) * 2));
 
         for (int i = 0; i < steps; i++)
         {
-            double a = i * Math.Tau / steps;
-            float x = cx + (rx * (float)Math.Cos(a));
-            float y = cy + (ry * (float)Math.Sin(a));
-            spriteBatch.Draw(
-                pixel,
-                new Rectangle((int)x, (int)y, (int)MathF.Max(1f, thickness), (int)MathF.Max(1f, thickness)),
-                colour);
+            double a0 = i * Math.Tau / steps;
+            double a1 = (i + 1) * Math.Tau / steps;
+
+            float x0 = cx + (rx * (float)Math.Cos(a0));
+            float y0 = cy + (ry * (float)Math.Sin(a0));
+            float x1 = cx + (rx * (float)Math.Cos(a1));
+            float y1 = cy + (ry * (float)Math.Sin(a1));
+
+            DrawLine(spriteBatch, pixel, x0, y0, x1, y1, thickness, colour);
         }
+    }
+
+    /// <summary>Draws a line of the given thickness, by filling the rectangle between its ends.</summary>
+    private static void DrawLine(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        float x0,
+        float y0,
+        float x1,
+        float y1,
+        float thickness,
+        Color colour)
+    {
+        float dx = x1 - x0;
+        float dy = y1 - y0;
+        float length = MathF.Sqrt((dx * dx) + (dy * dy));
+        if (length < 0.01f)
+        {
+            return;
+        }
+
+        spriteBatch.Draw(
+            pixel,
+            new Vector2(x0, y0),
+            null,
+            colour,
+            MathF.Atan2(dy, dx),
+            Vector2.Zero,
+            new Vector2(length, thickness),
+            SpriteEffects.None,
+            0f);
     }
 
     /// <summary>Draws the fixed gunsight at the centre of the space view.</summary>
@@ -210,7 +248,8 @@ public sealed class HudRenderer
         // Leave room on the left for the two-letter instrument labels
         float left = _dashboard.Left + (_dashboard.Width * 0.075f);
         float top = _dashboard.Top + (_dashboard.Height * 0.12f);
-        float width = MathF.Min(_dashboard.Width * 0.32f, 200 * _scale);
+        // Narrower than the panel could be, so the scanner has room between the two panels
+        float width = MathF.Min(_dashboard.Width * 0.24f, 150 * _scale);
         float height = MathF.Max(4f, _dashboard.Height * 0.075f);
         float spacing = _dashboard.Height * 0.135f;
 
@@ -259,7 +298,8 @@ public sealed class HudRenderer
     {
         float right = _dashboard.Right - (_dashboard.Width * 0.05f);
         float top = _dashboard.Top + (_dashboard.Height * 0.12f);
-        float width = MathF.Min(_dashboard.Width * 0.32f, 200 * _scale);
+        // Narrower than the panel could be, so the scanner has room between the two panels
+        float width = MathF.Min(_dashboard.Width * 0.24f, 150 * _scale);
         float height = MathF.Max(4f, _dashboard.Height * 0.07f);
         float spacing = _dashboard.Height * 0.105f;
         float left = right - width;
@@ -295,7 +335,8 @@ public sealed class HudRenderer
     {
         // The original's compass sits to the right of the scanner, just inside its edge
         float scale = MathF.Min(_scale, _dashboard.Width * 0.02f);
-        float cx = _dashboard.Left + (_dashboard.Width * 0.762f);
+        float scannerHalfWidth = Scanner.HalfWidth * MathF.Min(_scale, _dashboard.Width * 0.30f / (Scanner.HalfWidth * 2f));
+        float cx = _dashboard.Center.X + scannerHalfWidth - (12 * scale);
         float cy = _dashboard.Top + (_dashboard.Height * 0.62f);
         float radius = 10 * scale;
 
