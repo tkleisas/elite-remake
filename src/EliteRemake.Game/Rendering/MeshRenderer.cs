@@ -1,3 +1,4 @@
+using System.Numerics;
 using EliteRemake.Core.Graphics;
 using EliteRemake.Core.Ships;
 using Microsoft.Xna.Framework;
@@ -21,6 +22,14 @@ namespace EliteRemake.Game.Rendering;
 public sealed class MeshRenderer : IDisposable
 {
     private const int MaxBatchVertices = 65536;
+
+    /// <summary>
+    /// The layer a ship's detail edges and the recesses they enclose are drawn in, on top of the
+    /// faces. The original draws ships as lines on top of whatever is already on screen, so its
+    /// detail is never painted over by the face it decorates; filling the faces loses that for
+    /// free, so the two are separated into ordered layers instead.
+    /// </summary>
+    private const int DetailLayer = 1;
 
     private readonly GraphicsDevice _device;
     private readonly BasicEffect _effect;
@@ -51,6 +60,9 @@ public sealed class MeshRenderer : IDisposable
     /// <summary>The number of triangles submitted by the last draw call, for diagnostics.</summary>
     public int LastTriangleCount { get; private set; }
 
+    /// <summary>How many detail edges the last ship queued, for diagnostics.</summary>
+    public int LastDetailEdgeCount { get; private set; }
+
     /// <summary>Begins a batch of meshes drawn in screen space.</summary>
     public void Begin()
     {
@@ -77,9 +89,14 @@ public sealed class MeshRenderer : IDisposable
     /// <summary>Ends the batch, drawing everything queued while it was open.</summary>
     public void End()
     {
-        // Painter's algorithm: draw the furthest faces first, which is how the original resolves
-        // which lines are in front of which
-        _candidates.Sort(static (a, b) => b.Depth.CompareTo(a.Depth));
+        // Painter's algorithm: draw the furthest surfaces first, which is how the original resolves
+        // which lines are in front of which. A ship's detail edges and the recess they enclose are
+        // decorations that belong on top of the face they mark, so they are a later layer than the
+        // faces however their depths compare - sorting by depth alone cannot separate a slot from
+        // the face it is cut into, because the slot is exactly as far away as the face around it
+        _candidates.Sort(static (a, b) => a.Layer != b.Layer
+            ? a.Layer.CompareTo(b.Layer)
+            : b.Depth.CompareTo(a.Depth));
 
         foreach (Candidate candidate in _candidates)
         {
@@ -101,22 +118,32 @@ public sealed class MeshRenderer : IDisposable
     /// The blueprint's overall visibility distance; beyond it the ship is drawn as a dot, as the
     /// original's SHPPT routine does. Pass float.MaxValue to always draw the full model.
     /// </param>
+    /// <param name="detailColour">
+    /// The colour for the recess that a ship's detail edges enclose - the hollow of a space
+    /// station's docking slot, for instance. Null leaves the detail unfilled.
+    /// </param>
+    /// <param name="detailLipColour">
+    /// The colour for the detail edges themselves. Null draws them in the ship's own colour.
+    /// </param>
     public void DrawShip(
         ShipMesh mesh,
         System.Numerics.Vector3 position,
         ShipOrientation orientation,
         ViewCamera camera,
         Color colour,
-        float visibilityDistance)
+        float visibilityDistance,
+        Color? detailColour = null,
+        Color? detailLipColour = null)
     {
-        // The original reduces the ship's z distance to the range 0-31 by dividing by 128 (its
-        // LL9 part 2 shifts the 16-bit z value right seven times), and hides detail whose
-        // visibility value is smaller than that. Beyond the blueprint's visibility distance, which
-        // is compared against z_hi, the ship is drawn as a single dot.
-        float z = MathF.Max(position.Z, 0);
-        int visibility = Math.Clamp((int)(z / 128), 0, 31);
+        // The original reduces the ship's z-distance to the range 0-31 by dividing by 128 (its
+        // LL9 part 2 shifts the 16-bit z value right seven times); a ship at z_hi >= 16 is either
+        // drawn as a dot or is far enough away that hidden-line detail is not worth culling, and
+        // carries a visibility value of 7. We also need the two high bytes for the line clip below
+        int zInt = (int)MathF.Max(position.Z, 0);
+        int zHigh = (zInt >> 8) & 0xFF;
+        int visibility = Math.Clamp(zHigh / 2, 0, 7);
 
-        if ((z / 256) > visibilityDistance)
+        if ((zInt / 256) > visibilityDistance)
         {
             DrawDot(camera, position, colour);
             return;
@@ -125,23 +152,17 @@ public sealed class MeshRenderer : IDisposable
         var polygon = new System.Numerics.Vector3[16];
         var clipped = new System.Numerics.Vector3[20];
 
+        Color recess = detailColour ?? colour;
+        Color lip = detailLipColour ?? colour;
+
         foreach (ShipFace face in mesh.Faces)
         {
             System.Numerics.Vector3 normal = orientation.ToView(face.Normal);
-            System.Numerics.Vector3 centroid = System.Numerics.Vector3.Zero;
-            foreach (int index in face.Indices)
-            {
-                centroid += mesh.Vertices[index];
-            }
-
-            centroid /= face.Indices.Length;
-
-            System.Numerics.Vector3 faceCentre = position + orientation.ToView(centroid);
 
             // A face whose visibility value is below the ship's distance is always shown (this is
             // how the original treats low-visibility faces); otherwise its normal must face us
             bool alwaysShown = face.Visibility < visibility;
-            if (!alwaysShown && System.Numerics.Vector3.Dot(normal, -faceCentre) <= 0)
+            if (!alwaysShown && !FaceIsVisible(mesh, face, position, orientation, normal, out _))
             {
                 continue;
             }
@@ -179,6 +200,249 @@ public sealed class MeshRenderer : IDisposable
 
             _candidates.Add(new Candidate(screen, depth / count, Shade(colour, brightness)));
         }
+
+        // Draw the detail edges that decorate each visible face: the recess they enclose first, so
+        // a station's slot reads as a hollow cut into its face, and then each edge on top of that.
+        // The original has no recess to fill, because it draws a wireframe, but it does draw a
+        // slot's outline in the same bright white as the rest of a ship's lines - and that outline
+        // is what makes an opening read as an opening rather than a panel
+        List<DetailEdge> details = CollectVisibleDetailEdges(mesh, position, orientation, visibility);
+
+        LastDetailEdgeCount = details.Count;
+        for (int i = 0; i < details.Count; i++)
+        {
+            if (i == 0 || details[i].Face != details[i - 1].Face)
+            {
+                int face = details[i].Face;
+                QueueDetailEdgeRecess(
+                    mesh,
+                    details.FindAll(candidate => candidate.Face == face),
+                    position,
+                    orientation,
+                    camera,
+                    recess);
+            }
+
+            QueueDetailEdge(mesh, details[i].Edge, position, orientation, camera, lip);
+        }
+    }
+
+    /// <summary>
+    /// The blueprint's detail edges whose decorating face is visible and close enough to show them.
+    /// </summary>
+    private static List<DetailEdge> CollectVisibleDetailEdges(
+        ShipMesh mesh,
+        System.Numerics.Vector3 position,
+        ShipOrientation orientation,
+        int visibility)
+    {
+        var visible = new List<DetailEdge>();
+        foreach (DetailEdge detail in mesh.DetailEdges)
+        {
+            // The original only draws a detail edge if the face it decorates is facing us, which is
+            // the same test it applies to the face itself. Its visibility distance then hides the
+            // edge while the ship is too far away for the detail to be worth drawing: a station's
+            // slot carries 30, so it appears once we are within about 2000 units, and a Cobra's
+            // exhaust detail carries 6, so it only appears up close
+            if (detail.Edge.Visibility < visibility)
+            {
+                continue;
+            }
+
+            if (!TryFindFace(mesh, detail.Face, out ShipFace parent))
+            {
+                continue;
+            }
+
+            System.Numerics.Vector3 parentNormal = orientation.ToView(parent.Normal);
+            if (parent.Visibility >= visibility &&
+                !FaceIsVisible(mesh, parent, position, orientation, parentNormal, out _))
+            {
+                continue;
+            }
+
+            visible.Add(detail);
+        }
+
+        return visible;
+    }
+
+    /// <summary>
+    /// Fills the shape a group of detail edges encloses, which is the recess a station's docking
+    /// slot is cut into.
+    /// </summary>
+    private void QueueDetailEdgeRecess(
+        ShipMesh mesh,
+        List<DetailEdge> group,
+        System.Numerics.Vector3 position,
+        ShipOrientation orientation,
+        ViewCamera camera,
+        Color colour)
+    {
+        if (group.Count < 3)
+        {
+            return;
+        }
+
+        // Walk the group so the outline comes out as a simple polygon rather than a scatter of
+        // unrelated segments
+        var loop = new List<int> { group[0].Edge.Vertex1, group[0].Edge.Vertex2 };
+        var remaining = new List<DetailEdge>(group);
+        remaining.RemoveAt(0);
+
+        while (remaining.Count > 0)
+        {
+            int last = loop[^1];
+            int found = remaining.FindIndex(
+                edge => edge.Edge.Vertex1 == last || edge.Edge.Vertex2 == last);
+
+            if (found < 0)
+            {
+                return; // the edges do not form a single closed outline
+            }
+
+            DetailEdge edge = remaining[found];
+            remaining.RemoveAt(found);
+            loop.Add(edge.Edge.Vertex1 == last ? edge.Edge.Vertex2 : edge.Edge.Vertex1);
+        }
+
+        var screen = new Vector2[loop.Count];
+        float depth = 0;
+        for (int i = 0; i < loop.Count; i++)
+        {
+            System.Numerics.Vector3 point = position + orientation.ToView(mesh.Vertices[loop[i]]);
+            if (point.Z < ViewCamera.NearPlane)
+            {
+                return; // too close to the camera to fill safely
+            }
+
+            screen[i] = camera.ProjectUnchecked(point);
+            depth += point.Z;
+        }
+
+        _candidates.Add(new Candidate(screen, depth / loop.Count, colour, DetailLayer));
+    }
+
+
+    /// <summary>
+    /// The original's back-face test: a face is visible when its outward normal points back towards
+    /// us, which is the dot product of the normal with the vector from the ship to the camera.
+    /// </summary>
+    /// <remarks>
+    /// The dot product is written out rather than called: the presentation layer aliases Vector3 to
+    /// MonoGame's type, so an imported System.Numerics.Vector3 is the very same type and the two
+    /// libraries' Dot methods are indistinguishable by signature. Doing the arithmetic by hand keeps
+    /// the sign unambiguous.
+    /// </remarks>
+    private static bool FaceIsVisible(
+        ShipMesh mesh,
+        ShipFace face,
+        System.Numerics.Vector3 position,
+        ShipOrientation orientation,
+        System.Numerics.Vector3 normal,
+        out System.Numerics.Vector3 centre)
+    {
+        System.Numerics.Vector3 local = System.Numerics.Vector3.Zero;
+        foreach (int index in face.Indices)
+        {
+            local += mesh.Vertices[index];
+        }
+
+        local /= face.Indices.Length;
+        centre = position + orientation.ToView(local);
+
+        return (normal.X * -centre.X) + (normal.Y * -centre.Y) + (normal.Z * -centre.Z) > 0;
+    }
+
+    /// <summary>Finds a face by its number in the original blueprint.</summary>
+    private static bool TryFindFace(ShipMesh mesh, int faceNumber, out ShipFace face)
+    {
+        foreach (ShipFace candidate in mesh.Faces)
+        {
+            if (candidate.FaceNumber == faceNumber)
+            {
+                face = candidate;
+                return true;
+            }
+        }
+
+        face = null!;
+        return false;
+    }
+
+    /// <summary>
+    /// Queues one of a ship's detail lines, clipping it against the near plane and skipping it when
+    /// either end is too far off screen for the original's line clipper.
+    /// </summary>
+    private void QueueDetailEdge(
+        ShipMesh mesh,
+        ShipEdge edge,
+        System.Numerics.Vector3 position,
+        ShipOrientation orientation,
+        ViewCamera camera,
+        Color colour)
+    {
+        System.Numerics.Vector3 a = position + orientation.ToView(mesh.Vertices[edge.Vertex1]);
+        System.Numerics.Vector3 b = position + orientation.ToView(mesh.Vertices[edge.Vertex2]);
+
+        if (!ClipToNearPlane(ref a, ref b))
+        {
+            return;
+        }
+
+        Vector2 pa = camera.ProjectUnchecked(a);
+        Vector2 pb = camera.ProjectUnchecked(b);
+        Vector2 delta = pb - pa;
+        float length = delta.Length();
+        if (length < 0.5f)
+        {
+            return;
+        }
+
+        Vector2 normal = new(-delta.Y / length, delta.X / length);
+        float halfWidth = MathF.Max(0.75f, camera.FocalLength / 300f);
+
+        _candidates.Add(new Candidate(
+            [
+                pa + (normal * halfWidth),
+                pb + (normal * halfWidth),
+                pb - (normal * halfWidth),
+                pa - (normal * halfWidth),
+            ],
+            MathF.Min(a.Z, b.Z),
+            colour,
+            DetailLayer));
+    }
+
+    /// <summary>
+    /// Clips a line segment to the near plane, as the original's LL118 does with its screen edges.
+    /// </summary>
+    private static bool ClipToNearPlane(ref System.Numerics.Vector3 a, ref System.Numerics.Vector3 b)
+    {
+        const float near = ViewCamera.NearPlane;
+        if (a.Z >= near && b.Z >= near)
+        {
+            return true;
+        }
+
+        if (a.Z < near && b.Z < near)
+        {
+            return false;
+        }
+
+        float t = (near - a.Z) / (b.Z - a.Z);
+        System.Numerics.Vector3 crossing = a + ((b - a) * t);
+
+        if (a.Z < near)
+        {
+            a = crossing;
+        }
+        else
+        {
+            b = crossing;
+        }
+
+        return true;
     }
 
     /// <summary>Draws a ship as a single dot, as the original does for distant ships.</summary>
@@ -254,7 +518,11 @@ public sealed class MeshRenderer : IDisposable
         (byte)Math.Clamp(colour.B * factor, 0, 255),
         colour.A);
 
-    private readonly record struct Candidate(Vector2[] Points, float Depth, Color Colour);
+    /// <summary>
+    /// One surface queued for drawing. Layers are drawn in order, and within a layer the furthest
+    /// surface is drawn first.
+    /// </summary>
+    private readonly record struct Candidate(Vector2[] Points, float Depth, Color Colour, int Layer = 0);
 
     public void Dispose() => _effect.Dispose();
 }

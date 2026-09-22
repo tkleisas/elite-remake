@@ -1,4 +1,5 @@
 using EliteRemake.Core.Graphics;
+using EliteRemake.Core.Maths;
 using EliteRemake.Core.Sim;
 using EliteRemake.Core.Ships;
 using EliteRemake.Game.Rendering;
@@ -223,6 +224,9 @@ public sealed class FlightScene : IScene
     /// <summary>The simulation this scene is driving.</summary>
     public FlightSim Sim => _sim;
 
+    /// <summary>The dashboard, so the game can keep its layout in step with the window.</summary>
+    public HudRenderer Hud => _hud;
+
     public ViewCamera Camera { get; }
 
     /// <summary>The last input read, exposed for diagnostics.</summary>
@@ -309,16 +313,15 @@ public sealed class FlightScene : IScene
             return;
         }
 
-        var station = Ship.Create(ShipTypes.Coriolis, "coriolis", "Coriolis space station", 0, 0, 0, 0, distance);
-        SceneFactory.ApplyBlueprint(station);
-
         // The Coriolis gets a random clockwise roll, as the original's main game loop gives it: a
         // random value with bit 7 cleared. It matters for docking, because the slot's orientation
         // changes as the station turns and the docking computer's first phase matches its roll.
-        station.SpinRoll = (byte)(Random.Shared.Next(64, 128) & 0x7F);
+        var station = SystemArrival.CreateStation(distance, (byte)(Random.Shared.Next(64, 128) & 0x7F));
+        SceneFactory.ApplyBlueprint(station);
         _sim.Spawn(station);
         _stationSpawned = true;
     }
+
 
     /// <summary>
     /// Runs the simulation for a number of frames with a fixed input, so a screenshot can show the
@@ -472,8 +475,7 @@ public sealed class FlightScene : IScene
         {
             _sim.Step(LastInput);
             _accumulator -= FrameTime;
-            steps++;
-        }
+            steps++;        }
 
         _starfield.Update(_sim.Speed * steps);
 
@@ -574,7 +576,9 @@ public sealed class FlightScene : IScene
                 ShipOrientation.FromEliteOrientation(ship.Orientation),
                 Camera,
                 ColourFor(ship),
-                ship.VisibilityDistance);
+                ship.VisibilityDistance,
+                ship.Type == ShipTypes.Coriolis ? Palette.StationSlot : null,
+                ship.Type == ShipTypes.Coriolis ? Palette.StationSlotLip : null);
         }
 
         _renderer.End();

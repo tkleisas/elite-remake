@@ -79,7 +79,8 @@ public sealed class ShipViewerScene : IScene
             Palette.Hull,
 
             // The viewer always shows the model in full, rather than reducing it to a dot
-            visibilityDistance: float.MaxValue);
+            visibilityDistance: float.MaxValue,
+            Palette.StationSlot);
         _renderer.End();
 
         if (Wireframe)
@@ -131,5 +132,7 @@ public sealed class ShipViewerScene : IScene
 
     public string StatusLine =>
         $"{_name}: {_mesh.Vertices.Length} vertices, {_mesh.Faces.Length} faces, {_mesh.Edges.Length} edges, " +
-        $"radius {_mesh.Radius:0}, distance {_distance:0}, drawn triangles {_renderer.LastTriangleCount}";
+        $"{_mesh.DetailEdges.Length} detail, " +
+        $"radius {_mesh.Radius:0}, distance {_distance:0}, drawn triangles {_renderer.LastTriangleCount} " +
+        $"(queued detail edges {_renderer.LastDetailEdgeCount})";
 }

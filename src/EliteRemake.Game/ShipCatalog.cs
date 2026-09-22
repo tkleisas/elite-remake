@@ -89,10 +89,7 @@ public static class ShipCatalog
                 vertex.X,
                 vertex.Y,
                 vertex.Z,
-                vertex.Faces.Count > 0 ? vertex.Faces[0] : ShipMesh.NoFace,
-                vertex.Faces.Count > 1 ? vertex.Faces[1] : ShipMesh.NoFace,
-                vertex.Faces.Count > 2 ? vertex.Faces[2] : ShipMesh.NoFace,
-                vertex.Faces.Count > 3 ? vertex.Faces[3] : ShipMesh.NoFace,
+                [.. vertex.Faces],
                 vertex.Visibility);
         }
 
@@ -103,8 +100,7 @@ public static class ShipCatalog
             edges[i] = new BlueprintEdge(
                 edge.Vertex1,
                 edge.Vertex2,
-                edge.Faces.Count > 0 ? edge.Faces[0] : ShipMesh.NoFace,
-                edge.Faces.Count > 1 ? edge.Faces[1] : ShipMesh.NoFace,
+                [.. edge.Faces],
                 edge.Visibility);
         }
 

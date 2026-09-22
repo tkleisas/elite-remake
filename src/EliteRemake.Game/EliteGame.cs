@@ -85,6 +85,12 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
     /// <summary>Builds (once) and returns the scene for the session's current mode.</summary>
     private IScene CreateSceneForMode()
     {
+        // The ship viewer replaces the game entirely, so it takes priority over the session's mode
+        if (_options.ViewerShip is not null)
+        {
+            return _viewerScene ??= SceneFactory.CreateViewer(_options, GraphicsDevice, Camera);
+        }
+
         if (_session.Mode == GameMode.Docked)
         {
             return _session.Screen switch
@@ -101,6 +107,22 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
         return _flightScene ??= SceneFactory.CreateFlightScene(_options, GraphicsDevice, Camera, Layout, _text, _session);
     }
 
+    /// <summary>
+    /// Tells the dashboard where the window has put the space view and the dashboard band. It is
+    /// built with the layout that was current when the scene was created, so it has to be told
+    /// whenever the window changes size or it carries on drawing at the old size and in the old
+    /// place - which leaves it in the top-left corner when the window is maximised.
+    /// </summary>
+    private void SyncDashboardLayout()
+    {
+        if (_flightScene is { } flight)
+        {
+            flight.Hud.Layout = Layout;
+        }
+    }
+
+    private IScene? _viewerScene;
+
     /// <summary>Builds a chart scene, with the crosshairs starting on the current system.</summary>
     private ChartScene OpenChart(ChartRange range)
     {
@@ -109,15 +131,17 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
         return scene;
     }
 
-    /// <summary>Keeps the projection in step with the window size.</summary>
+    /// <summary>Keeps the projection and the dashboard in step with the window size.</summary>
     private void UpdateCameraToViewport()
     {
         var viewport = GraphicsDevice.Viewport;
         ScreenLayout layout = ScreenLayout.ForWindow(viewport.Width, viewport.Height);
-        if (layout.View != Layout.View)
+        if (layout.View != Layout.View || layout.Dashboard != Layout.Dashboard)
         {
             Layout = layout;
         }
+
+        SyncDashboardLayout();
 
         Rectangle view = Layout.View;
         if (Math.Abs(Camera.ViewportWidth - view.Width) > 0.5f ||

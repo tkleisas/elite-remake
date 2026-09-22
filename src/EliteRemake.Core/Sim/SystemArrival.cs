@@ -1,9 +1,10 @@
+using EliteRemake.Core.Maths;
 using EliteRemake.Core.Universe;
 
 namespace EliteRemake.Core.Sim;
 
 /// <summary>
-/// Sets up the star system we arrive in: the planet and the sun.
+/// Sets up the star system we arrive in: the planet, the sun and the space station.
 /// </summary>
 /// <remarks>
 /// The original's SOLAR routine places both bodies from the system's own seeds, so the same system
@@ -84,5 +85,56 @@ public static class SystemArrival
     {
         sim.Spawn(CreateSun(system));
         sim.Spawn(CreatePlanet(system));
+    }
+
+    /// <summary>
+    /// Creates the space station for a system, placed ahead of us as the original does.
+    /// </summary>
+    /// <param name="distance">How far ahead of us to put the station, in the original's units.</param>
+    /// <param name="spinRoll">The station's roll, which it keeps as it turns.</param>
+    /// <remarks>
+    /// The original's NWSPS turns the station right around when it creates it, by flipping the sign
+    /// of each of the three high bytes of its nose vector, and gives it a random clockwise roll with
+    /// bit 7 cleared. Both matter for docking: the flip is what points the slot at us, and docking
+    /// works out where the slot is from the station's orientation.
+    /// </remarks>
+    public static Ship CreateStation(int distance, byte spinRoll)
+    {
+        var station = new Ship(Combat.SpaceStationType, "coriolis", "Coriolis space station")
+        {
+            SpinRoll = spinRoll,
+        };
+
+        station.SetCoordinate(ShipDataBlock.Z, distance);
+
+        // The roll counter is what MVEIT part 8 reads, so the station is already turning when it
+        // appears rather than waiting for the first frame to renew it from SpinRoll
+        station.Data[ShipDataBlock.RollCounter] = spinRoll;
+        FaceTowardsUs(station);
+        return station;
+    }
+
+    /// <summary>
+    /// Flips a newly created station's orientation vectors, as the original's NwS1 does.
+    /// </summary>
+    /// <remarks>
+    /// The blueprint's vertices put the docking slot in its +z face, and the original's own docking
+    /// computer (DCS1) explains that a station's nose vector points from its centre out through the
+    /// slot. A station created with the blueprint's default orientation therefore has its slot
+    /// facing away from us, and it is this flip - with us on the far side of it, because the station
+    /// is created ahead of us - that turns the slot towards us. The roof and side vectors are
+    /// flipped with the nose so the three stay a consistent basis; the original leaves them alone,
+    /// which would leave the model mirrored.
+    /// </remarks>
+    private static void FaceTowardsUs(Ship station)
+    {
+        Orientation orientation = station.Orientation;
+        for (int vector = Orientation.Nosev; vector <= Orientation.Sidev; vector += 6)
+        {
+            for (int axis = Orientation.X; axis <= Orientation.Z; axis += 2)
+            {
+                orientation.SetUnity(vector, axis, -orientation.GetUnity(vector, axis));
+            }
+        }
     }
 }

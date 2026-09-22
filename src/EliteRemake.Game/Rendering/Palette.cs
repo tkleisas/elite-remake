@@ -52,6 +52,19 @@ public static class Palette
     /// <summary>The hull colour of a space station.</summary>
     public static readonly Color StationHull = new(214, 218, 224);
 
+    /// <summary>
+    /// The recess of a space station's docking slot: the station's front face is filled in, so the
+    /// slot shows as a hollow cut into it.
+    /// </summary>
+    public static readonly Color StationSlot = new(58, 64, 78);
+
+    /// <summary>
+    /// The outline around a space station's docking slot. The original draws every ship's lines in
+    /// the same bright white, and a station's slot is drawn with them, so the slot's lip is lighter
+    /// than the hull it is cut into - which is what makes the opening read as an opening.
+    /// </summary>
+    public static readonly Color StationSlotLip = new(255, 255, 255);
+
     /// <summary>The colour of an explosion.</summary>
     public static readonly Color Explosion = new(255, 196, 96);
 

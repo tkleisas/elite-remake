@@ -582,3 +582,143 @@ them into rates and handing them to the keyboard path. `ShipMovement.RotateBodyL
 already does something of this shape for the planet and sun, and the ship equivalent for a counter
 rotation is the routine to use. That is the next change, and unlike the last several it is aimed by
 two measurements rather than by reasoning.
+
+## The station's docking slot: found, and why it was invisible
+
+The user's report — "I do not see the opening in the space station for docking" — turned out to be
+two separate faults, one in the renderer and one in the station's creation. Both are now fixed, and
+the second is the more interesting of the two.
+
+**Fault one: the slot is a detail line, and a solid renderer paints over it.**
+
+The Coriolis blueprint expresses its docking slot as four extra vertices (12-15, a 20 x 60 rectangle
+at z = 160, on the station's +z face) and four extra edges (24-27) whose records name **face 0
+twice**:
+
+```
+ EDGE      12,      13,     0,     0,         30    \ Edge 24
+```
+
+That is how the original says "this line belongs to face 0" without describing an outline. LL9's
+edge loop (part 10) draws an edge if *either* of the two faces it names is visible, so an edge that
+names the same face twice is drawn whenever that face is — and since a face cannot border itself,
+the edge has to be detail drawn *on top of* the face. The Cobra Mk III uses exactly the same trick
+for its engine outline (14 edges all naming face 9).
+
+A renderer that fills faces instead of drawing lines gets the slot painted over by the very face it
+decorates. `ShipMesh` now finds these edges (`DetailEdges`: an edge whose two face numbers are the
+same *real* blueprint face), and `MeshRenderer` draws them as a later layer than the faces. This is
+the one place where depth sorting alone cannot work — the slot is exactly as far away as the face
+around it — so the queue carries an explicit layer.
+
+Two rules were tried and one was rejected. An earlier version also treated any two faces whose
+normals were within 0.95 of each other as coplanar, which swept up 60-odd perfectly ordinary
+silhouette edges on the missile, asteroid, shuttle and others. Only the exact rule survives: same
+face number, and that face must be a real one (the alloy plate's four edges all name face 15, the
+original's dummy "always visible" face, which has no outline to decorate).
+
+**The visibility rule was also wrong, and was hiding the slot.** The comment claimed the ship's
+z-distance is reduced to 0-31 and the comparison was capped at 31; LL9 part 2 actually gives XX4 a
+maximum of **7** (a ship at z_hi >= 16 is drawn as a dot instead, and carries 7). With the wrong
+cap, the station's slot — visibility 30 — was culled until the station was very close. With the
+right one it is never culled while the station is solid, and a Cobra's exhaust detail (visibility 6)
+appears only up close, which is the behaviour the original has.
+
+**Fault two: the station was created facing the wrong way, so the slot pointed away from us.**
+
+The blueprint puts the slot in the station's +z face. The original's `NWSPS` — its station creation
+routine — turns the station right around as it creates it, calling `NwS1` once for each of the three
+high bytes of the station's nose vector to flip their signs. Our spawn never did. The station was
+therefore created with its slot facing away from us, and since the original places new stations
+*ahead* of us, we were looking at its blank rear face: with the fix above, the slot would have been
+drawn correctly and still never seen.
+
+The direction is not a guess. The original's own docking computer settles it: `DCS1`'s commentary
+says "the nose vector points from the centre of the station through the slot", and the existing
+docking tests here assume the same thing (they set `nosev_z = -1` for a station ahead of us so its
+slot faces back at us). So the slot faces the player only when the station's nose points *at* the
+player — which is what `NWSPS`'s flip produces, and what was missing.
+
+`SystemArrival.CreateStation` now builds stations (placement, orientation flip and spin roll in one
+place), and `FlightScene.SpawnStationAhead` calls it. That also puts the whole thing under test: a
+new test asserts that a station created ahead of us presents its slot to us, and that the original's
+own `Docking.Check` agrees.
+
+**One deliberate departure.** `NWSPS` flips only the nose vector, leaving the roof and side where
+they were — which is not a rotation and leaves the model mirrored. We flip all three, so the three
+vectors stay a consistent basis. The slot ends up in the same place either way.
+
+**How the slot is drawn.** The original draws a wireframe, so its slot is four white lines on the
+station's face and nothing more. Filling the face loses that, so the slot is drawn as the original
+*shows* it: a hollow cut into the face. The recess is filled (a dark blue-grey) and the four edges
+are drawn as a bright white lip on top — the same white the original draws every ship's lines in,
+and the reason an opening reads as an opening rather than a panel.
+
+## Method note: the overload that made three diagnostics lie
+
+For an hour of this round the diagnostics said the station's face 0 was not visible when it plainly
+was. The cause is worth recording because it will bite again.
+
+`GlobalUsings.cs` aliases `Vector3` to `Microsoft.Xna.Framework.Vector3`. MonoGame's `Vector3` *is*
+the `Microsoft.Xna.Framework.Vector3` the alias points at, so writing
+`System.Numerics.Vector3.Dot(a, b)` to force the System.Numerics implementation does not work: both
+names resolve to the same type, both libraries' `Dot` are indistinguishable by signature, and
+whichever the compiler picks wins. The two agree on the value but not on the convention, so the
+result was silently the opposite sign.
+
+The lesson is the one the last few rounds keep teaching: when a measurement contradicts what is on
+screen, suspect the measurement. The face-visibility dot product is now computed term by term rather
+than called, so there is nothing left to resolve ambiguously.
+
+## The dashboard followed the old window size
+
+The user maximised the window and the dashboard stayed small, in the top-left corner, instead of
+sitting centred across the bottom. The cause is a cached layout: `HudRenderer` copied
+`layout.View`, `layout.Dashboard` and `layout.Scale` into readonly fields **in its constructor**,
+and the renderer is built once when the flight scene is created. `EliteGame.UpdateCameraToViewport`
+did recompute the layout and resize the camera whenever the window changed size, but nothing ever
+told the dashboard.
+
+`HudRenderer` now keeps the `ScreenLayout` itself and reads `View`, `Dashboard` and `Scale` from it
+on every draw, and `EliteGame` hands it the current layout each frame. The instruments are all
+positioned from those three values, so they follow the window with no further changes.
+
+The right-hand panel also had its labels clipped at large sizes: it sized itself from a fraction of
+the dashboard width (`Dashboard.Right - 5%`) and then drew its two-letter labels *outside* that
+edge, and a speed figure past it as well. The panel now stops short of the edge by one measured
+label width (`TextRenderer.Measure`), so nothing can be clipped at any window size.
+
+Verified by rendering at 1280x800, 1920x1131 and 2560x1440: the dashboard band starts at exactly
+`height - round(height * 64/256)`, reaches the last row, and is centred on the space view at every
+size.
+
+## The station's spin: fast, but the original's own rate
+
+The user reports the station spins extremely fast. It does — and measurement says it is correct.
+
+The rate is **not** governed by the roll counter's magnitude. `MVEIT` part 8 calls `MVS5` once
+whenever the counter is non-zero, and `MVS5` turns the orientation vectors by a **fixed 1/16
+radian, or 3.6 degrees** (its own header comment says so, and the deep dive is titled "Pitching and
+rolling by a fixed angle"). The counter's value only decides how many frames the turn continues,
+and its sign which way. `NWSPS` sets the station's counter to 255 — "maximum anti-clockwise roll
+with no damping" — which means only that the station never stops turning. Any non-zero value gives
+the same speed, so there is no counter value that would slow it down.
+
+Measured here, on the created station, over 10 frames: **3.58 degrees a frame**, the rounding
+difference being fixed-point. That is a full turn in about 100 simulation frames. Our simulation
+runs at the original's 50 Hz (`FlightScene.FrameRate`), so that is a turn in about two seconds.
+
+A new test pins this down: the turn is 3.4-3.7 degrees a frame for roll counters of 1, 64, 127 and
+255 alike. The test measures frame by frame rather than accumulating, because at this rate the
+angle wraps every hundred frames; it also establishes that the station rolls **clockwise**.
+
+`SystemArrival.CreateStation` now also writes the roll counter into the ship's data block at
+creation. It was only being copied in from `SpinRoll` during the first frame's MVEIT, so a station
+was briefly created not turning.
+
+**On the perceived speed.** The user's observation that the original ran at a lower frame rate is
+the right way to think about it: because the turn is per *simulation frame*, the same code looks
+slower on hardware that ticks less often, and the BBC original often managed well under 50 frames a
+second while drawing a whole screen of lines. The rate is kept as the source defines it, at the
+source's frame rate. If a slower station is wanted as a presentation choice, the honest place for
+it is a documented departure with a speed multiplier, not a change to the rate itself.

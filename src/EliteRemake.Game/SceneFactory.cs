@@ -11,20 +11,29 @@ public static class SceneFactory
 {
     public static IScene Create(GameOptions options, GraphicsDevice device, ViewCamera camera, ScreenLayout layout, TextRenderer text)
     {
-        if (options.ViewerShip is { } shipName)
+        if (options.ViewerShip is not null)
         {
-            ShipCatalog.Entry requested = ShipCatalog.Find(shipName);
-            return new ShipViewerScene(
-                requested.Mesh,
-                requested.Name,
-                device,
-                camera,
-                distance: options.ViewerDistance ?? ShipCatalog.ViewerDistance(requested.Mesh),
-                fixedHeading: options.ViewerHeading,
-                fixedPitch: options.ViewerPitch);
+            return CreateViewer(options, device, camera);
         }
 
         return CreateFlightScene(options, device, camera, layout, text, CreateSession(options));
+    }
+
+    /// <summary>
+    /// Builds the development ship viewer, which shows one blueprint turning on the spot so the
+    /// extracted geometry can be checked against the original's own models.
+    /// </summary>
+    public static IScene CreateViewer(GameOptions options, GraphicsDevice device, ViewCamera camera)
+    {
+        ShipCatalog.Entry requested = ShipCatalog.Find(options.ViewerShip!);
+        return new ShipViewerScene(
+            requested.Mesh,
+            requested.Name,
+            device,
+            camera,
+            distance: options.ViewerDistance ?? ShipCatalog.ViewerDistance(requested.Mesh),
+            fixedHeading: options.ViewerHeading,
+            fixedPitch: options.ViewerPitch);
     }
 
     /// <summary>Creates the game session: the commander and their flight simulation.</summary>

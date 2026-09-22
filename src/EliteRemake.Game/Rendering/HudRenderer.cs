@@ -18,21 +18,35 @@ namespace EliteRemake.Game.Rendering;
 public sealed class HudRenderer
 {
     private readonly List<Rectangle> _missiles = [];
-    private readonly Rectangle _view;
-    private readonly Rectangle _dashboard;
-    private readonly float _scale;
     private readonly TextRenderer _text;
 
     public HudRenderer(ScreenLayout layout, TextRenderer text)
     {
-        _view = layout.View;
-        _dashboard = layout.Dashboard;
-        _scale = MathF.Max(layout.Scale, 0.5f);
+        Layout = layout;
         _text = text;
     }
 
+    /// <summary>
+    /// Where the space view and the dashboard sit in the window. This is updated whenever the window
+    /// changes size, so the dashboard follows the bottom of the screen rather than staying where it
+    /// was first drawn.
+    /// </summary>
+    public ScreenLayout Layout { get; set; }
+
+    /// <summary>The area the 3D view occupies, which the crosshair and the labels are centred on.</summary>
+    private Rectangle View => Layout.View;
+
+    /// <summary>The area the dashboard occupies, across the bottom of the window.</summary>
+    private Rectangle Dashboard => Layout.Dashboard;
+
+    /// <summary>
+    /// How many screen pixels one original pixel occupies. The floor keeps the instruments from
+    /// collapsing into an unreadable smear in a very small window.
+    /// </summary>
+    private float Scale => MathF.Max(Layout.Scale, 0.5f);
+
     /// <summary>The text scale that gives eight-by-eight characters of a readable size.</summary>
-    private int TextScale => Math.Max(1, (int)MathF.Round(_scale));
+    private int TextScale => Math.Max(1, (int)MathF.Round(Scale));
     private int LineHeight => TextRenderer.CellHeight(TextScale);
 
     /// <summary>The colour of an indicator that is switched on.</summary>
@@ -71,8 +85,8 @@ public sealed class HudRenderer
             _text.DrawCentred(
                 spriteBatch,
                 "ENERGY LOW",
-                _view.Width / 2,
-                (int)(_view.Height * 0.62f),
+                View.Width / 2,
+                (int)(View.Height * 0.62f),
                 Math.Max(2, TextScale),
                 Palette.Red);
         }
@@ -93,14 +107,14 @@ public sealed class HudRenderer
         // The scanner has to fit between the two instrument panels without touching either, and it
         // keeps the original's shape: its ellipse is 128 by 52 in a 256-wide dashboard, a little
         // over twice as wide as it is tall
-        float gap = _dashboard.Width * 0.30f;
-        float scannerScale = MathF.Min(_scale, gap / (Scanner.HalfWidth * 2f));
+        float gap = Dashboard.Width * 0.30f;
+        float scannerScale = MathF.Min(Scale, gap / (Scanner.HalfWidth * 2f));
 
         float width = Scanner.HalfWidth * 2 * scannerScale;
         float height = Scanner.HalfHeight * 2 * scannerScale;
-        float cx = _view.Width / 2f;
+        float cx = View.Width / 2f;
         // Sit the scanner in the dashboard, just above the bottom edge
-        float cy = _dashboard.Top + (height * 0.5f);
+        float cy = Dashboard.Top + (height * 0.5f);
 
         // The ellipse, drawn as a ring of points
         DrawEllipse(spriteBatch, pixel, cx, cy, width / 2, height / 2, Frame);
@@ -108,7 +122,7 @@ public sealed class HudRenderer
         // The centre line, which runs across the middle of the scanner
         spriteBatch.Draw(
             pixel,
-            new Rectangle((int)(cx - (width / 2)), (int)cy, (int)width, (int)MathF.Max(1f, _scale)),
+            new Rectangle((int)(cx - (width / 2)), (int)cy, (int)width, (int)MathF.Max(1f, Scale)),
             Frame);
 
         // The forward view wedge. It opens upwards because forward is up the scanner, and it starts
@@ -229,11 +243,11 @@ public sealed class HudRenderer
     /// <summary>Draws the fixed gunsight at the centre of the space view.</summary>
     private void DrawCrosshair(SpriteBatch spriteBatch, Texture2D pixel)
     {
-        float cx = _view.Width / 2f;
-        float cy = _view.Height / 2f;
-        float arm = 9 * _scale;
-        float gap = 3 * _scale;
-        float thickness = MathF.Max(1f, _scale);
+        float cx = View.Width / 2f;
+        float cy = View.Height / 2f;
+        float arm = 9 * Scale;
+        float gap = 3 * Scale;
+        float thickness = MathF.Max(1f, Scale);
 
         // A broken square, as the original's sight is drawn from four corner brackets
         for (int corner = 0; corner < 4; corner++)
@@ -251,26 +265,26 @@ public sealed class HudRenderer
     private void DrawDashboardBackground(SpriteBatch spriteBatch, Texture2D pixel)
     {
         // A dark panel with a lit top edge, so the view above stays the focus
-        spriteBatch.Draw(pixel, _dashboard, new Color(8, 10, 14));
-        DrawRect(spriteBatch, pixel, _dashboard.Left, _dashboard.Top, _dashboard.Width, MathF.Max(1f, _scale), Frame);
+        spriteBatch.Draw(pixel, Dashboard, new Color(8, 10, 14));
+        DrawRect(spriteBatch, pixel, Dashboard.Left, Dashboard.Top, Dashboard.Width, MathF.Max(1f, Scale), Frame);
 
         // The left and right instrument banks are separated by a vertical divider, as the original
         // separates the two halves of the panel
-        float centreX = _dashboard.Center.X;
-        float half = 3 * _scale;
-        DrawRect(spriteBatch, pixel, centreX - (half / 2), _dashboard.Top + (4 * _scale), half, _dashboard.Height - (8 * _scale), new Color(22, 26, 34));
+        float centreX = Dashboard.Center.X;
+        float half = 3 * Scale;
+        DrawRect(spriteBatch, pixel, centreX - (half / 2), Dashboard.Top + (4 * Scale), half, Dashboard.Height - (8 * Scale), new Color(22, 26, 34));
     }
 
     /// <summary>Shields, fuel and the missile indicators.</summary>
     private void DrawLeftPanel(SpriteBatch spriteBatch, Texture2D pixel, FlightSim sim)
     {
         // Leave room on the left for the two-letter instrument labels
-        float left = _dashboard.Left + (_dashboard.Width * 0.075f);
-        float top = _dashboard.Top + (_dashboard.Height * 0.12f);
+        float left = Dashboard.Left + (Dashboard.Width * 0.075f);
+        float top = Dashboard.Top + (Dashboard.Height * 0.12f);
         // Narrower than the panel could be, so the scanner has room between the two panels
-        float width = MathF.Min(_dashboard.Width * 0.24f, 150 * _scale);
-        float height = MathF.Max(4f, _dashboard.Height * 0.075f);
-        float spacing = _dashboard.Height * 0.135f;
+        float width = MathF.Min(Dashboard.Width * 0.24f, 150 * Scale);
+        float height = MathF.Max(4f, Dashboard.Height * 0.075f);
+        float spacing = Dashboard.Height * 0.135f;
 
         // Fore and aft shields, then fuel and the two temperatures, as on the original panel
         DrawLabelledBar(spriteBatch, pixel, left, top, width, height, sim.Player.ForeShield / 255f, Palette.Cyan, "FS");
@@ -281,8 +295,8 @@ public sealed class HudRenderer
 
         // Missile indicators: four boxes that fill in as missiles are armed
         _missiles.Clear();
-        float missileSize = MathF.Max(6f, _dashboard.Height * 0.13f);
-        float missileY = _dashboard.Bottom - (missileSize * 1.5f);
+        float missileSize = MathF.Max(6f, Dashboard.Height * 0.13f);
+        float missileY = Dashboard.Bottom - (missileSize * 1.5f);
         for (int i = 0; i < 4; i++)
         {
             var box = new Rectangle(
@@ -306,7 +320,7 @@ public sealed class HudRenderer
         _text.Draw(
             spriteBatch,
             Locked ? "LOCKED" : "MISSILES",
-            _missiles[^1].Right + (int)(6 * _scale),
+            _missiles[^1].Right + (int)(6 * Scale),
             _missiles[0].Top,
             TextScale,
             Frame);
@@ -317,20 +331,25 @@ public sealed class HudRenderer
     /// scanner has to fit between the two panels, so the panels are sized from the scanner rather
     /// than from fixed fractions of the dashboard, which is what used to let them crowd it.
     /// </summary>
-    private float ScannerHalfWidth => Scanner.HalfWidth * MathF.Min(_scale, _dashboard.Width * 0.30f / (Scanner.HalfWidth * 2f));
+    private float ScannerHalfWidth => Scanner.HalfWidth * MathF.Min(Scale, Dashboard.Width * 0.30f / (Scanner.HalfWidth * 2f));
 
     /// <summary>The gap between a panel and the scanner's edge.</summary>
-    private float PanelGap => MathF.Max(6f, 22 * _scale);
+    private float PanelGap => MathF.Max(6f, 22 * Scale);
 
     /// <summary>Energy banks, speed and the roll and pitch indicators.</summary>
     private void DrawRightPanel(SpriteBatch spriteBatch, Texture2D pixel, FlightSim sim)
     {
-        float right = _dashboard.Right - (_dashboard.Width * 0.05f);
-        float top = _dashboard.Top + (_dashboard.Height * 0.12f);
+        // The instrument labels sit on the right of these bars, so the panel stops short of the
+        // edge of the dashboard by however wide a label is. The width comes from the font rather
+        // than a fraction of the dashboard so the labels cannot be clipped at the screen edge, at
+        // any window size.
+        int labelWidth = TextRenderer.Measure("EN", TextScale).X;
+        float right = Dashboard.Right - labelWidth - (6 * Scale);
+        float top = Dashboard.Top + (Dashboard.Height * 0.12f);
         // The energy banks are drawn from the right, so the panel starts where the scanner ends
-        float width = MathF.Max(40f, right - ((_dashboard.Center.X + ScannerHalfWidth) + PanelGap));
-        float height = MathF.Max(4f, _dashboard.Height * 0.07f);
-        float spacing = _dashboard.Height * 0.105f;
+        float width = MathF.Max(40f, right - ((Dashboard.Center.X + ScannerHalfWidth) + PanelGap));
+        float height = MathF.Max(4f, Dashboard.Height * 0.07f);
+        float spacing = Dashboard.Height * 0.105f;
         float left = right - width;
 
         // Four energy banks, drawn from the right, filled to the commander's current energy
@@ -346,10 +365,6 @@ public sealed class HudRenderer
         DrawLabelledBar(spriteBatch, pixel, left, speedY, width, height, sim.Speed / (float)FlightSim.MaxSpeed, Palette.White, "SP");
         DrawCentreBar(spriteBatch, pixel, left, speedY + spacing, width, height, sim.RollRate, "RL");
         DrawCentreBar(spriteBatch, pixel, left, speedY + (spacing * 2), width, height, sim.PitchRate, "DC");
-
-        // The speed figure itself, as the original prints it beside the dial
-        string speed = sim.Speed.ToString();
-        _text.Draw(spriteBatch, speed, (int)(right + (6 * _scale)), (int)speedY, TextScale, Palette.White);
     }
 
     /// <summary>The compass: a circle with a dot showing where the space station is.</summary>
@@ -363,11 +378,11 @@ public sealed class HudRenderer
     private void DrawCompass(SpriteBatch spriteBatch, Texture2D pixel, FlightSim sim)
     {
         // The original's compass sits to the right of the scanner, just inside its edge
-        float scale = MathF.Min(_scale, _dashboard.Width * 0.02f);
+        float scale = MathF.Min(Scale, Dashboard.Width * 0.02f);
         // Inside the scanner's right edge, so the compass never reaches the panel beside it
-        float scannerHalfWidth = Scanner.HalfWidth * MathF.Min(_scale, _dashboard.Width * 0.30f / (Scanner.HalfWidth * 2f));
-        float cx = _dashboard.Center.X + (scannerHalfWidth * 0.58f);
-        float cy = _dashboard.Top + (_dashboard.Height * 0.62f);
+        float scannerHalfWidth = Scanner.HalfWidth * MathF.Min(Scale, Dashboard.Width * 0.30f / (Scanner.HalfWidth * 2f));
+        float cx = Dashboard.Center.X + (scannerHalfWidth * 0.58f);
+        float cy = Dashboard.Top + (Dashboard.Height * 0.62f);
         float radius = 10 * scale;
 
         DrawCircle(spriteBatch, pixel, cx, cy, radius, Frame, 24);
@@ -423,8 +438,8 @@ public sealed class HudRenderer
         // the scanner; the left-hand panel's go on the inner side, as the original has them
         int labelWidth = TextRenderer.Measure(label, TextScale).X;
         float labelX = labelOnRight
-            ? x + width + (4 * _scale)
-            : x - labelWidth - (4 * _scale);
+            ? x + width + (4 * Scale)
+            : x - labelWidth - (4 * Scale);
 
         _text.Draw(spriteBatch, label, (int)labelX, (int)y, TextScale, Frame);
         DrawBar(spriteBatch, pixel, x, y, width, height, fraction, colour);
@@ -461,22 +476,22 @@ public sealed class HudRenderer
         string label)
     {
         int labelWidth = TextRenderer.Measure(label, TextScale).X;
-        _text.Draw(spriteBatch, label, (int)(x - labelWidth - (4 * _scale)), (int)y, TextScale, Frame);
+        _text.Draw(spriteBatch, label, (int)(x - labelWidth - (4 * Scale)), (int)y, TextScale, Frame);
         DrawOutline(spriteBatch, pixel, new Rectangle((int)x, (int)y, (int)width, (int)height), Frame);
         Color colour = Palette.Cyan;
 
         float centre = x + (width / 2);
-        DrawRect(spriteBatch, pixel, centre, y, MathF.Max(1, _scale), height, new Color(80, 86, 98));
+        DrawRect(spriteBatch, pixel, centre, y, MathF.Max(1, Scale), height, new Color(80, 86, 98));
 
         // The rate runs from 0 to 255 with 128 in the middle
         float offset = (rate - 128) / 128f;
         float pointerX = centre + (offset * (width / 2) * 0.9f);
-        DrawRect(spriteBatch, pixel, pointerX - (_scale), y, MathF.Max(1, 2 * _scale), height, colour);
+        DrawRect(spriteBatch, pixel, pointerX - (Scale), y, MathF.Max(1, 2 * Scale), height, colour);
     }
 
     private void DrawOutline(SpriteBatch spriteBatch, Texture2D pixel, Rectangle rectangle, Color colour)
     {
-        float thickness = MathF.Max(1f, _scale * 0.75f);
+        float thickness = MathF.Max(1f, Scale * 0.75f);
         DrawRect(spriteBatch, pixel, rectangle.Left, rectangle.Top, rectangle.Width, thickness, colour);
         DrawRect(spriteBatch, pixel, rectangle.Left, rectangle.Bottom - thickness, rectangle.Width, thickness, colour);
         DrawRect(spriteBatch, pixel, rectangle.Left, rectangle.Top, thickness, rectangle.Height, colour);
