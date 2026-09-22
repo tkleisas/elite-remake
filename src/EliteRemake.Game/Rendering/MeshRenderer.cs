@@ -43,10 +43,10 @@ public sealed class MeshRenderer : IDisposable
 
     /// <summary>Direction the key light comes from, in view space (x right, y up, z forward).</summary>
     public System.Numerics.Vector3 LightDirection { get; set; } =
-        System.Numerics.Vector3.Normalize(new System.Numerics.Vector3(-0.30f, 0.45f, -0.85f));
+        System.Numerics.Vector3.Normalize(new System.Numerics.Vector3(-0.65f, 0.45f, -0.60f));
 
     /// <summary>Ambient light level, so unlit faces stay readable.</summary>
-    public float Ambient { get; set; } = 0.35f;
+    public float Ambient { get; set; } = 0.28f;
 
     /// <summary>The number of triangles submitted by the last draw call, for diagnostics.</summary>
     public int LastTriangleCount { get; private set; }
