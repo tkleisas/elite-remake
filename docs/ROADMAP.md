@@ -875,3 +875,56 @@ The measurements behind that decision:
 either by applying MVS4 once per step, or by giving the world rotation the wider angle range MVS5
 itself works in — and then the autopilot's gains want re-deriving against the larger step. That is a
 piece of work on the flight model rather than on DOCKIT, and it is the next thing to do here.
+
+## MVT6 ignores the sign it is given, and that is why rolls are asymmetric
+
+The hunt for the counter scale ended somewhere much more important: **`Mvt6` does not use bit 7 of
+its `A` argument at all**, and the sign it returns instead is wrong for one direction of every
+rotation in the game.
+
+`Mvt6` is `(A P+2 P+1) = (x_sign x_hi x_lo) + (A P+2 P+1)`, where `A` carries the sign of the 16-bit
+value being added in bit 7 and bits 0-6 are preserved. Probed at byte level with a coordinate of
+zero, the committed version returns the same thing whichever sign it is handed:
+
+| coordinate | delta | `A` given | returned sign | bytes |
+| --- | --- | --- | --- | --- |
+| 0 | −62 | 0x80 | 0x80 | 0x013F |
+| 0 | −62 | 0x00 | 0x00 | 0x003E |
+| 0 | +62 | 0x80 | 0x80 | 0x013F |
+| 0 | +62 | 0x00 | 0x00 | 0x003E |
+
+Two things are wrong there. The sign of `A` makes no difference, and the magnitude for the `0x80`
+case is **319 where it should be 62** — the value is not the delta at all.
+
+The visible symptom is that a roll turns further one way than the other. Measured on a target 1000
+units to the side, one MVS5 step's worth of world rotation:
+
+| direction | turn |
+| --- | --- |
+| one way | 18.54° |
+| the other | 3.55° |
+
+3.55° is right — it is the 1/16 radian MVS5 applies. 18.54° is five times too much, and it is the
+underflow path in `Mvt6`, which is reached only when the angle and the coordinate have opposite
+signs. This has been in the code since the beginning and affects **every** world rotation: the
+keyboard, the docking computer and every moving ship.
+
+**A correct version was written and had to be pulled.** Computing the subtraction as a single 16-bit
+value with a borrow into bit 16, and deriving the sign from which of the two operands is larger,
+gives exact arithmetic — the probe above returns 62 for both deltas and 255, 256 and 257 for the
+three wrap cases. But the three call sites in `RotateLocationByOurPitchAndRoll` compensate for the
+present behaviour with their own `alp2 ^ 0x80` and sign juggling, so fixing `Mvt6` alone flips the
+direction of every turn and breaks the missile homing test, the counter direction test and the
+docking test together.
+
+**What the fix therefore is, in order:**
+
+1. Rewrite `Mvt6` to the exact 16-bit form and make it honour `A`'s sign bit, returning the sign of
+   the result.
+2. Fix the three call sites to pass the sign of the value being added *without* pre-complementing it,
+   and to take the coordinate's bit 16 from the returned sign byte.
+3. Re-derive the counter directions, which are measured in
+   `RotationCountersTurnTheShipTheWayTheOriginalDoes`, and re-run the docking harness.
+
+Steps 1 and 3 are mechanical; step 2 is the one that needs care, because it is where the present
+compensation lives and where getting it wrong reverses every turn in the game.
