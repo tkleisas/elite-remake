@@ -455,6 +455,116 @@ public static class EliteMath
     }
 
     // ---------------------------------------------------------------------------------------------
+    // MLTU2 / MVT6: 24-bit multiply and add, used to rotate positions
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// MLTU2: (A P+1 P) = (P+1 P) * Q, a 16-bit by 8-bit multiply with a 24-bit result.
+    /// </summary>
+    /// <param name="hi">
+    /// The high byte of the 16-bit multiplicand, passed with its bits complemented for the low
+    /// byte because the routine relies on the complement trick.
+    /// </param>
+    /// <param name="lo">The low byte of the multiplicand, with its bits complemented.</param>
+    /// <param name="q">The multiplier.</param>
+    /// <returns>
+    /// The 24-bit result as (A, P+1, P), plus the carry flag the routine leaves behind. The
+    /// original's callers rely on that carry being whatever the final rotate produced, so it is
+    /// returned here rather than being treated as undefined.
+    /// </returns>
+    public static (byte A, byte PHi, byte PLo, bool Carry) Mltu2(byte hi, byte lo, byte q)
+    {
+        byte a = (byte)~hi;
+        byte p = lo;
+
+        // LSR A, with the carry holding the bit that falls off
+        bool carry = (a & 0x01) != 0;
+        a = (byte)(a >> 1);
+        byte pHi = a;
+
+        // ROR P, bringing in the carry from above
+        bool nextCarry = (p & 0x01) != 0;
+        p = (byte)((p >> 1) | (carry ? 0x80 : 0x00));
+        carry = nextCarry;
+
+        a = 0;
+        for (int i = 0; i < 16; i++)
+        {
+            if (!carry)
+            {
+                int sum = a + q; // ADC Q with the carry clear
+                bool sumCarry = sum > 0xFF;
+                a = (byte)sum;
+
+                // ROR A
+                nextCarry = (a & 0x01) != 0;
+                a = (byte)((a >> 1) | (sumCarry ? 0x80 : 0x00));
+            }
+            else
+            {
+                // MU21: LSR A
+                nextCarry = (a & 0x01) != 0;
+                a = (byte)(a >> 1);
+            }
+
+            // ROR P+1
+            bool pHiCarry = (pHi & 0x01) != 0;
+            pHi = (byte)((pHi >> 1) | (nextCarry ? 0x80 : 0x00));
+
+            // ROR P
+            nextCarry = (p & 0x01) != 0;
+            p = (byte)((p >> 1) | (pHiCarry ? 0x80 : 0x00));
+            carry = nextCarry;
+        }
+
+        return (a, pHi, p, carry);
+    }
+
+    /// <summary>
+    /// MVT6: add the 24-bit value (A, P+2, P+1) to the coordinate at <paramref name="offset"/>,
+    /// where A is the sign byte and (P+2, P+1) the magnitude.
+    /// </summary>
+    /// <param name="coordinate">A 24-bit coordinate as three bytes: lo, hi, sign.</param>
+    /// <param name="offset">Offset of the coordinate's low byte.</param>
+    /// <param name="a">The sign byte of the value to add.</param>
+    /// <param name="p1">The low byte of the value to add; updated with the result.</param>
+    /// <param name="p2">The high byte of the value to add; updated with the result.</param>
+    /// <returns>The sign byte of the result.</returns>
+    public static byte Mvt6(Span<byte> coordinate, int offset, byte a, ref byte p1, ref byte p2)
+    {
+        if (((a ^ coordinate[offset + 2]) & 0x80) == 0)
+        {
+            // Same signs, so add the magnitudes
+            int low = p1 + coordinate[offset];
+            p1 = (byte)low;
+            int high = p2 + coordinate[offset + 1] + (low > 0xFF ? 1 : 0);
+            p2 = (byte)high;
+            return a;
+        }
+
+        // Different signs, so subtract
+        int lowDiff = coordinate[offset] - p1;
+        p1 = (byte)lowDiff;
+        bool borrow = lowDiff < 0;
+
+        int highDiff = coordinate[offset + 1] - p2 - (borrow ? 1 : 0);
+        p2 = (byte)highDiff;
+        borrow = highDiff < 0;
+
+        if (!borrow)
+        {
+            return (byte)(a ^ 0x80);
+        }
+
+        // The subtraction underflowed, so negate the result with two's complement
+        int negLow = 1 - p1; // the carry is clear here, so SBC subtracts one more
+        p1 = (byte)negLow;
+        int negHigh = 0 - p2 - (negLow < 0 ? 0 : 1);
+        p2 = (byte)negHigh;
+        return a;
+    }
+
+    // ---------------------------------------------------------------------------------------------
     // LL5: square root
     // ---------------------------------------------------------------------------------------------
 
