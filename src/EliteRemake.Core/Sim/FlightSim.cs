@@ -43,6 +43,12 @@ public sealed class FlightSim
 
     private readonly List<Ship> _bubble = [];
 
+    /// <summary>The random number generator the AI and the rest of the simulation share.</summary>
+    public EliteRandom Random { get; } = new();
+
+    /// <summary>How much laser damage the player took this frame, so the game can react.</summary>
+    public int DamageTakenThisFrame { get; private set; }
+
     /// <summary>Creates a flight simulation with our ship and an empty bubble.</summary>
     /// <param name="player">Our ship. Its position and orientation are not used in flight.</param>
     public FlightSim(Ship player) => Player = player;
@@ -135,9 +141,20 @@ public sealed class FlightSim
         UpdateRotation(input);
         UpdateLasers(input);
 
+        DamageTakenThisFrame = 0;
+
         for (int slot = 0; slot < _bubble.Count; slot++)
         {
-            Mveit(_bubble[slot], slot);
+            Ship ship = _bubble[slot];
+
+            // TACTICS runs before the ship is moved, as it does in the original
+            int before = Player.Energy;
+            if (Tactics.Apply(ship, Random, Player, LaserPowerOf(ship)))
+            {
+                DamageTakenThisFrame += before - Player.Energy;
+            }
+
+            Mveit(ship, slot);
         }
 
         MainLoopCounter++;
@@ -249,6 +266,15 @@ public sealed class FlightSim
     /// <summary>The targetable area of a ship, which the hit test uses.</summary>
     public Func<Ship, int> TargetableAreaProvider { get; set; } = _ => 95 * 95;
 
+    /// <summary>
+    /// The laser power of a ship, from its blueprint. Enemy ships fire with the power in bits 3-7
+    /// of blueprint byte #19, which is what the original reads when it decides whether a ship can
+    /// shoot at us at all.
+    /// </summary>
+    public Func<Ship, int> LaserPowerProvider { get; set; } = _ => 0;
+
+    private int LaserPowerOf(Ship ship) => LaserPowerProvider(ship);
+
     private int TargetableArea(Ship ship) => TargetableAreaProvider(ship);
 
     /// <summary>
@@ -317,6 +343,10 @@ public sealed class FlightSim
             ShipMath.Mvs4(ship.Orientation, Orientation.Nosev, RollAngle, PitchAngleValue);
             ShipMath.Mvs4(ship.Orientation, Orientation.Roofv, RollAngle, PitchAngleValue);
             ShipMath.Mvs4(ship.Orientation, Orientation.Sidev, RollAngle, PitchAngleValue);
+
+            // Part 8: rotate the ship about its own axes by its pitch and roll counters, which is
+            // how ships turn under their own power (and how the AI steers)
+            ShipMovement.RotateShipAboutItself(ship.Orientation, ship.Data);
         }
     }
 }

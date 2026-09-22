@@ -85,7 +85,14 @@ public static class SceneFactory
             scene.RegisterMesh(entry.Id, entry.Mesh);
         }
 
-        // The hit test needs each ship's targetable area, straight from its blueprint
+        // Ships fire with the laser power from their blueprint, and their aggression is the
+        // original's AI flag
+        sim.LaserPowerProvider = ship =>
+            ShipCatalog.ByType(ship.Type) is { } lasered &&
+            EliteRemake.Data.Ships.ShipData.ById(lasered.Id) is { } laserBlueprint
+                ? laserBlueprint.Header.LaserPower
+                : 0;
+
         sim.TargetableAreaProvider = ship =>
             ShipCatalog.ByType(ship.Type) is { } entry &&
             EliteRemake.Data.Ships.ShipData.ById(entry.Id) is { } blueprint

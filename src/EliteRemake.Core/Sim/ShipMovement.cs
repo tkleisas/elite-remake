@@ -115,6 +115,58 @@ public static class ShipMovement
     }
 
     /// <summary>
+    /// MVEIT part 8: rotate a ship about its own axes by its pitch and roll counters.
+    /// </summary>
+    /// <remarks>
+    /// This is how every ship in the game turns, the player's controls included: the counters in
+    /// bytes #29 and #30 give the direction of the turn, and each frame the ship is rotated by one
+    /// small step for each of the three axes. The counter is decremented as it is used, so a
+    /// counter of 3 turns the ship for three frames — which is why the AI refreshes it every frame
+    /// it wants to keep turning.
+    /// </remarks>
+    /// <param name="orientation">The ship's orientation vectors.</param>
+    /// <param name="data">The ship's data block, whose counters are updated.</param>
+    public static void RotateShipAboutItself(Orientation orientation, Span<byte> data)
+    {
+        // Pitch: rotate roofv against nosev
+        byte pitch = data[ShipDataBlock.PitchCounter];
+        byte pitchSign = (byte)(pitch & 0x80);
+        byte pitchMagnitude = (byte)(pitch & 0x7F);
+        if (pitchMagnitude != 0)
+        {
+            // The counter counts down as it is used, but never past 127
+            if (pitchMagnitude != 0x7F)
+            {
+                pitchMagnitude--;
+            }
+
+            data[ShipDataBlock.PitchCounter] = (byte)(pitchMagnitude | pitchSign);
+
+            ShipMath.Mvs5(orientation, Orientation.Roofv + Orientation.X, Orientation.Nosev + Orientation.X, pitchSign);
+            ShipMath.Mvs5(orientation, Orientation.Roofv + Orientation.Y, Orientation.Nosev + Orientation.Y, pitchSign);
+            ShipMath.Mvs5(orientation, Orientation.Roofv + Orientation.Z, Orientation.Nosev + Orientation.Z, pitchSign);
+        }
+
+        // Roll: rotate roofv against sidev
+        byte roll = data[ShipDataBlock.RollCounter];
+        byte rollSign = (byte)(roll & 0x80);
+        byte rollMagnitude = (byte)(roll & 0x7F);
+        if (rollMagnitude != 0)
+        {
+            if (rollMagnitude != 0x7F)
+            {
+                rollMagnitude--;
+            }
+
+            data[ShipDataBlock.RollCounter] = (byte)(rollMagnitude | rollSign);
+
+            ShipMath.Mvs5(orientation, Orientation.Roofv + Orientation.X, Orientation.Sidev + Orientation.X, rollSign);
+            ShipMath.Mvs5(orientation, Orientation.Roofv + Orientation.Y, Orientation.Sidev + Orientation.Y, rollSign);
+            ShipMath.Mvs5(orientation, Orientation.Roofv + Orientation.Z, Orientation.Sidev + Orientation.Z, rollSign);
+        }
+    }
+
+    /// <summary>
     /// MV40: rotate a planet or sun's location by our pitch and roll.
     /// </summary>
     /// <remarks>

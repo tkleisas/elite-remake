@@ -1,3 +1,4 @@
+using EliteRemake.Core.Maths;
 using EliteRemake.Core.Sim;
 using EliteRemake.Core.Universe;
 using Xunit;
@@ -455,5 +456,129 @@ public class CombatTests
         }
 
         Assert.Equal(0, sim.LaserTemperature);
+    }
+}
+
+/// <summary>
+/// Checks the ship AI: which ships want a fight, whether they steer towards us, and whether they
+/// shoot when we are in their sights.
+/// </summary>
+public class TacticsTests
+{
+    private static (FlightSim Sim, Ship Enemy) CreateSim(byte aiFlag = 0xF8)
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"));
+        sim.Commander = Commander.CreateDefault();
+        sim.Player.Energy = 150;
+        sim.LaserPowerProvider = ship => ship.Type == 17 ? 10 : 0;
+
+        Ship enemy = Ship.Create(17, "sidewinder", "Sidewinder", 0, 0, 0, 0, 2000);
+        enemy.AiFlag = aiFlag;
+        enemy.Energy = 70;
+        sim.Spawn(enemy);
+        return (sim, enemy);
+    }
+
+    [Fact]
+    public void AggressiveShipsAttackAndPeacefulOnesDoNot()
+    {
+        var random = new EliteRandom(1234);
+        // The aggression test compares a random byte with bit 7 set against the AI flag, so a
+        // flag of &F8 makes a ship attack almost every frame, while a flag below &80 means it
+        // never does
+        var pirate = new Ship(17, "sidewinder", "Pirate") { AiFlag = 0xF8 };
+        var trader = new Ship(12, "python", "Trader") { AiFlag = 0x10 };
+
+        int pirateAttacks = 0;
+        for (int i = 0; i < 200; i++)
+        {
+            if (Tactics.WantsToAttack(pirate, random))
+            {
+                pirateAttacks++;
+            }
+
+            Assert.False(Tactics.WantsToAttack(trader, random), "a peaceful ship should never attack");
+        }
+
+        Assert.True(pirateAttacks > 150, $"a pirate should attack most frames, got {pirateAttacks}/200");
+    }
+
+    [Fact]
+    public void AnEnemySteersTowardsUs()
+    {
+        var (sim, enemy) = CreateSim();
+
+        // Put the enemy ahead of us and to one side, facing away
+        enemy.SetPosition(600, 400, 2000);
+        enemy.Orientation.SetUnity(Orientation.Nosev, Orientation.Z, 1.0);
+        for (int i = 0; i < 120; i++)
+        {
+            sim.Step();
+        }
+
+        // The AI should have turned the ship towards us: its nose should point roughly at the
+        // origin from wherever it has got to
+        (int x, int y, int z) = enemy.GetPosition();
+        var toUs = System.Numerics.Vector3.Normalize(new System.Numerics.Vector3(-x, -y, -z));
+        System.Numerics.Vector3 nose = System.Numerics.Vector3.Normalize(new System.Numerics.Vector3(
+            (float)enemy.Orientation.GetUnity(Orientation.Nosev, Orientation.X),
+            (float)enemy.Orientation.GetUnity(Orientation.Nosev, Orientation.Y),
+            (float)enemy.Orientation.GetUnity(Orientation.Nosev, Orientation.Z)));
+
+        float alignment = System.Numerics.Vector3.Dot(toUs, nose);
+        Assert.True(alignment > 0.8, $"the enemy should be pointing at us, alignment {alignment:0.00}");
+    }
+
+    [Fact]
+    public void AnEnemyInRangeAndOnTargetHitsUs()
+    {
+        var (sim, enemy) = CreateSim();
+
+        // Place the enemy close and directly ahead, pointing straight at us
+        enemy.SetPosition(0, 0, 1500);
+        enemy.Orientation.SetUnity(Orientation.Nosev, Orientation.Z, -1.0);
+
+        int before = sim.Player.Energy;
+        bool hit = false;
+        for (int i = 0; i < 50 && !hit; i++)
+        {
+            sim.Step();
+            hit = sim.DamageTakenThisFrame > 0;
+        }
+
+        Assert.True(hit, "an enemy lined up on us at close range should open fire");
+        Assert.True(sim.Player.Energy < before, "and it should cost us energy");
+    }
+
+    [Fact]
+    public void AnEnemyOutOfRangeHoldsItsFire()
+    {
+        var (sim, enemy) = CreateSim();
+
+        // Same aim, but far beyond the range at which ships open fire
+        enemy.SetPosition(0, 0, Tactics.FireRange * 4);
+        enemy.Orientation.SetUnity(Orientation.Nosev, Orientation.Z, -1.0);
+
+        for (int i = 0; i < 20; i++)
+        {
+            sim.Step();
+            Assert.Equal(0, sim.DamageTakenThisFrame);
+        }
+    }
+
+    [Fact]
+    public void AShipWithoutALaserCannotHitUs()
+    {
+        var (sim, enemy) = CreateSim();
+        sim.LaserPowerProvider = _ => 0; // a ship with no laser fitted
+
+        enemy.SetPosition(0, 0, 1500);
+        enemy.Orientation.SetUnity(Orientation.Nosev, Orientation.Z, -1.0);
+
+        for (int i = 0; i < 20; i++)
+        {
+            sim.Step();
+            Assert.Equal(0, sim.DamageTakenThisFrame);
+        }
     }
 }

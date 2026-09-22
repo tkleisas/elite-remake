@@ -41,7 +41,7 @@ Primary target variant: **`versions/disc`, variant `sth` (Stairway to Hell)**, w
   docked hangar block inside `T.CODE`), 527 XX21 slots, 204 blueprints, 0 mismatches. Text tokens,
   galaxy seeds, market and equipment tables come next.
 - **M2 — Core maths & universe.** In progress. Done: fixed-point maths ✅; the procedural galaxy ✅;
-  the market and the commander's starting state ✅; lasers and combat ✅
+  the market and the commander's starting state ✅; lasers, combat and the ship AI ✅
   (`TT54` twist, `cpl` name generation from the two-letter tokens, `TT24` system data, `TT111`
   closest-system search, `GHY` galactic jumps), verified against the original's own universe —
   **TIBEDIED** is system 0 of galaxy 0 from seeds `&5A4A/&0248/&B753`, and **LAVE** comes out at
@@ -60,9 +60,13 @@ Primary target variant: **`versions/disc`, variant `sth` (Stairway to Hell)**, w
   military 23, mining 50), the pulse-rate rule from LASCT, heating at 8 a shot and cooling at 1 a
   frame with overheat at 242, the energy cost per shot, the HITCH crosshair test against each
   blueprint's targetable area, damage and destruction with an explosion, and the laser beams drawn
-  from the bottom corners to the crosshairs exactly as the original draws them. Still to do: the
-  `TACTICS` ship AI so ships fight back, missiles, E.C.M., shields, spawning, bounty payouts, escape
-  pods, and the kill-to-rating wiring.
+  from the bottom corners to the crosshairs exactly as the original draws them; and the ship AI, so
+  ships fight back: the TACTICS aggression test against the AI flag, steering towards or away from
+  us with the original's RAT of 3 and RAT2 of 4, an aim and range test before opening fire, and
+  damage to our ship. Implementing the AI also meant porting MVEIT part 8, the routine that turns a
+  ship about its own axes — without it the AI's steering had nothing to drive. Still to do: missiles,
+  E.C.M., shields absorbing damage before energy, energy recharge, death and escape pods, spawning,
+  bounty payouts, and the kill-to-rating wiring.
 - **M5 — Docked screens & missions.** In progress. Done: the commander data block with the
   original's default commander (100 credits, full tank, front pulse laser, three missiles, docked at
   Lave), the trade table and its price and availability formulas (GVL/TT151), a game session that
