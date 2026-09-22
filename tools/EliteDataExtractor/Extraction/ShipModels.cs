@@ -277,6 +277,12 @@ internal sealed class ShipDocument
     /// <summary>Label the face data was read from (may belong to another ship).</summary>
     public string? FacesFrom { get; init; }
 
+    /// <summary>
+    /// The ship's own source-declared face data, emitted only when the header's face offset does not
+    /// point at it (the splinter in the disc version is the only such ship).
+    /// </summary>
+    public List<ShipFace>? DeclaredFaces { get; init; }
+
     public ShipHeader Header { get; init; } = new();
 
     public List<ShipVertex> Vertices { get; init; } = [];

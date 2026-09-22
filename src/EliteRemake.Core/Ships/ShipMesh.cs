@@ -79,9 +79,9 @@ public sealed class ShipMesh
         var vertexVisibility = new int[vertices.Count];
         for (int i = 0; i < vertices.Count; i++)
         {
-            // The original's y axis points down the screen, so flip it here and work in a
-            // conventional right-handed frame from this point on
-            points[i] = new Vector3(vertices[i].X, -vertices[i].Y, vertices[i].Z);
+            // The original's world has x to the right, y up and z forward, which is the frame the
+            // renderer and the projection both use, so the coordinates carry straight over
+            points[i] = new Vector3(vertices[i].X, vertices[i].Y, vertices[i].Z);
             vertexVisibility[i] = vertices[i].Visibility;
         }
 
@@ -95,7 +95,7 @@ public sealed class ShipMesh
         var shipFaces = new List<ShipFace>(faces.Count);
         for (int f = 0; f < faces.Count; f++)
         {
-            var normal = new Vector3(faces[f].NormalX, -faces[f].NormalY, faces[f].NormalZ) / scale;
+            var normal = new Vector3(faces[f].NormalX, faces[f].NormalY, faces[f].NormalZ) / scale;
             if (normal.LengthSquared() > 0)
             {
                 normal = Vector3.Normalize(normal);
@@ -147,6 +147,14 @@ public sealed class ShipMesh
         foreach (BlueprintEdge edge in edges)
         {
             if (edge.Face1 != face && edge.Face2 != face)
+            {
+                continue;
+            }
+
+            // Edges with the same face on both sides are interior detail lines (the original draws
+            // them on top of a face, such as the engine outline on a Cobra's rear face), so they
+            // are not part of the face's outline and must not join the polygon walk
+            if (edge.Face1 == edge.Face2)
             {
                 continue;
             }

@@ -28,14 +28,9 @@ internal sealed class ShipBinaryVerifier
 {
     private const int MissileAddress = 0x7F00;
 
-    private readonly string _libraryRoot;
     private readonly Action<string> _log;
 
-    public ShipBinaryVerifier(string libraryRoot, TextWriter log)
-    {
-        _libraryRoot = Path.GetFullPath(libraryRoot);
-        _log = log.WriteLine;
-    }
+    public ShipBinaryVerifier(TextWriter log) => _log = log.WriteLine;
 
     public VerificationReport Verify(ExtractionResult extraction, string missileBinary)
     {
@@ -43,12 +38,6 @@ internal sealed class ShipBinaryVerifier
 
         foreach (ShipSet set in extraction.ShipSets)
         {
-            if (set.Id == "docked")
-            {
-                VerifyDockedTable(set, extraction, report);
-                continue;
-            }
-
             VerifyShipFile(set, extraction, missileBinary, report);
         }
 
@@ -65,15 +54,28 @@ internal sealed class ShipBinaryVerifier
         Assembly.AssemblyResult assembly = set.Assembly
             ?? throw new InvalidOperationException($"{set.Id}: no assembled image");
 
+        int binaryOffset = set.BinaryOffset;
+        int available = binary.Length - binaryOffset;
+        if (available < assembly.Image.Length)
+        {
+            report.Mismatches.Add(
+                $"{set.Id}: {set.Binary} only has {available} bytes from offset &{binaryOffset:X4}, "
+                + $"but the assembled image is {assembly.Image.Length} bytes");
+            return;
+        }
+
         report.FilesCompared++;
+        string location = binaryOffset == 0
+            ? $"&{set.BaseAddress:X4}"
+            : $"&{set.BaseAddress:X4} = file offset &{binaryOffset:X4}";
         _log($"");
-        _log($"{set.Binary} ({binary.Length} bytes, base &{set.BaseAddress:X4}, {set.SlotCount} XX21 slots)");
+        _log($"{set.Binary} ({binary.Length} bytes, ship block at {location}, {set.SlotCount} XX21 slots)");
 
         // 1. The whole assembled image must match the reference binary byte for byte (the reference
         //    file is padded with zeros up to the length saved by the SAVE directive).
         int imageMismatches = 0;
         int padded = 0;
-        for (int i = 0; i < binary.Length; i++)
+        for (int i = 0; i < available; i++)
         {
             byte expected = i < assembly.Image.Length ? assembly.Image[i] : (byte)0;
             if (i >= assembly.Image.Length)
@@ -81,14 +83,14 @@ internal sealed class ShipBinaryVerifier
                 padded++;
             }
 
-            if (expected != binary[i])
+            if (expected != binary[binaryOffset + i])
             {
                 if (imageMismatches == 0)
                 {
                     report.Mismatches.Add(
-                        $"{set.Id}: assembled image differs from {set.Binary} at offset &{i:X4} " +
-                        $"(asm &{expected:X2}, binary &{binary[i]:X2})");
-                    _log($"  image mismatch at offset &{i:X4}: asm &{expected:X2} != binary &{binary[i]:X2}");
+                        $"{set.Id}: assembled image differs from {set.Binary} at &{set.BaseAddress + i:X4} " +
+                        $"(asm &{expected:X2}, binary &{binary[binaryOffset + i]:X2})");
+                    _log($"  image mismatch at &{set.BaseAddress + i:X4}: asm &{expected:X2} != binary &{binary[binaryOffset + i]:X2}");
                 }
 
                 imageMismatches++;
@@ -108,7 +110,7 @@ internal sealed class ShipBinaryVerifier
         int slotMismatches = 0;
         for (int i = 0; i < set.SlotCount; i++)
         {
-            int offset = i * 2;
+            int offset = binaryOffset + (i * 2);
             if (offset + 1 >= binary.Length)
             {
                 report.Mismatches.Add($"{set.Id}: XX21 slot {i + 1} lies outside {set.Binary}");
@@ -153,9 +155,9 @@ internal sealed class ShipBinaryVerifier
             byte[] image = binary;
             int start;
             string source;
-            if (pointer >= set.BaseAddress && pointer + 20 <= set.BaseAddress + binary.Length)
+            if (pointer >= set.BaseAddress && pointer + 20 <= set.BaseAddress + available)
             {
-                start = (int)(pointer - set.BaseAddress);
+                start = binaryOffset + (int)(pointer - set.BaseAddress);
                 source = set.Binary!;
             }
             else if (pointer == MissileAddress)
@@ -196,93 +198,6 @@ internal sealed class ShipBinaryVerifier
         }
 
         _log($"  {set.Id}: {set.Slots.Count(slot => slot.Label is not null)} ships compared");
-    }
-
-    /// <summary>
-    /// The docked XX21 table does not define blueprints, so only its shape can be checked: locate the
-    /// table in T.CODE.unprot.bin by its empty/non-empty slot pattern and sanity-check the pointers.
-    /// </summary>
-    private void VerifyDockedTable(ShipSet set, ExtractionResult extraction, VerificationReport report)
-    {
-        byte[]? binary = set.BinaryData;
-        if (binary is null)
-        {
-            report.Notes.Add("docked: T.CODE.unprot.bin not available, table not checked");
-            return;
-        }
-
-        _log($"");
-        _log($"{set.Binary} (docked XX21 table, {set.SlotCount} slots)");
-
-        var matches = new List<int>();
-        for (int offset = 0; offset + (set.SlotCount * 2) <= binary.Length; offset++)
-        {
-            bool match = true;
-            for (int i = 0; i < set.SlotCount && match; i++)
-            {
-                int value = binary[offset + (i * 2)] | (binary[offset + (i * 2) + 1] << 8);
-                bool expectedEmpty = set.Slots[i].Label is null;
-                match = expectedEmpty ? value == 0 : value != 0;
-            }
-
-            if (match)
-            {
-                matches.Add(offset);
-            }
-        }
-
-        if (matches.Count != 1)
-        {
-            report.Mismatches.Add(
-                $"docked: found {matches.Count} candidate XX21 tables in {set.Binary}, expected exactly 1");
-            _log($"  slot pattern: {matches.Count} matches (expected 1)");
-            return;
-        }
-
-        int tableOffset = matches[0];
-        int tableAddress = tableOffset + 0x11E3; // the docked code is assembled at &11E3
-        _log($"  slot pattern matched at offset &{tableOffset:X4} (address &{tableAddress:X4})");
-
-        // Sanity-check the pointers: the missile lives at &7F00 and the rest point into the ship
-        // blueprint file that is loaded at &5600.
-        foreach (ShipSetSlot slot in set.Slots)
-        {
-            if (slot.Label is null)
-            {
-                continue;
-            }
-
-            int value = binary[tableOffset + ((slot.Type - 1) * 2)]
-                | (binary[tableOffset + ((slot.Type - 1) * 2) + 1] << 8);
-
-            bool valid = value == MissileAddress
-                || (value >= 0x5600 && value < 0x6000);
-            if (!valid)
-            {
-                report.Mismatches.Add(
-                    $"docked: slot {slot.Type} ({slot.Label}) points at &{value:X4}, which is not a ship blueprint address");
-            }
-
-            // Any flight ship file that has a blueprint for this label must place it at this address
-            // for the library to be self-consistent.
-            var addresses = extraction.ShipSets
-                .Where(other => other.Id != "docked")
-                .Select(other => other.Slots.FirstOrDefault(candidate =>
-                    string.Equals(candidate.Label, slot.Label, StringComparison.OrdinalIgnoreCase)))
-                .Where(candidate => candidate is not null)
-                .Select(candidate => candidate!.Pointer)
-                .Distinct()
-                .ToList();
-
-            if (addresses.Count > 0 && !addresses.Contains(value) && value != MissileAddress)
-            {
-                report.Notes.Add(
-                    $"docked: slot {slot.Type} ({slot.Label}) is &{value:X4}, which does not match any flight ship file " +
-                    $"(the docked hangar reads whichever ship file is currently loaded)");
-            }
-        }
-
-        _log($"  {set.Slots.Count(slot => slot.Label is not null)} populated slots checked");
     }
 
     /// <summary>

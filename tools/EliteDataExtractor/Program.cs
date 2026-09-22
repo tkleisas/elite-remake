@@ -46,9 +46,9 @@ internal static class Program
 
             if (options.Command is "verify" or "all")
             {
-                var report = new ShipBinaryVerifier(options.Source, Console.Out).Verify(extraction, missileBinary);
+                var report = new ShipBinaryVerifier(Console.Out).Verify(extraction, missileBinary);
                 Console.WriteLine();
-                Console.WriteLine($"Verification: {report.FilesCompared} ship files, {report.SlotsCompared} XX21 slots, "
+                Console.WriteLine($"Verification: {report.FilesCompared} ship sets, {report.SlotsCompared} XX21 slots, "
                     + $"{report.ShipsCompared} ship blueprints compared, {report.Mismatches.Count} mismatch(es)");
                 foreach (string note in report.Notes)
                 {

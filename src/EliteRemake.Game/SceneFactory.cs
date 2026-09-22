@@ -11,13 +11,20 @@ public static class SceneFactory
     {
         if (options.ViewerShip is { } shipName)
         {
-            (string name, Core.Ships.ShipMesh mesh) = ShipCatalog.Find(shipName);
-            return new ShipViewerScene(mesh, name, device, camera, distance: ShipCatalog.ViewerDistance(mesh));
+            ShipCatalog.Entry requested = ShipCatalog.Find(shipName);
+            return new ShipViewerScene(
+                requested.Mesh,
+                requested.Name,
+                device,
+                camera,
+                distance: options.ViewerDistance ?? ShipCatalog.ViewerDistance(requested.Mesh),
+                fixedHeading: options.ViewerHeading,
+                fixedPitch: options.ViewerPitch);
         }
 
-        // The flight scene arrives in the next milestone; until then the viewer shows the whole
-        // catalogue so the extracted geometry can be checked
-        (string firstName, Core.Ships.ShipMesh firstMesh) = ShipCatalog.First();
-        return new ShipViewerScene(firstMesh, firstName, device, camera, distance: ShipCatalog.ViewerDistance(firstMesh));
+        // The flight scene arrives in the next milestone; until then the viewer shows a ship so the
+        // extracted geometry can be inspected
+        ShipCatalog.Entry entry = ShipCatalog.First();
+        return new ShipViewerScene(entry.Mesh, entry.Name, device, camera, distance: ShipCatalog.ViewerDistance(entry.Mesh));
     }
 }

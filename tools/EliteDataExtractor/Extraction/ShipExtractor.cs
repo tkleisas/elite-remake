@@ -113,15 +113,7 @@ internal sealed partial class ShipExtractor
                             // (e.g. the Thargon reuses the cargo canister's edge data, so its edge
                             // offset depends on how far away the canister is in that file). The
                             // per-file verification against the reference binaries is what proves
-                            // correctness; here we only report the difference.
-                            string firstSet = firstSetByLabel[label];
-                            string? difference = BlueprintComparer.Diff(blueprintsByLabel[label], blueprint, ignoreLayoutOffsets: true);
-                            if (difference is not null)
-                            {
-                                notes.Add(
-                                    $"{label}: the decoded blueprint differs between ship files ({firstSet} vs {id}): "
-                                    + $"{difference}. The canonical entry uses {firstSet}, the first file that defines it.");
-                            }
+                            // correctness; BuildCanonicalShips reports any differences.
                         }
                         else
                         {
@@ -268,7 +260,8 @@ internal sealed partial class ShipExtractor
             }
         }
 
-        List<ShipDocument> ships = BuildCanonicalShips(shipSets, blueprintsByLabel, firstSetByLabel, missileAssembly, notes);
+        List<ShipDocument> ships = BuildCanonicalShips(
+            shipSets, blueprintsByLabel, blueprintsBySet, firstSetByLabel, missileAssembly, notes);
 
         int registeredTypeCount = shipSets
             .SelectMany(set => set.Slots)
@@ -351,6 +344,7 @@ internal sealed partial class ShipExtractor
     private List<ShipDocument> BuildCanonicalShips(
         List<ShipSet> shipSets,
         Dictionary<string, ShipBlueprint> blueprintsByLabel,
+        Dictionary<(string SetId, string Label), ShipBlueprint> blueprintsBySet,
         Dictionary<string, string> firstSetByLabel,
         AssemblyResult missileAssembly,
         List<string> notes)
@@ -410,10 +404,13 @@ internal sealed partial class ShipExtractor
                 : shipSets.First(set => set.Slots.Any(slot =>
                     string.Equals(slot.Label, label, StringComparison.OrdinalIgnoreCase) && set.Binary is not null)).Binary!;
 
+            var shipNotes = new List<string>();
+            List<ShipFace>? declaredFaceData = null;
+
             // The docked code has its own copy of some of the hangar blueprints, which differs from
             // the flight version for most of them. Emit it when the geometry or stats differ.
             ShipGeometry? dockedVariant = null;
-            if (blueprintsBySet.TryGetValue(("docked", label), out ShipBlueprint? dockedBlueprint))
+            if (blueprintsBySet.TryGetValue(("docked", label), out ShipBlueprint? dockedBlueprint) && dockedBlueprint is not null)
             {
                 string? dockedDifference = BlueprintComparer.Diff(blueprint, dockedBlueprint, ignoreLayoutOffsets: true);
                 if (dockedDifference is not null)
@@ -426,11 +423,53 @@ internal sealed partial class ShipExtractor
                         Faces = dockedBlueprint.Faces,
                     };
 
-                    string summaryNote =
-                        $"{label}: the docked ship hangar (T.CODE) uses a different blueprint ({dockedDifference})";
-                    shipNotes.Add($"{summaryNote}; it is emitted as dockedVariant.");
-                    notes.Add(summaryNote + ".");
+                    shipNotes.Add(
+                        $"the docked ship hangar (T.CODE) uses a different blueprint ({dockedDifference}); "
+                        + "it is emitted as dockedVariant.");
                 }
+            }
+
+            // Face 15 is a pseudo-face: LL9 forces it to be always visible (XX2+15 = 255) so that a
+            // vertex or edge can be pinned as always visible. The alloy plate uses it for every
+            // vertex and edge even though it has only one real face, so out-of-range references are
+            // reported rather than treated as errors.
+            var outOfRangeFaces = new SortedSet<int>();
+            int vertexReferences = 0;
+            int edgeReferences = 0;
+            foreach (ShipVertex vertex in blueprint.Vertices)
+            {
+                foreach (int face in vertex.Faces)
+                {
+                    if (face >= blueprint.Header.FaceCount)
+                    {
+                        outOfRangeFaces.Add(face);
+                        vertexReferences++;
+                    }
+                }
+            }
+
+            foreach (ShipEdge edge in blueprint.Edges)
+            {
+                foreach (int face in edge.Faces)
+                {
+                    if (face >= blueprint.Header.FaceCount)
+                    {
+                        outOfRangeFaces.Add(face);
+                        edgeReferences++;
+                    }
+                }
+            }
+
+            // References to face 15 from vertices are the normal "always visible" marker and are not
+            // worth a note; out-of-range references from edges, or to any other face number, are.
+            bool noteOutOfRange = edgeReferences > 0 || outOfRangeFaces.Any(face => face != 15);
+            if (noteOutOfRange)
+            {
+                shipNotes.Add(
+                    $"face number(s) {string.Join(", ", outOfRangeFaces)} exceed this ship's "
+                    + $"{blueprint.Header.FaceCount} face(s) ({vertexReferences} vertex reference(s), "
+                    + $"{edgeReferences} edge reference(s)); face 15 is the original's always-visible "
+                    + "pseudo-face (LL9 sets XX2+15 = 255), so these references are intentional.");
             }
 
             AssemblyResult? assembly = string.Equals(label, "SHIP_MISSILE", StringComparison.OrdinalIgnoreCase)
@@ -452,10 +491,16 @@ internal sealed partial class ShipExtractor
                 if (assembly.LabelAddress(label + "_FACES") is int declaredFaces
                     && declaredFaces != blueprint.Address + blueprint.Header.FacesOffset)
                 {
+                    declaredFaceData = DecodeFaces(
+                        assembly.Image,
+                        assembly.OffsetOf(declaredFaces),
+                        blueprint.Header.FaceCount,
+                        label);
                     shipNotes.Add(
                         $"faces data is not at {label}_FACES (offset {declaredFaces - blueprint.Address}); " +
                         $"the offset in the header reads faces from offset {blueprint.Header.FacesOffset} ({facesFrom ?? "an unnamed address"}), " +
-                        "which is what the original game reads. This matches the reference binary.");
+                        "which is what the original game reads and what this entry's faces contain. " +
+                        "The source-declared faces are emitted separately as declaredFaces.");
                 }
             }
 
@@ -492,6 +537,7 @@ internal sealed partial class ShipExtractor
                 EdgesFrom = edgesFrom,
                 FacesFrom = facesFrom,
                 DockedVariant = dockedVariant,
+                DeclaredFaces = declaredFaceData,
                 Header = blueprint.Header,
                 Vertices = blueprint.Vertices,
                 Edges = blueprint.Edges,
@@ -589,12 +635,14 @@ internal sealed partial class ShipExtractor
             }
         }
 
-        // "Dodecahedron ("Dodo") space station" is the odd one out: prefer the alias in quotes.
+        // "Dodecahedron ("Dodo") space station" is the odd one out: prefer the alias in quotes, so
+        // the ship is called "Dodo (space station)".
         Match alias = AliasNameRegex().Match(name);
         if (alias.Success)
         {
-            string tail = alias.Groups[2].Value.Trim();
-            name = tail.Length == 0 ? alias.Groups[1].Value : $"{alias.Groups[1].Value} ({tail})";
+            string quoted = alias.Groups[2].Value.Trim();
+            string tail = alias.Groups[3].Value.Trim();
+            name = tail.Length == 0 ? quoted : $"{quoted} ({tail})";
         }
 
         return name.Length == 0 ? summary : char.ToUpperInvariant(name[0]) + name[1..];
@@ -818,23 +866,7 @@ internal sealed partial class ShipExtractor
             });
         }
 
-        var faces = new List<ShipFace>(faceCount);
-        for (int i = 0; i < faceCount; i++)
-        {
-            int offset = start + facesOffset + (i * 4);
-            Require(offset >= 0 && offset + 4 <= image.Length, label, $"face {i} lies outside the assembled image");
-            int signs = image[offset];
-            int nx = image[offset + 1];
-            int ny = image[offset + 2];
-            int nz = image[offset + 3];
-            faces.Add(new ShipFace
-            {
-                X = (signs & 0x80) != 0 ? -nx : nx,
-                Y = (signs & 0x40) != 0 ? -ny : ny,
-                Z = (signs & 0x20) != 0 ? -nz : nz,
-                Visibility = signs & 0x1F,
-            });
-        }
+        List<ShipFace> faces = DecodeFaces(image, start + facesOffset, faceCount, label);
 
         return new ShipBlueprint
         {
@@ -951,6 +983,30 @@ internal sealed partial class ShipExtractor
         }
 
         return (int)new ExpressionEvaluator(_ => null).Evaluate(match.Groups[1].Value);
+    }
+
+    /// <summary>Decodes a block of FACE data (four bytes per face).</summary>
+    private static List<ShipFace> DecodeFaces(byte[] image, int offset, int faceCount, string label)
+    {
+        var faces = new List<ShipFace>(faceCount);
+        for (int i = 0; i < faceCount; i++)
+        {
+            int position = offset + (i * 4);
+            Require(position >= 0 && position + 4 <= image.Length, label, $"face {i} lies outside the assembled image");
+            int signs = image[position];
+            int nx = image[position + 1];
+            int ny = image[position + 2];
+            int nz = image[position + 3];
+            faces.Add(new ShipFace
+            {
+                X = (signs & 0x80) != 0 ? -nx : nx,
+                Y = (signs & 0x40) != 0 ? -ny : ny,
+                Z = (signs & 0x20) != 0 ? -nz : nz,
+                Visibility = signs & 0x1F,
+            });
+        }
+
+        return faces;
     }
 
     private static void Require(bool condition, string label, string message)

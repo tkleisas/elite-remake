@@ -30,6 +30,15 @@ public sealed class GameOptions
     /// <summary>Simulation steps to run before the first frame, for reproducible screenshots.</summary>
     public int WarmupSteps { get; private set; }
 
+    /// <summary>If set, the viewer holds the ship at this heading, in degrees.</summary>
+    public float? ViewerHeading { get; private set; }
+
+    /// <summary>If set, the viewer holds the ship at this pitch, in degrees.</summary>
+    public float ViewerPitch { get; private set; }
+
+    /// <summary>Distance to place the ship from the camera in the viewer.</summary>
+    public float? ViewerDistance { get; private set; }
+
     public static GameOptions Parse(string[] args)
     {
         var options = new GameOptions();
@@ -64,6 +73,15 @@ public sealed class GameOptions
                 case "--warmup":
                     options.WarmupSteps = int.Parse(Next() ?? "0");
                     break;
+                case "--viewer-heading":
+                    options.ViewerHeading = float.Parse(Next() ?? "0");
+                    break;
+                case "--viewer-pitch":
+                    options.ViewerPitch = float.Parse(Next() ?? "0");
+                    break;
+                case "--viewer-distance":
+                    options.ViewerDistance = float.Parse(Next() ?? "0");
+                    break;
                 case "--help":
                 case "-h":
                     PrintHelp();
@@ -92,6 +110,9 @@ public sealed class GameOptions
               --paused              start paused
               --warmup <steps>      run this many simulation steps before the first frame
               --exit-after <frames> quit after this many frames
+              --viewer-heading <deg>  hold the viewed ship at this heading
+              --viewer-pitch <deg>    hold the viewed ship at this pitch
+              --viewer-distance <d>   place the viewed ship this far away
               --screenshot <path>   write a PNG of frame --frame and exit
               --frame <n>           frame to capture (default 60)
             """);

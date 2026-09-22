@@ -1,107 +1,133 @@
 using EliteRemake.Core.Ships;
+using EliteRemake.Data.Ships;
 
 namespace EliteRemake.Game;
 
 /// <summary>
-/// Provides the ship meshes the game can draw.
+/// The ships the game can draw, built from the blueprints extracted from the original BBC Micro
+/// disc sources and verified against the original's own D.MOA-D.MOP binaries.
 /// </summary>
-/// <remarks>
-/// TEMPORARY: until the blueprint extractor's output is wired in, this supplies a placeholder hull
-/// so the renderer can be exercised. The catalog is replaced by the extracted BBC blueprints in the
-/// data pipeline milestone.
-/// </remarks>
 public static class ShipCatalog
 {
-    private static readonly Lazy<(string Name, ShipMesh Mesh)[]> Ships = new(BuildPlaceholder);
+    private static readonly Lazy<Entry[]> Entries = new(Build);
+    private static readonly Dictionary<int, Entry> ByTypeCache = [];
 
-    public static IReadOnlyList<(string Name, ShipMesh Mesh)> All => Ships.Value;
+    /// <summary>Every ship, in the order the original's XX21 tables define them.</summary>
+    public static IReadOnlyList<Entry> All => Entries.Value;
 
-    public static (string Name, ShipMesh Mesh) First() => Ships.Value[0];
+    /// <summary>The first ship, used as a default for the viewer.</summary>
+    public static Entry First() => Entries.Value[0];
 
-    public static (string Name, ShipMesh Mesh) Find(string name)
+    /// <summary>Looks a ship up by name, id or blueprint symbol, case-insensitively.</summary>
+    public static Entry Find(string name)
     {
-        foreach ((string candidate, ShipMesh mesh) in Ships.Value)
+        foreach (Entry entry in Entries.Value)
         {
-            if (string.Equals(candidate, name, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(entry.Name, name, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(entry.Id, name, StringComparison.OrdinalIgnoreCase) ||
+                (entry.Symbol.Length > 0 && string.Equals(entry.Symbol, name, StringComparison.OrdinalIgnoreCase)))
             {
-                return (candidate, mesh);
+                return entry;
             }
         }
 
-        throw new ArgumentException($"No such ship: {name}. Known ships: {string.Join(", ", Ships.Value.Select(s => s.Name))}");
+        throw new ArgumentException(
+            $"No such ship: {name}. Known ships: {string.Join(", ", Entries.Value.Select(e => e.Name))}");
+    }
+
+    /// <summary>Finds a ship by its original ship type number, or null if that slot is empty.</summary>
+    public static Entry? ByType(int shipType)
+    {
+        if (ByTypeCache.TryGetValue(shipType, out Entry cached))
+        {
+            return cached;
+        }
+
+        if (!ShipData.TryGetByType(shipType, out ShipBlueprint? blueprint) || blueprint is null)
+        {
+            return null;
+        }
+
+        var entry = new Entry(
+            blueprint.Name,
+            blueprint.Id,
+            blueprint.Symbols.FirstOrDefault() ?? string.Empty,
+            BuildMesh(blueprint),
+            blueprint.Header.VisibilityDistance);
+
+        ByTypeCache[shipType] = entry;
+        return entry;
     }
 
     /// <summary>How far back the viewer should place a ship so it fills a sensible part of the view.</summary>
     public static float ViewerDistance(ShipMesh mesh) => MathF.Max(mesh.Radius * 3.2f, 60f);
 
-    private static (string, ShipMesh)[] BuildPlaceholder()
+    private static Entry[] Build()
     {
-        // A simple octahedron, standing in for the extracted blueprints
-        var vertices = new[]
+        var entries = new List<Entry>(ShipData.All.Count);
+        foreach (ShipBlueprint blueprint in ShipData.All)
         {
-            new System.Numerics.Vector3(120, 0, 0),
-            new System.Numerics.Vector3(-120, 0, 0),
-            new System.Numerics.Vector3(0, 90, 0),
-            new System.Numerics.Vector3(0, -90, 0),
-            new System.Numerics.Vector3(0, 0, 160),
-            new System.Numerics.Vector3(0, 0, -160),
-        };
-
-        var faces = new List<ShipFace>();
-        void AddFace(int a, int b, int c)
-        {
-            System.Numerics.Vector3 normal = System.Numerics.Vector3.Normalize(System.Numerics.Vector3.Cross(vertices[b] - vertices[a], vertices[c] - vertices[a]));
-            faces.Add(new ShipFace
-            {
-                Indices = [a, b, c],
-                Normal = normal,
-                Visibility = 31,
-                FaceNumber = faces.Count,
-            });
+            entries.Add(new Entry(
+                blueprint.Name,
+                blueprint.Id,
+                blueprint.Symbols.FirstOrDefault() ?? string.Empty,
+                BuildMesh(blueprint),
+                blueprint.Header.VisibilityDistance));
         }
 
-        AddFace(0, 2, 4);
-        AddFace(2, 1, 4);
-        AddFace(1, 3, 4);
-        AddFace(3, 0, 4);
-        AddFace(2, 0, 5);
-        AddFace(1, 2, 5);
-        AddFace(3, 1, 5);
-        AddFace(0, 3, 5);
+        return entries.ToArray();
+    }
 
-        var edges = new List<ShipEdge>();
+    /// <summary>Converts an extracted blueprint into the geometry the renderer draws.</summary>
+    public static ShipMesh BuildMesh(ShipGeometry blueprint)
+    {
+        var vertices = new BlueprintVertex[blueprint.Vertices.Count];
         for (int i = 0; i < vertices.Length; i++)
         {
-            for (int j = i + 1; j < vertices.Length; j++)
-            {
-                if (i == 0 && j == 1)
-                {
-                    continue;
-                }
-
-                if (i == 2 && j == 3)
-                {
-                    continue;
-                }
-
-                if (i == 4 && j == 5)
-                {
-                    continue;
-                }
-
-                edges.Add(new ShipEdge(i, j, 0, 1, 31));
-            }
+            ShipVertex vertex = blueprint.Vertices[i];
+            vertices[i] = new BlueprintVertex(
+                vertex.X,
+                vertex.Y,
+                vertex.Z,
+                vertex.Faces.Count > 0 ? vertex.Faces[0] : ShipMesh.NoFace,
+                vertex.Faces.Count > 1 ? vertex.Faces[1] : ShipMesh.NoFace,
+                vertex.Faces.Count > 2 ? vertex.Faces[2] : ShipMesh.NoFace,
+                vertex.Faces.Count > 3 ? vertex.Faces[3] : ShipMesh.NoFace,
+                vertex.Visibility);
         }
 
-        var mesh = new ShipMesh
+        var edges = new BlueprintEdge[blueprint.Edges.Count];
+        for (int i = 0; i < edges.Length; i++)
         {
-            Vertices = vertices,
-            Faces = faces.ToArray(),
-            Edges = edges.ToArray(),
-            VertexVisibility = [31, 31, 31, 31, 31, 31],
-            Radius = 160,
-        };
+            Data.Ships.ShipEdge edge = blueprint.Edges[i];
+            edges[i] = new BlueprintEdge(
+                edge.Vertex1,
+                edge.Vertex2,
+                edge.Faces.Count > 0 ? edge.Faces[0] : ShipMesh.NoFace,
+                edge.Faces.Count > 1 ? edge.Faces[1] : ShipMesh.NoFace,
+                edge.Visibility);
+        }
 
-        return [("Placeholder hull", mesh)];
+        var faces = new BlueprintFace[blueprint.Faces.Count];
+        for (int i = 0; i < faces.Length; i++)
+        {
+            Data.Ships.ShipFace face = blueprint.Faces[i];
+            faces[i] = new BlueprintFace(face.X, face.Y, face.Z, face.Visibility);
+        }
+
+        return ShipMesh.Build(vertices, edges, faces, blueprint.Header.NormalScale);
     }
+
+    /// <summary>One ship the game can draw.</summary>
+    /// <param name="Name">The ship's friendly name.</param>
+    /// <param name="Id">The ship's stable identifier.</param>
+    /// <param name="Symbol">The original's four-character blueprint symbol, if it has one.</param>
+    /// <param name="Mesh">The ship's solid geometry.</param>
+    /// <param name="VisibilityDistance">The distance beyond which the ship is drawn as a dot.</param>
+    public readonly record struct Entry(
+        string Name,
+        string Id,
+        string Symbol,
+        ShipMesh Mesh,
+        int VisibilityDistance);
 }

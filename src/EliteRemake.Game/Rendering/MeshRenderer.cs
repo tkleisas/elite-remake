@@ -43,10 +43,10 @@ public sealed class MeshRenderer : IDisposable
 
     /// <summary>Direction the key light comes from, in view space (x right, y up, z forward).</summary>
     public System.Numerics.Vector3 LightDirection { get; set; } =
-        System.Numerics.Vector3.Normalize(new System.Numerics.Vector3(-0.35f, 0.55f, -0.75f));
+        System.Numerics.Vector3.Normalize(new System.Numerics.Vector3(-0.30f, 0.45f, -0.85f));
 
     /// <summary>Ambient light level, so unlit faces stay readable.</summary>
-    public float Ambient { get; set; } = 0.30f;
+    public float Ambient { get; set; } = 0.35f;
 
     /// <summary>The number of triangles submitted by the last draw call, for diagnostics.</summary>
     public int LastTriangleCount { get; private set; }
@@ -144,22 +144,9 @@ public sealed class MeshRenderer : IDisposable
                 continue;
             }
 
-            // Vertex-level visibility: hide the fine detail of distant ships
-            bool anyHidden = false;
-            for (int i = 0; i < face.Indices.Length; i++)
-            {
-                if (mesh.VertexVisibility[face.Indices[i]] < visibility)
-                {
-                    anyHidden = true;
-                    break;
-                }
-            }
-
-            if (anyHidden)
-            {
-                continue;
-            }
-
+            // Vertex-level visibility hides the original's fine detail edges on distant ships, so
+            // a face whose outline needs those vertices is treated as a detail face too. Faces made
+            // only of far-visible vertices are always drawn.
             if (face.Indices.Length > polygon.Length)
             {
                 continue;

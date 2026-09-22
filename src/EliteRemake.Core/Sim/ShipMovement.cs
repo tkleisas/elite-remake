@@ -69,7 +69,9 @@ public static class ShipMovement
         p2 = a;
         position[Y + 2] = k2Sign;
 
-        bool add = ((k2Sign ^ bet2 ^ zSign) & 0x80) == 0;
+        // The original branches to the subtract path when K2_sign EOR beta_sign EOR z_sign is
+        // positive, and adds otherwise
+        bool add = ((k2Sign ^ bet2 ^ zSign) & 0x80) != 0;
         if (add)
         {
             // The original does not clear the carry here: it adds using whatever MLTU2 left
@@ -89,10 +91,13 @@ public static class ShipMovement
 
             if (high < 0)
             {
-                // Negate (y_sign y_hi y_lo) using two's complement
-                int negLow = 1 - position[Y];
+                // Negate (y_sign y_hi y_lo) using two's complement. The carry is clear on entry to
+                // the negation, so the first subtraction borrows an extra 1
+                bool carryFlag = false;
+                int negLow = 1 - position[Y] - (carryFlag ? 0 : 1);
                 position[Y] = (byte)negLow;
-                int negHigh = 0 - position[Y + 1] - (negLow < 0 ? 0 : 1);
+                carryFlag = negLow >= 0;
+                int negHigh = 0 - position[Y + 1] - (carryFlag ? 0 : 1);
                 position[Y + 1] = (byte)negHigh;
                 position[Y + 2] = (byte)(position[Y + 2] ^ 0x80);
             }

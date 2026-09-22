@@ -21,7 +21,14 @@ public sealed class ShipViewerScene : IScene
     private float _distance;
     private float _time;
 
-    public ShipViewerScene(ShipMesh mesh, string name, GraphicsDevice device, ViewCamera camera, float distance = 400f)
+    public ShipViewerScene(
+        ShipMesh mesh,
+        string name,
+        GraphicsDevice device,
+        ViewCamera camera,
+        float distance = 400f,
+        float? fixedHeading = null,
+        float fixedPitch = 0f)
     {
         _mesh = mesh;
         _name = name;
@@ -29,8 +36,14 @@ public sealed class ShipViewerScene : IScene
         _starfield = new Starfield();
         _orientation = Orientation.FromHeadingPitch(0, 0);
         _distance = distance;
+        _fixedHeading = fixedHeading;
+        _fixedPitch = fixedPitch;
+        Animate = fixedHeading is null;
         Camera = camera;
     }
+
+    private readonly float? _fixedHeading;
+    private readonly float _fixedPitch;
 
     public ViewCamera Camera { get; }
 
@@ -43,10 +56,9 @@ public sealed class ShipViewerScene : IScene
     public void Update(float elapsedSeconds)
     {
         _time += elapsedSeconds;
-        if (Animate)
-        {
-            _orientation = Orientation.FromHeadingPitch(_time * 0.6, Math.Sin(_time * 0.4) * 0.5);
-        }
+        _orientation = _fixedHeading is { } heading
+            ? Orientation.FromHeadingPitch(heading * Math.PI / 180.0, _fixedPitch * Math.PI / 180.0)
+            : Orientation.FromHeadingPitch(_time * 0.6, Math.Sin(_time * 0.4) * 0.5);
 
         _starfield.Update(Animate ? 60f * elapsedSeconds : 0);
     }

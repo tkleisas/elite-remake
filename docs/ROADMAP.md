@@ -36,16 +36,18 @@ Primary target variant: **`versions/disc`, variant `sth` (Stairway to Hell)**, w
 ## Milestones
 
 - **M0 — Toolchain & scaffold.** Solution, projects, tests, screenshot harness, git. ✅
-- **M1 — Data pipeline.** `EliteDataExtractor`: ship blueprints (31 types) with byte-exact
-  verification against `D.MOA`–`D.MOP`, text tokens (`QQ18`/`QQ16`), galaxy seeds (`QQ21`), market
-  (`QQ23`) and equipment tables.
+- **M1 — Data pipeline.** ✅ `EliteDataExtractor` extracts all 31 ship blueprints and verifies them
+  **byte-for-byte** against the original's own binaries: 17 ship sets (`D.MOA`–`D.MOP` plus the
+  docked hangar block inside `T.CODE`), 527 XX21 slots, 204 blueprints, 0 mismatches. Text tokens,
+  galaxy seeds, market and equipment tables come next.
 - **M2 — Core maths & universe.** Fixed-point maths, galaxy generation (`TT54`/`TT111`/`cpl`),
   system data (`TT25`), economy & prices, token-based text printing. Verified against canonical
   values (galaxy 0: *Tibedied* is system 0, seeds `&5A4A/&0248/&B753`; **Lave** is at (20, 173)
   and is "most famous for its vast rain forests and the Laveian tree grub").
-- **M3 — Flight & rendering.** Solid-face 3D renderer with painter's-algorithm depth sorting,
-  authentic dashboard/HUD, player flight model (`MVEIT`/`MVS4`/rotation/tidying), sun/planet/station
-  objects, system arrival via hyperspace.
+- **M3 — Flight & rendering.** In progress: solid-face 3D renderer with painter's-algorithm depth
+  sorting and the original's visibility rules ✅; view camera matching the original's projection ✅;
+  ported flight maths (`MVS4`/`MVS5`/`TIDY`/`MVEIT` part 5) ✅; flight controls ✅. Still to do: the
+  flight scene itself, the dashboard/HUD, sun/planet/station objects, hyperspace arrival.
 - **M4 — Combat & AI.** Lasers, missiles, ECM, energy banks, shields, `TACTICS` ship AI, spawning,
   explosions, escape pods, bounty, rating.
 - **M5 — Docked screens & missions.** Launch/docking (manual + docking computer), market, equipment,
