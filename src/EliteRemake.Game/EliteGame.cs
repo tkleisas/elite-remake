@@ -24,6 +24,7 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
     private EquipmentScene? _equipmentScene;
     private ChartScene? _shortChartScene;
     private ChartScene? _longChartScene;
+    private DataScene? _dataScene;
     private GameSession _session = null!;
     private int _frame;
     private bool _screenshotWritten;
@@ -90,6 +91,7 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
                 DockedScreen.Equipment => _equipmentScene ??= new EquipmentScene(Camera, _session, _text),
                 DockedScreen.ShortRangeChart => _shortChartScene ??= OpenChart(ChartRange.Short),
                 DockedScreen.LongRangeChart => _longChartScene ??= OpenChart(ChartRange.Long),
+                DockedScreen.DataOnSystem => _dataScene ??= new DataScene(Camera, _session, _text),
                 _ => _marketScene ??= new MarketScene(Camera, _session, _text),
             };
         }

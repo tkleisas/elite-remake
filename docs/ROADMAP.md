@@ -92,8 +92,18 @@ Primary target variant: **`versions/disc`, variant `sth` (Stairway to Hell)**, w
   Lave at 5.6 light years but not Riedquat at 7.2, exactly as in the original. Also done: the
   charts — the short-range chart with its fuel circle, which shows at a glance which systems a tank
   will reach, and the long-range chart of the whole galaxy, both with the crosshairs moved by the
-  cursor keys and the selected system's data underneath, and H to jump. Still to do: the shipyard,
-  the system description generator, save/load, missions, and the galactic hyperdrive.
+  cursor keys and the selected system's data underneath, and H to jump — and Data on System, which
+  shows the selected system's distance, economy, government, tech level, population, productivity,
+  radius and coordinates, all from its seeds. Still to do: the shipyard, the system *description*
+  generator, save/load, missions, and the galactic hyperdrive.
+
+  A note on the description generator: the phrases ("most famous for its vast rain forests…") live
+  in the original's extended token table, TKN1, which runs to over six thousand lines of source, and
+  they are assembled by its extended text system — the DETOK printer with its jump tokens, sentence
+  casing and the DTW flag tables. That is a subsystem in its own right, comparable in size to the
+  ship blueprint extraction, and it wants a round of its own: the right shape is to extend
+  EliteDataExtractor to emit the token table and the description fragments as data, then port the
+  printer and the seed-driven selection.
 - **M6 — Audio, polish, parity sweep.** In progress. Done: the original's ten sound effects with
   their exact SFX bytes, rendered as square waves with the BBC's pitch divider and its four
   envelopes (a decaying note, an upward sweep, noise and a fast tremolo), and triggered by the same

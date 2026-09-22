@@ -16,6 +16,9 @@ public enum DockedScreen
 
     /// <summary>The long-range chart.</summary>
     LongRangeChart,
+
+    /// <summary>Data on System.</summary>
+    DataOnSystem,
 }
 
 /// <summary>Where the player is: flying, or docked at the station.</summary>
@@ -56,6 +59,9 @@ public sealed class GameSession
         _random = new EliteRandom(seed);
 
         Market = Universe.Market.Build(System, _random.Next());
+
+        // The charts start with the crosshairs on the system we are in
+        SelectedSystem = System;
     }
 
     /// <summary>The commander.</summary>

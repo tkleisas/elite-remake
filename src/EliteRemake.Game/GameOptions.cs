@@ -139,6 +139,7 @@ public sealed class GameOptions
                         "equipment" or "equip" => DockedScreen.Equipment,
                         "short" or "shortchart" => DockedScreen.ShortRangeChart,
                         "long" or "longchart" => DockedScreen.LongRangeChart,
+                        "data" or "dataonsystem" => DockedScreen.DataOnSystem,
                         _ => DockedScreen.Market,
                     };
                     break;
