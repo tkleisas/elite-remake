@@ -51,15 +51,23 @@ public sealed class TokenPrinter
     public int MaxDepth { get; init; } = 32;
 
     /// <summary>
+    /// A second table to consult for tokens the first does not hold. The mission hints live in their
+    /// own table and refer to tokens in the main one, so printing a hint needs both.
+    /// </summary>
+    public IReadOnlyDictionary<int, TokenElement[]>? FallbackTokens { get; init; }
+
+    /// <summary>
     /// Expands a token into text. The name is what {the system name} expands to, so the caller
     /// decides whose description this is.
     /// </summary>
     public string Print(int token, string systemName)
     {
         _output.Clear();
+        // The tokens themselves decide the case: the description opens with {lower case}, while the
+        // mission hints do not, and so keep the capitals the tables store them in
         _lowerCase = false;
         _singleCap = false;
-        _sentenceCase = true;
+        _sentenceCase = false;
         _startOfSentence = true;
         _expanding.Clear();
 
@@ -69,9 +77,17 @@ public sealed class TokenPrinter
 
     private void Expand(int token, string systemName, int depth)
     {
-        if (depth > MaxDepth || !_tokens.TryGetValue(token, out TokenElement[]? elements))
+        if (depth > MaxDepth)
         {
             return;
+        }
+
+        if (!_tokens.TryGetValue(token, out TokenElement[]? elements))
+        {
+            if (FallbackTokens is null || !FallbackTokens.TryGetValue(token, out elements))
+            {
+                return;
+            }
         }
 
         if (!_expanding.Add(token))

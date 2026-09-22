@@ -54,7 +54,17 @@ public sealed class DataScene : IScene
         _described = system;
         _visits = _session.Visit;
 
-        string text = EliteRemake.Data.DescriptionData.Describe(system.Name, _session.DescriptionRandom);
+        // A system on a mission's trail replaces its description with a hint, as the original's
+        // PDESC does — and only for the system we are docked at, not the one the charts point at
+        int hint = EliteRemake.Data.DescriptionData.Hints.TokenFor(
+            system,
+            _session.System,
+            _session.Commander.GalaxyNumber,
+            _session.Missions.Mission1Active);
+
+        string text = hint != 0
+            ? EliteRemake.Data.DescriptionData.Hint(hint, system.Name, _session.DescriptionRandom)
+            : EliteRemake.Data.DescriptionData.Describe(system.Name, _session.DescriptionRandom);
         _description.Clear();
         _description.AddRange(Wrap(text, Columns - 2));
     }

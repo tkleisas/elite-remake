@@ -353,3 +353,80 @@ public class GalaxyIndexTests
         Assert.Equal("ORORRA", arrival.Name);
     }
 }
+
+/// <summary>
+/// Checks the mission hints that replace a system's description while the Constrictor mission is on,
+/// which is what turns the mission into a trail.
+/// </summary>
+public class MissionHintTests
+{
+    [Fact]
+    public void TheTrailSystemsHaveHintsAndTheRestDoNot()
+    {
+        var hints = Data.DescriptionData.Hints;
+
+        // The original's RUPLA table has 29 entries
+        Assert.Equal(29, hints.Count);
+
+        // The first galaxy's trail, by system number
+        Assert.Equal(2, hints.TokenFor(150, 0, true));  // Xeer
+        Assert.Equal(3, hints.TokenFor(36, 0, true));   // Reesdice
+        Assert.Equal(4, hints.TokenFor(28, 0, true));   // Arexe
+
+        // The second galaxy's, ending at the Constrictor's own system
+        Assert.Equal(21, hints.TokenFor(184, 1, true));  // Tivere
+        Assert.Equal(24, hints.TokenFor(193, 1, true));  // Orarra
+
+        // A system with no hint, and a trail system with the mission not yet started
+        Assert.Equal(0, hints.TokenFor(0, 0, true));
+        Assert.Equal(0, hints.TokenFor(150, 0, false));
+    }
+
+    [Fact]
+    public void HintsBelongToTheirOwnGalaxy()
+    {
+        var hints = Data.DescriptionData.Hints;
+
+        // Xeer is in the first galaxy's trail, so being in the second galaxy is not enough
+        Assert.Equal(2, hints.TokenFor(150, 0, true));
+        Assert.Equal(0, hints.TokenFor(150, 1, true));
+    }
+
+    [Fact]
+    public void OneHintIsAlwaysShown()
+    {
+        var hints = Data.DescriptionData.Hints;
+
+        // Teorge's entry has bit 7 set, so it shows whatever the mission status
+        Assert.Equal(1, hints.TokenFor(211, 0, false));
+    }
+
+    [Fact]
+    public void TheHintsReadAsTheOriginalHasThem()
+    {
+        // The trail starts at Xeer and ends at the Constrictor's own system
+        string first = Data.DescriptionData.Hint(2, "Xeer", new EliteRemake.Core.Sim.EliteRandom(1));
+        Assert.Contains("CONSTRICTOR", first);
+        Assert.Contains("REESDICE", first);
+
+        string last = Data.DescriptionData.Hint(24, "Orarra", new EliteRemake.Core.Sim.EliteRandom(1));
+        Assert.Contains("PIRATE", last);
+
+        // The hints are in capitals, unlike the generated descriptions
+        Assert.Equal(first, first.ToUpperInvariant());
+    }
+
+    [Fact]
+    public void AHintIsOnlyShownWhereWeAreDocked()
+    {
+        var hints = Data.DescriptionData.Hints;
+        SystemSeeds seeds = Galaxy.GalaxySeeds(0);
+        StarSystem[] galaxy = Galaxy.GenerateGalaxy(seeds);
+
+        // Docked at Xeer: the hint shows
+        Assert.Equal(2, hints.TokenFor(galaxy[150], galaxy[150], 0, true));
+
+        // Looking at Xeer from somewhere else: it does not
+        Assert.Equal(0, hints.TokenFor(galaxy[150], galaxy[0], 0, true));
+    }
+}

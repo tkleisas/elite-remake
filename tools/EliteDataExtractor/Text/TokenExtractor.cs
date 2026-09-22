@@ -45,6 +45,13 @@ public static class TokenExtractor
         Dictionary<int, List<Element>> tokens = ParseTokens(Path.Combine(variablePath, "tkn1.asm"));
         int[] mtin = ParseMtin(Path.Combine(variablePath, "mtin.asm"));
 
+        // The mission hints live in a second token table, RUTOK, and are selected by the RUPLA and
+        // RUGAL tables: RUPLA names the system by its number in the galaxy, RUGAL the galaxy and
+        // whether the hint needs mission 1 to be in progress
+        Dictionary<int, List<Element>> hints = ParseTokens(Path.Combine(variablePath, "rutok.asm"));
+        int[] rupla = ParseMtin(Path.Combine(variablePath, "rupla.asm"));
+        int[] rugal = ParseMtin(Path.Combine(variablePath, "rugal.asm"));
+
         // Walk everything reachable from the description token
         var reachable = new SortedSet<int>();
         var pending = new Stack<int>();
@@ -74,6 +81,36 @@ public static class TokenExtractor
             }
         }
 
+        // The hints refer to tokens in the main table as well as their own, so walk those too
+        var hintQueue = new Stack<int>(hints.Keys);
+        while (hintQueue.Count > 0)
+        {
+            int token = hintQueue.Pop();
+            if (!hints.TryGetValue(token, out List<Element>? hintElements))
+            {
+                continue;
+            }
+
+            foreach (Element element in hintElements)
+            {
+                if (element.Kind is "ETOK" or "EREC" && tokens.ContainsKey(element.Value) && reachable.Add(element.Value))
+                {
+                    hintQueue.Push(element.Value);
+                }
+                else if (element.Kind == "ERND")
+                {
+                    for (int i = 0; i < 5; i++)
+                    {
+                        int candidate = mtin[element.Value] + i;
+                        if (tokens.ContainsKey(candidate) && reachable.Add(candidate))
+                        {
+                            hintQueue.Push(candidate);
+                        }
+                    }
+                }
+            }
+        }
+
         var document = new
         {
             schemaVersion = 1,
@@ -83,6 +120,10 @@ public static class TokenExtractor
             tokens = reachable.ToDictionary(
                 token => token.ToString(),
                 token => tokens[token].Select(e => new { kind = e.Kind, value = e.Value, text = e.Text }).ToArray()),
+            hintTokens = hints.ToDictionary(
+                token => token.Key.ToString(),
+                token => token.Value.Select(e => new { kind = e.Kind, value = e.Value, text = e.Text }).ToArray()),
+            hints = rupla.Zip(rugal, (system, criteria) => new { system, criteria }).ToArray(),
         };
 
         return JsonSerializer.Serialize(document, new JsonSerializerOptions { WriteIndented = true });
@@ -275,12 +316,47 @@ public static class TokenExtractor
             case "ETOK":
             case "EREC":
             case "ERND":
-                return int.TryParse(argument.TrimStart('0'), out int value) || int.TryParse(argument, out value)
-                    ? new Element(kind, value, null)
-                    : null;
+                return TryParseNumber(argument, out int value) ? new Element(kind, value, null) : null;
 
             default:
                 return null;
+        }
+    }
+
+    /// <summary>
+    /// Parses a number as the original's source writes them: decimal, or hexadecimal after an
+    /// ampersand, or binary after a percent sign.
+    /// </summary>
+    private static bool TryParseNumber(string text, out int value)
+    {
+        string trimmed = text.Trim();
+        value = 0;
+
+        if (trimmed.Length == 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (trimmed[0] == '&')
+            {
+                value = Convert.ToInt32(trimmed[1..], 16);
+                return true;
+            }
+
+            if (trimmed[0] == '%')
+            {
+                value = Convert.ToInt32(trimmed[1..], 2);
+                return true;
+            }
+
+            return int.TryParse(trimmed, out value);
+        }
+        catch (Exception error) when (error is FormatException or OverflowException or ArgumentException)
+        {
+            value = 0;
+            return false;
         }
     }
 
@@ -311,7 +387,7 @@ public static class TokenExtractor
             }
 
             string value = code["EQUB ".Length..].Trim();
-            if (int.TryParse(value, out int number))
+            if (TryParseNumber(value, out int number))
             {
                 values.Add(number);
             }
