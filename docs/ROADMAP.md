@@ -485,3 +485,31 @@ The state is worth being plain about: **the docking computer completes a docking
 dead ahead and does not from off to one side.** Every piece of it is now the original's own code
 rather than an invention, so the remaining fault is a translation error somewhere in the turning,
 and the phase trace plus the counters it prints are the tools for finding it.
+
+## The docking computer: the sign question, and a note on method
+
+One line of enquiry is recorded here rather than left in a commit, because it was **reasoned but
+not verified** and the change was reverted rather than accumulated.
+
+The direction the autopilot turns is decided by the sign of the counter it sets. This
+implementation converts a counter to a rate with the rate range centred on 128, and its own probes
+establish that `RollRight` drives the rate below 128 and `PullUp` does the same for pitch, with the
+world turning around a fixed ship. So bringing a target that is **above** the centre line to the
+centre means **pulling up**, which is a rate below 128, which is a **clockwise** counter, which is
+bit 7 **set**. On that reasoning the sign tests in `DockingComputer.Steer` looked inverted: they set
+bit 7 clear for a positive pitch angle, and the quadrant test for roll was inverted with it.
+
+Flipping both signs was tried, and **the harness behaved no better** — the ship still circled the
+station at a growing distance. Because the change could not be shown to improve anything, it was
+reverted rather than committed. The code is left at the last verified state.
+
+What that tells us is that the turn direction is *not* the remaining fault, or not the whole of it.
+The next step is therefore not another sign change but a **trace of the turn itself**: log the roll
+and pitch rates and the angles they produce each frame, and check whether the world actually rotates
+the way the counters ask for. If it does, the fault is in the aim — what PH1 builds as the ideal
+docking position — rather than in the turning. If it does not, the conversion between counters and
+rates is where to look.
+
+The method note is the point of recording this. Several sign and counter changes have now been made
+to this one loop on reasoning alone, and each was reverted or left unverified because the harness
+did not improve. Reasoning is not evidence; the loop needs a measurable step before the next change.
