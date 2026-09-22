@@ -50,7 +50,7 @@ Commodore 64 only, and the altitude indicator is Apple II only.
 3. **Maths is ported, not reinvented.** 8-bit unit vectors (magnitude 256), the `SNE` sine table,
    `MULT1`/`MLTU2`/`FMLTU` truncating multiplies, 16-bit seeds for galaxy generation — so numbers
    match the original where the original is observable.
-3. **Gameplay constants keep original units** (speed, energy, fuel, cash in tenths of a credit,
+4. **Gameplay constants keep original units** (speed, energy, fuel, cash in tenths of a credit,
    distances in the original's internal units) with conversions only at the presentation layer.
 4. Where the original is silent (rendering, audio playback, input mapping) we modernise freely.
 
