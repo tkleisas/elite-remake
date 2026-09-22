@@ -293,13 +293,23 @@ public sealed class HudRenderer
             Frame);
     }
 
+    /// <summary>
+    /// The half-width of the scanner's patch, which the instrument panels keep clear of. The
+    /// scanner has to fit between the two panels, so the panels are sized from the scanner rather
+    /// than from fixed fractions of the dashboard, which is what used to let them crowd it.
+    /// </summary>
+    private float ScannerHalfWidth => Scanner.HalfWidth * MathF.Min(_scale, _dashboard.Width * 0.30f / (Scanner.HalfWidth * 2f));
+
+    /// <summary>The gap between a panel and the scanner's edge.</summary>
+    private float PanelGap => MathF.Max(4f, 14 * _scale);
+
     /// <summary>Energy banks, speed and the roll and pitch indicators.</summary>
     private void DrawRightPanel(SpriteBatch spriteBatch, Texture2D pixel, FlightSim sim)
     {
         float right = _dashboard.Right - (_dashboard.Width * 0.05f);
         float top = _dashboard.Top + (_dashboard.Height * 0.12f);
-        // Narrower than the panel could be, so the scanner has room between the two panels
-        float width = MathF.Min(_dashboard.Width * 0.24f, 150 * _scale);
+        // The energy banks are drawn from the right, so the panel starts where the scanner ends
+        float width = MathF.Max(40f, right - ((_dashboard.Center.X + ScannerHalfWidth) + PanelGap));
         float height = MathF.Max(4f, _dashboard.Height * 0.07f);
         float spacing = _dashboard.Height * 0.105f;
         float left = right - width;
