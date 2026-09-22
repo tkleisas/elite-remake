@@ -109,7 +109,10 @@ public sealed class CelestialRenderer : IDisposable
                     }
                 }
 
-                pixels[(y * DiscTextureSize) + x] = new Color((byte)255, (byte)255, (byte)255, alpha);
+                // Premultiplied: the colour is stored multiplied by the alpha, which is what the
+                // sprite batch's default blend state expects. Storing plain white with an alpha
+                // leaves the corners opaque, which draws the planet as a square.
+                pixels[(y * DiscTextureSize) + x] = new Color(alpha, alpha, alpha, alpha);
             }
         }
 
