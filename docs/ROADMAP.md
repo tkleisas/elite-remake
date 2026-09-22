@@ -435,3 +435,30 @@ Three things follow, and they change the picture from the last trace:
 So the previous round's conclusion — that the fixed counter was the cause — was wrong, and this
 note corrects it. The next step is to find `RefineApproach`, likely in the Elite-A or 6502SP
 libraries or behind a different label, and read what it does with the vector to the station.
+
+## RefineApproach, found and ported
+
+`RefineApproach` lives in the **demo** library (`library/demo/main/subroutine/refineapproach.asm`),
+and the note above it settles where it comes from:
+
+> This routine has been copied from the disc version of Elite. [...] the code at PH3 in the disc
+> version has been extracted into the RefineApproach subroutine, so it can be used to refine our
+> ship's approach for both the current enemy target and the planet/station.
+
+So it is the disc version's own PH3 code, and it does three things:
+
+1. **Zeroes the pitch counter** and sets RAT2 to 0, so roll and pitch are always applied while
+   refining.
+2. **Rolls towards the target using the sign of -x * y** — a quadrant test on the target's position
+   in the ship's own frame, not the x component alone. That is how the ship knows which way to roll
+   to bring the target round to the centre.
+3. **Gives up if the target is more than six units off the centre line**, setting the carry so the
+   caller slows right down. Refining is a fine adjustment: getting roughly lined up is PH1's job.
+
+All three are now in `DockingComputer`, replacing the x-component rule and the invented dead band.
+
+An approach from off to one side still does not dock. The trace still ends with the ship falling
+into PH1 and matching the station's roll without closing. Since PH3 is now the disc version's own
+code, the remaining fault is either in PH1 — the ideal docking position and how the ship is meant to
+reach it — or in the handover between the phases. That is where to look next, and the phase trace is
+the tool.

@@ -182,16 +182,26 @@ public static class DockingComputer
         }
         else
         {
-            // Roll towards the station when it is off to one side, and pitch towards it, using the
-            // original's turn magnitude
-            if (Math.Abs(rollAngle) > TurnThreshold)
-            {
-                rollCounter = (byte)(TurnCounter | (rollAngle > 0 ? 0x00 : 0x80));
-            }
+            // RefineApproach, which is the disc version's own PH3 code: the roll counter is two,
+            // with its sign taken from -x * y of the target in our frame — a quadrant test rather
+            // than the x component alone, which is how the ship knows which way to roll to bring the
+            // target round to the centre. The pitch counter is zeroed here and set by the caller.
+            float sign = -(aim.X * aim.Y);
+            rollCounter = (byte)(TurnCounter | (sign < 0 ? 0x80 : 0x00));
+            pitchCounter = 128;
 
             if (Math.Abs(pitchAngle) > TurnThreshold)
             {
                 pitchCounter = (byte)(TurnCounter | (pitchAngle > 0 ? 0x00 : 0x80));
+            }
+
+            // If the target is more than six units off the centre line the original stops
+            // manoeuvring altogether and slows right down, because it is out of our sights: this is
+            // a fine adjustment, and getting roughly lined up is PH1's job.
+            if (Math.Abs(aim.X) * 6 >= 0.375f)
+            {
+                rollCounter = 128;
+                pitchCounter = 128;
             }
         }
 
