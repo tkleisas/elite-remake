@@ -318,7 +318,7 @@ public sealed class HudRenderer
         for (int i = 0; i < 4; i++)
         {
             float level = Math.Clamp((sim.Player.Energy / 4f - i), 0f, 1f);
-            DrawLabelledBar(spriteBatch, pixel, left, top + (i * spacing), width, height, level, Palette.Green, "EN");
+            DrawLabelledBar(spriteBatch, pixel, left, top + (i * spacing), width, height, level, Palette.Green, "EN", labelOnRight: true);
         }
 
         // Speed: a bar that fills as we accelerate, plus the roll and pitch indicators below it,
@@ -396,10 +396,17 @@ public sealed class HudRenderer
         float height,
         float fraction,
         Color colour,
-        string label)
+        string label,
+        bool labelOnRight = false)
     {
+        // The right-hand panel's labels go on the outer side of its bars, because its inner side is
+        // the scanner; the left-hand panel's go on the inner side, as the original has them
         int labelWidth = TextRenderer.Measure(label, TextScale).X;
-        _text.Draw(spriteBatch, label, (int)(x - labelWidth - (4 * _scale)), (int)y, TextScale, Frame);
+        float labelX = labelOnRight
+            ? x + width + (4 * _scale)
+            : x - labelWidth - (4 * _scale);
+
+        _text.Draw(spriteBatch, label, (int)labelX, (int)y, TextScale, Frame);
         DrawBar(spriteBatch, pixel, x, y, width, height, fraction, colour);
     }
 
