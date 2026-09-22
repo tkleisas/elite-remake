@@ -65,6 +65,8 @@ public sealed class GameSession
 
         // The charts start with the crosshairs on the system we are in
         SelectedSystem = System;
+
+        Missions = Missions.FromStatusByte(commander.MissionStatus);
     }
 
     /// <summary>The commander.</summary>
@@ -221,6 +223,62 @@ public sealed class GameSession
     /// <summary>True when the commander is wanted, which the status screen shows.</summary>
     public bool IsWanted => Commander.LegalStatus > 0;
 
+    /// <summary>The two missions the original offers, and the state they are in.</summary>
+    public Missions Missions { get; }
+
+    /// <summary>
+    /// Docks at the station: the market is regenerated, and any mission business is settled —
+    /// picking up the plans, delivering them, or being offered the next mission.
+    /// </summary>
+    public void HandleMissionArrival()
+    {
+        if (Missions.PickUpPlans(System, Commander.GalaxyNumber))
+        {
+            Commander.MissionStatus = Missions.StatusByte;
+            Message = "You have collected the plans. The Thargoids will be looking for you.";
+            return;
+        }
+
+        if (Missions.DeliverPlans(System, Commander.GalaxyNumber))
+        {
+            Commander.MissionStatus = Missions.StatusByte;
+            Commander.Cash += 10000;
+            Message = "The plans are delivered. The Navy pays 1,000 credits.";
+            return;
+        }
+
+        if (Missions.OfferMission1(Commander))
+        {
+            Message = "A Navy officer offers you a mission: hunt down a Constrictor in galaxy 2.";
+        }
+        else if (Missions.OfferMission2())
+        {
+            Message = "A Navy officer asks you to carry documents for them.";
+        }
+    }
+
+    /// <summary>Accepts whichever mission has been offered.</summary>
+    public bool AcceptMission()
+    {
+        if (Missions.OfferMission1(Commander))
+        {
+            Missions.AcceptMission1();
+            Commander.MissionStatus = Missions.StatusByte;
+            Message = "Mission accepted: find and destroy the Constrictor.";
+            return true;
+        }
+
+        if (Missions.OfferMission2())
+        {
+            Missions.AcceptMission2();
+            Commander.MissionStatus = Missions.StatusByte;
+            Message = "Mission accepted: collect the plans.";
+            return true;
+        }
+
+        return false;
+    }
+
     /// <summary>The default path of the commander's save file.</summary>
     public static string DefaultSavePath =>
         Path.Combine(AppContext.BaseDirectory, "commander.json");
@@ -236,6 +294,9 @@ public sealed class GameSession
             Message = "You can only save while docked.";
             return Message;
         }
+
+        // The missions live in the commander's status byte, so saving keeps them
+        Commander.MissionStatus = Missions.StatusByte;
 
         string target = path ?? DefaultSavePath;
         try
@@ -297,6 +358,9 @@ public sealed class GameSession
         Mode = GameMode.Docked;
         Market = Universe.Market.Build(System, _random.Next());
         Message = $"Docked at {System.Name} station.";
+
+        // Mission business is settled on arrival, as the original's docked code does
+        HandleMissionArrival();
     }
 
     /// <summary>True once the commander has been killed.</summary>
@@ -317,6 +381,15 @@ public sealed class GameSession
     public int RegisterKill(Ship destroyed)
     {
         int bounty = BountyProvider(destroyed);
+
+        // Killing the Constrictor completes the first mission and pays its reward
+        int mission = Missions.RegisterConstrictorKill(destroyed.Type);
+        if (mission > 0)
+        {
+            Commander.Cash += mission;
+            Message = "The Constrictor is destroyed. Mission complete: 5,000 credits.";
+        }
+
         Commander.Cash += bounty;
         Commander.RegisterKill();
 
@@ -326,6 +399,8 @@ public sealed class GameSession
             Commander.LegalStatus = Math.Min(255, Commander.LegalStatus + 4);
         }
 
+        // Keep the commander's status byte in step with the missions
+        Commander.MissionStatus = Missions.StatusByte;
         return bounty;
     }
 

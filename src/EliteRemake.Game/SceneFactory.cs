@@ -118,6 +118,9 @@ public static class SceneFactory
                 : 55 * 55;
 
         sim.System = session.System;
+        sim.Missions = session.Missions;
+        sim.GalaxyNumber = session.Commander.GalaxyNumber;
+        sim.GalaxySeeds = session.Commander.CurrentSystem.Seeds;
         sim.ScoopCommander = session.Commander;
 
         // What a canister holds comes from its blueprint's scoop market item

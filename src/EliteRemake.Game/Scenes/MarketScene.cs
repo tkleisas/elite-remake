@@ -93,6 +93,12 @@ public sealed class MarketScene : IScene
             _session.Screen = DockedScreen.DataOnSystem;
         }
 
+        // A accepts whichever mission is on offer, as the original's briefing does
+        if (IsNewPress(keys, Keys.A))
+        {
+            _session.AcceptMission();
+        }
+
         if (IsNewPress(keys, Keys.F8))
         {
             _session.Screen = DockedScreen.Status;

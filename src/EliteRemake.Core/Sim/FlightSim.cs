@@ -1,5 +1,7 @@
 using EliteRemake.Core.Maths;
 
+using EliteRemake.Core.Universe;
+
 namespace EliteRemake.Core.Sim;
 
 /// <summary>The player's control inputs for one frame.</summary>
@@ -241,6 +243,15 @@ public sealed class FlightSim
     /// <summary>How a canister's contents are decided, from the blueprints.</summary>
     public Func<Ship, int> ScoopItemProvider { get; set; } = _ => 0;
 
+    /// <summary>The missions, which decide whether the Constrictor or extra Thargoids appear.</summary>
+    public Missions? Missions { get; set; }
+
+    /// <summary>The galaxy we are in, which the missions need to find their systems.</summary>
+    public int GalaxyNumber { get; set; }
+
+    /// <summary>The seeds of the galaxy we are in, so the missions can find their systems.</summary>
+    public SystemSeeds GalaxySeeds { get; set; }
+
     /// <summary>The ship our missiles are locked onto, or null.</summary>
     public Ship? MissileLock { get; set; }
 
@@ -419,6 +430,70 @@ public sealed class FlightSim
         }
     }
 
+    /// <summary>
+    /// Spawns a mission ship when one is due: the Constrictor while mission 1 is in progress and we
+    /// are in its system, or an extra Thargoid while we are carrying the plans. This is the
+    /// original's own order of business, and it takes precedence over the ordinary traffic.
+    /// </summary>
+    private bool SpawnMissionShip()
+    {
+        if (Missions is null || System is null)
+        {
+            return false;
+        }
+
+        int constrictors = _bubble.Count(s => s.Type == Missions_ConstrictorType);
+
+        StarSystem target = Missions.ConstrictorTarget(GalaxySeeds);
+        bool here = GalaxyNumber == Missions.ConstrictorGalaxy && System.Value.Seeds == target.Seeds;
+
+        if (here && Missions.Mission1Active && !Missions.Mission1Complete && constrictors == 0)
+        {
+            var constrictor = new Ship(
+                Missions_ConstrictorType,
+                "constrictor",
+                "Constrictor")
+            {
+                AiFlag = Missions.ConstrictorAiFlag,
+                Energy = 252,
+            };
+
+            constrictor.SetPosition(0, 0, Spawner.SpawnDistance);
+            Orientation.FromHeadingPitch(0, 0).AsSpan().CopyTo(constrictor.Data[ShipDataBlock.Orientation..]);
+
+            if (Spawn(constrictor))
+            {
+                Missions.ConstrictorIsHere = true;
+                LastSpawn = SpawnKind.Pirates;
+                return true;
+            }
+
+            return false;
+        }
+
+        // The Thargoids try to stop us while we carry the plans
+        if (Missions.ThargoidSpawnChance > 0 && Random.Next() < Missions.ThargoidSpawnChance)
+        {
+            Ship thargoid = Ship.Create(
+                Missions_ThargoidType,
+                "thargoid",
+                "Thargoid",
+                0, 0, Spawner.SpawnDistance, 0, 200);
+
+            thargoid.AiFlag = 0xF8;
+            if (Spawn(thargoid))
+            {
+                LastSpawn = SpawnKind.Pirates;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private const int Missions_ConstrictorType = 31;
+    private const int Missions_ThargoidType = 29;
+
     /// <summary>Removes ships that have drifted beyond the bubble's range.</summary>
     private void RemoveDistantShips()
     {
@@ -452,6 +527,12 @@ public sealed class FlightSim
         if (_spawnDelay > 0)
         {
             _spawnDelay--;
+            return;
+        }
+
+        // A mission ship comes before the ordinary traffic
+        if (SpawnMissionShip())
+        {
             return;
         }
 

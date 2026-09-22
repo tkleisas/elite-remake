@@ -1754,3 +1754,134 @@ public class SaveTests
         Assert.Contains("No save file", session.TryLoad(missing)!);
     }
 }
+
+/// <summary>
+/// Checks the two missions: their status bits, the Constrictor's hiding place, the Thargoids that
+/// come after the plans, and the rewards.
+/// </summary>
+public class MissionTests
+{
+    private static StarSystem ConstrictorSystem()
+    {
+        SystemSeeds seeds = Galaxy.GalaxySeeds(Missions.ConstrictorGalaxy);
+        return Missions.ConstrictorTarget(seeds);
+    }
+
+    [Fact]
+    public void TheStatusByteIsTheOriginals()
+    {
+        var missions = new Missions();
+        Assert.Equal(0, missions.StatusByte);
+
+        missions.AcceptMission1();
+        Assert.Equal(1, missions.StatusByte); // bit 0: mission 1 in progress
+
+        missions.RegisterConstrictorKill(Missions.ConstrictorType);
+        Assert.Equal(3, missions.StatusByte); // bit 1: mission 1 complete
+
+        // The original sets bit 1 without clearing bit 0, so both stay set
+        missions.AcceptMission2();
+        Assert.Equal(7, missions.StatusByte); // bit 2: on our way to the plans
+
+        missions.PickUpPlans(ConstrictorSystem(), Missions.ConstrictorGalaxy);
+        Assert.Equal(11, missions.StatusByte); // bit 3: carrying the plans, bit 2 cleared
+
+        // And the byte rebuilds the same state
+        Missions restored = Missions.FromStatusByte(11);
+        Assert.True(restored.Mission1Active);
+        Assert.True(restored.Mission1Complete);
+        Assert.False(restored.Mission2Active);
+        Assert.True(restored.CarryingPlans);
+    }
+
+    [Fact]
+    public void TheConstrictorOnlyAppearsInItsOwnSystem()
+    {
+        var missions = new Missions { Mission1Active = true };
+        StarSystem target = ConstrictorSystem();
+
+        // Its system, in its galaxy, with the mission in progress: it appears
+        Assert.True(missions.ShouldSpawnConstrictor(target, Missions.ConstrictorGalaxy, 0));
+
+        // The same system in another galaxy: nothing
+        Assert.False(missions.ShouldSpawnConstrictor(target, 0, 0));
+
+        // Somewhere else in its galaxy: nothing
+        StarSystem elsewhere = Galaxy.GenerateGalaxy(Missions.ConstrictorGalaxy)
+            .First(s => s.Seeds != target.Seeds);
+        Assert.False(missions.ShouldSpawnConstrictor(elsewhere, Missions.ConstrictorGalaxy, 0));
+
+        // One already in the bubble, or the mission finished: nothing
+        Assert.False(missions.ShouldSpawnConstrictor(target, Missions.ConstrictorGalaxy, 1));
+        missions.Mission1Complete = true;
+        Assert.False(missions.ShouldSpawnConstrictor(target, Missions.ConstrictorGalaxy, 0));
+    }
+
+    [Fact]
+    public void KillingTheConstrictorPaysFiveThousandCredits()
+    {
+        var missions = new Missions { Mission1Active = true };
+
+        // Not the Constrictor: no reward, and the mission stays open
+        Assert.Equal(0, missions.RegisterConstrictorKill(17));
+        Assert.False(missions.Mission1Complete);
+
+        Assert.Equal(Missions.ConstrictorReward, missions.RegisterConstrictorKill(Missions.ConstrictorType));
+        Assert.True(missions.Mission1Complete);
+
+        // Killing another one pays nothing more
+        Assert.Equal(0, missions.RegisterConstrictorKill(Missions.ConstrictorType));
+    }
+
+    [Fact]
+    public void ThePlansBringThargoidsDownOnUs()
+    {
+        var missions = new Missions();
+        Assert.Equal(0, missions.ThargoidSpawnChance);
+
+        missions.CarryingPlans = true;
+
+        // The original's extra 22% chance
+        Assert.InRange(missions.ThargoidSpawnChance / 256.0, 0.20, 0.24);
+    }
+
+    [Fact]
+    public void TheConstrictorAppearsInTheSimulationAndItsKillCompletesTheMission()
+    {
+        var player = new Ship(11, "cobra-mk-3", "Cobra Mk III");
+        var session = new GameSession(Commander.CreateDefault(), new FlightSim(player));
+        var sim = session.Flight;
+
+        session.Missions.AcceptMission1();
+        Assert.Equal(1, session.Missions.StatusByte);
+
+        // Fly to the Constrictor's system
+        StarSystem target = ConstrictorSystem();
+        session.Flight.System = target;
+        session.Flight.GalaxyNumber = Missions.ConstrictorGalaxy;
+        session.Flight.GalaxySeeds = Galaxy.GalaxySeeds(Missions.ConstrictorGalaxy);
+        session.Flight.Missions = session.Missions;
+        session.Flight.SpawningEnabled = true;
+
+        // It turns up, with the original's aggressive AI flag
+        Ship? constrictor = null;
+        for (int i = 0; i < 400 && constrictor is null; i++)
+        {
+            sim.Step();
+            constrictor = sim.Bubble.FirstOrDefault(s => s.Type == Missions.ConstrictorType);
+        }
+
+        Assert.NotNull(constrictor);
+        Assert.Equal(Missions.ConstrictorAiFlag, constrictor!.AiFlag);
+        Assert.True(constrictor.AiFlag >= 0x80, "the Constrictor should be hostile");
+
+        // Killing it completes the mission and pays the reward
+        session.BountyProvider = _ => 0;
+        int cash = session.Commander.Cash;
+        session.RegisterKill(constrictor);
+
+        Assert.True(session.Missions.Mission1Complete);
+        Assert.Equal(cash + Missions.ConstrictorReward, session.Commander.Cash);
+        Assert.Equal(3, session.Commander.MissionStatus);
+    }
+}
