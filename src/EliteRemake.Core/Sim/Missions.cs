@@ -130,7 +130,10 @@ public sealed class Missions
         constrictorsInBubble == 0 &&
         IsConstrictorSystem(system, galaxyNumber);
 
-    /// <summary>Records that we destroyed the Constrictor, which completes mission 1.</summary>
+    /// <summary>
+    /// Records that we destroyed the Constrictor: the original's KILLSHP sets bit 1, and the debrief
+    /// that follows clears bit 0, so a completed mission leaves just bit 1 set.
+    /// </summary>
     /// <returns>The reward in tenths of a credit, or 0 if this was not the mission target.</returns>
     public int RegisterConstrictorKill(int shipType)
     {
@@ -139,9 +142,16 @@ public sealed class Missions
             return 0;
         }
 
+        Mission1Active = false;
         Mission1Complete = true;
         return ConstrictorReward;
     }
+
+    /// <summary>
+    /// True once we have been offered and accepted the mission, which the original gates on being
+    /// in one of the first two galaxies.
+    /// </summary>
+    public static bool IsMissionGalaxy(int galaxyNumber) => galaxyNumber <= 1;
 
     /// <summary>
     /// The chance in 256 of an extra Thargoid appearing: the original's 22% while we carry the
@@ -150,11 +160,18 @@ public sealed class Missions
     public int ThargoidSpawnChance => CarryingPlans ? PlansThargoidChance : 0;
 
     /// <summary>
-    /// Offers mission 1 if the commander is eligible: the original offers it once you are
-    /// reasonably experienced and not already on the mission.
+    /// Offers mission 1 if the commander is eligible. The original's DOENTRY checks two things: that
+    /// the high byte of the kill tally is non-zero, which means a combat rank of Competent and so
+    /// 256 kills or more, and that we are in one of the first two galaxies.
     /// </summary>
     public bool OfferMission1(Commander commander) =>
-        !Mission1Active && !Mission1Complete && commander.Kills >= 64;
+        !Mission1Active &&
+        !Mission1Complete &&
+        commander.Kills >= CompetentKills &&
+        commander.GalaxyNumber <= 1;
+
+    /// <summary>The kill tally that makes a commander Competent, which is what mission 1 needs.</summary>
+    public const int CompetentKills = 256;
 
     /// <summary>Accepts mission 1.</summary>
     public void AcceptMission1() => Mission1Active = true;

@@ -1777,18 +1777,18 @@ public class MissionTests
         Assert.Equal(1, missions.StatusByte); // bit 0: mission 1 in progress
 
         missions.RegisterConstrictorKill(Missions.ConstrictorType);
-        Assert.Equal(3, missions.StatusByte); // bit 1: mission 1 complete
+        // The debrief clears bit 0 and leaves bit 1, so a finished mission reads %10
+        Assert.Equal(2, missions.StatusByte);
 
-        // The original sets bit 1 without clearing bit 0, so both stay set
         missions.AcceptMission2();
-        Assert.Equal(7, missions.StatusByte); // bit 2: on our way to the plans
+        Assert.Equal(6, missions.StatusByte); // bit 2: on our way to the plans
 
         missions.PickUpPlans(ConstrictorSystem(), Missions.ConstrictorGalaxy);
-        Assert.Equal(11, missions.StatusByte); // bit 3: carrying the plans, bit 2 cleared
+        Assert.Equal(10, missions.StatusByte); // bit 3: carrying the plans, bit 2 cleared
 
         // And the byte rebuilds the same state
-        Missions restored = Missions.FromStatusByte(11);
-        Assert.True(restored.Mission1Active);
+        Missions restored = Missions.FromStatusByte(10);
+        Assert.False(restored.Mission1Active);
         Assert.True(restored.Mission1Complete);
         Assert.False(restored.Mission2Active);
         Assert.True(restored.CarryingPlans);
@@ -1882,6 +1882,6 @@ public class MissionTests
 
         Assert.True(session.Missions.Mission1Complete);
         Assert.Equal(cash + Missions.ConstrictorReward, session.Commander.Cash);
-        Assert.Equal(3, session.Commander.MissionStatus);
+        Assert.Equal(2, session.Commander.MissionStatus);
     }
 }

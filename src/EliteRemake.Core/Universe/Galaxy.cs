@@ -178,7 +178,15 @@ public static class Galaxy
             int token = current.S2Hi & 0x1F;
             if (token != 0)
             {
-                name.Append(TwoLetterTokens[token]);
+                // Token 15 is "A?" in the original's table, and the question mark is not part of
+                // the name: it is skipped, so "A?" + "RE" + "XE" gives the system AREXE
+                foreach (char letter in TwoLetterTokens[token])
+                {
+                    if (letter != '?')
+                    {
+                        name.Append(letter);
+                    }
+                }
             }
 
             current = Twist(current);

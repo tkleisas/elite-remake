@@ -154,14 +154,62 @@ public class GalaxyTests
         // Every generated name must be reconstructible from the token table
         foreach (StarSystem system in Galaxy.GenerateGalaxy(0))
         {
-            // Names are three or four token pairs, though a zero token prints nothing, so a name
-            // can be as short as four letters
-            Assert.True(system.Name.Length is >= 4 and <= 8, $"unexpected name length for {system.Name}");
-            Assert.Equal(0, system.Name.Length % 2);
-            for (int i = 0; i < system.Name.Length; i += 2)
+            // Names are three or four token pairs, though a zero token prints nothing and the "A?"
+            // token prints a single letter, so lengths vary
+            Assert.True(system.Name.Length is >= 2 and <= 8, $"unexpected name length for {system.Name}");
+            Assert.DoesNotContain('?', system.Name);
+
+            // Every letter must come from the token table
+            string letters = string.Concat(Galaxy.TwoLetterTokens).Replace("?", string.Empty);
+            Assert.All(system.Name, letter => Assert.Contains(letter, letters));
+        }
+    }
+}
+
+/// <summary>
+/// Checks the generated galaxy against system names the original itself names: the systems the
+/// Constrictor mission sends you to, which the game's own tables spell out.
+/// </summary>
+/// <remarks>
+/// These come from the original's mission hint tables, which name the systems on the Constrictor's
+/// trail. They are a useful check because they exercise names the seed generation only produces
+/// with the two-letter token table read correctly — including token 15, which the original stores
+/// as "A?" and prints as just "A".
+/// </remarks>
+public class GalaxyNameTests
+{
+    private static bool Contains(string[] names, int galaxyIndex, string wanted) =>
+        names.Contains(wanted, StringComparer.OrdinalIgnoreCase);
+
+    [Fact]
+    public void GalaxyOneHoldsTheStartOfTheConstrictorTrail()
+    {
+        string[] names = Galaxy.GenerateGalaxy(0).Select(s => s.Name).ToArray();
+
+        Assert.True(Contains(names, 0, "REESDICE"), "Reesdice should be in the first galaxy");
+        Assert.True(Contains(names, 0, "AREXE"), "Arexe should be in the first galaxy");
+    }
+
+    [Fact]
+    public void GalaxyTwoHoldsTheRestOfTheTrail()
+    {
+        string[] names = Galaxy.GenerateGalaxy(1).Select(s => s.Name).ToArray();
+
+        Assert.True(Contains(names, 1, "AUSAR"), "Ausar should be in the second galaxy");
+        Assert.True(Contains(names, 1, "RAMAZA"), "Ramaza should be in the second galaxy");
+        Assert.True(Contains(names, 1, "VERIAR"), "Veriar should be in the second galaxy");
+    }
+
+    [Fact]
+    public void NoNameContainsAPlaceholder()
+    {
+        // The question mark in the original's token 15 is not part of any name
+        for (int galaxy = 0; galaxy < Galaxy.GalaxyCount; galaxy++)
+        {
+            foreach (StarSystem system in Galaxy.GenerateGalaxy(galaxy))
             {
-                string pair = system.Name.Substring(i, 2);
-                Assert.Contains(pair, Galaxy.TwoLetterTokens);
+                Assert.DoesNotContain('?', system.Name);
+                Assert.True(system.Name.Length is >= 2 and <= 8, $"odd name: {system.Name}");
             }
         }
     }
