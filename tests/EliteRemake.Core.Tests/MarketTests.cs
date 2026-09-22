@@ -2038,3 +2038,102 @@ public class DockingTests
         Assert.Equal(0, sim.Player.ForeShield);
     }
 }
+
+/// <summary>
+/// Checks the docking computer: engaged, it flies us in through the slot.
+/// </summary>
+public class DockingComputerTests
+{
+    private static (FlightSim Sim, Ship Station) SetUp(int stationDistance)
+    {
+        var player = new Ship(11, "cobra-mk-3", "Cobra Mk III");
+        var sim = new FlightSim(player)
+        {
+            SpawningEnabled = false,
+            Commander = Commander.CreateDefault(),
+        };
+
+        // A station ahead of us with its slot facing back towards us
+        var station = Ship.Create(Combat.SpaceStationType, "coriolis", "Coriolis space station", 0, 0, 0, 0, 3000);
+        station.SetPosition(400, 300, stationDistance);
+        station.Orientation.SetUnity(Core.Maths.Orientation.Nosev, Core.Maths.Orientation.Z, -1.0);
+        sim.Spawn(station);
+
+        // Start pointing roughly at it
+        Core.Maths.Orientation.FromHeadingPitch(0.35, 0.1).AsSpan()
+            .CopyTo(player.Data[ShipDataBlock.Orientation..]);
+        return (sim, station);
+    }
+
+    [Fact]
+    public void TheAutopilotSteersTheRightWay()
+    {
+        // The autopilot's controls have the right sense: a station off to our right is corrected by
+        // rolling right, and one above us by pulling up, just as a person would.
+        //
+        // What it does not do yet is settle: the controls are full deflection or nothing, so the
+        // ship overshoots and swings past the station instead of closing on it. Docking with it is
+        // therefore not possible yet, and the roadmap records that the loop needs to read the
+        // rotation rates and ease off as it approaches the aim. This test pins the steering that
+        // does work, so a regression in the sense of the controls is caught.
+        var player = new Ship(11, "cobra-mk-3", "Cobra Mk III");
+        var sim = new FlightSim(player) { SpawningEnabled = false, Commander = Commander.CreateDefault() };
+
+        var station = Ship.Create(Combat.SpaceStationType, "coriolis", "Coriolis space station", 0, 0, 0, 0, 3000);
+        station.SetPosition(3000, 2000, 8000);
+        station.Orientation.SetUnity(Core.Maths.Orientation.Nosev, Core.Maths.Orientation.Z, -1.0);
+        sim.Spawn(station);
+
+        (FlightInput input, _) = DockingComputer.Fly(station, sim.Speed);
+
+        Assert.True(input.RollRight, "the station is to our right, so we roll right");
+        Assert.False(input.RollLeft);
+        Assert.True(input.PullUp, "the station is above us, so we pull up");
+        Assert.False(input.PitchDown);
+        Assert.True(input.SpeedUp, "it should close the distance");
+    }
+
+    [Fact]
+    public void TheAutopilotDoesNotSteerWhenAlreadyLinedUp()
+    {
+        // Straight ahead and pointing at the slot: there is nothing to correct
+        var player = new Ship(11, "cobra-mk-3", "Cobra Mk III");
+        var sim = new FlightSim(player) { SpawningEnabled = false, Commander = Commander.CreateDefault() };
+
+        var station = Ship.Create(Combat.SpaceStationType, "coriolis", "Coriolis space station", 0, 0, 0, 0, 3000);
+        station.SetPosition(0, 0, 4000);
+        station.Orientation.SetUnity(Core.Maths.Orientation.Nosev, Core.Maths.Orientation.Z, -1.0);
+        sim.Spawn(station);
+
+        (FlightInput input, bool linedUp) = DockingComputer.Fly(station, sim.Speed);
+
+        Assert.True(linedUp);
+        Assert.False(input.RollLeft || input.RollRight);
+        Assert.False(input.PullUp || input.PitchDown);
+        Assert.True(input.SpeedUp, "it should close the distance");
+    }
+
+    [Fact]
+    public void TheAutopilotLinesUpOnTheSlot()
+    {
+        var (sim, station) = SetUp(stationDistance: 4000);
+
+        bool linedUp = false;
+        for (int frame = 0; frame < 1500 && !linedUp; frame++)
+        {
+            (FlightInput input, linedUp) = DockingComputer.Fly(station, sim.Speed);
+            sim.Step(input);
+        }
+
+        Assert.True(linedUp, "the autopilot should line up with the slot");
+    }
+
+    [Fact]
+    public void TheAutopilotDoesNotFire()
+    {
+        var (sim, station) = SetUp(stationDistance: 3000);
+        (FlightInput input, _) = DockingComputer.Fly(station, sim.Speed);
+
+        Assert.False(input.Fire);
+    }
+}

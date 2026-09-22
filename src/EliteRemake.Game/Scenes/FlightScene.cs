@@ -59,13 +59,14 @@ public sealed class FlightScene : IScene
             }
 
             (int x, int y, int z) = ship.GetPosition();
-            var playerNose = new System.Numerics.Vector3(
-                (float)_sim.Player.Orientation.GetUnity(Core.Maths.Orientation.Nosev, Core.Maths.Orientation.X),
-                (float)_sim.Player.Orientation.GetUnity(Core.Maths.Orientation.Nosev, Core.Maths.Orientation.Y),
-                (float)_sim.Player.Orientation.GetUnity(Core.Maths.Orientation.Nosev, Core.Maths.Orientation.Z));
 
-            // We approach the station, so the vector to it is the negative of its position
-            DockingResult result = Docking.Check(ship, (x, y, z), System.Numerics.Vector3.Normalize(playerNose), stationHostile: false);
+            // The universe turns around us rather than the other way round, so we always face along
+            // +z in the world's terms
+            DockingResult result = Docking.Check(
+                ship,
+                (x, y, z),
+                new System.Numerics.Vector3(0, 0, 1),
+                stationHostile: false);
 
             if (result == DockingResult.Docking)
             {

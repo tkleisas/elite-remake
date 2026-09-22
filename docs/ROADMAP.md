@@ -128,9 +128,21 @@ Primary target variant: **`versions/disc`, variant `sth` (Stairway to Hell)**, w
   slot must be roughly level), with a collision anywhere else on the station being fatal, as it is
   in the original.
 
-  Still outstanding: the **docking computer** doing the docking for us. The equipment exists and can
-  be bought, but it does not yet fly us in; the original's docking computer takes over the controls
-  and steers through the slot, which is the last piece of the docking milestone. Done: the original's ten sound effects with
+  **The docking computer is started but does not finish the job.** Its shape is right: like the
+  original, which drives its docking computer through the key logger so that a person and the
+  computer fly the ship with the same code, this one produces a FlightInput — the same thing the
+  keyboard produces — so the autopilot has no special path into the flight model, and its controls
+  have the right sense (a station to the right is corrected by rolling right, one above by pulling
+  up). What it does not do is settle: the controls are full deflection or nothing, so the ship
+  overshoots and swings past the station instead of closing on it, and it cannot currently dock.
+  The fix is to read the rotation rates and ease off as the aim error shrinks, which is what the
+  original's key-logger manoeuvres do.
+
+  A modelling fact worth recording, found while writing the autopilot: because this implementation
+  turns the universe around the player rather than the player within it, our own axes are the fixed
+  ones, so **we always face +z in the world's terms** and steering is a matter of reading the aim's
+  world components directly. The docking checks now pass +z as our facing for the same reason;
+  passing the player's stored orientation was wrong, since it never changes. Done: the original's ten sound effects with
   their exact SFX bytes, rendered as square waves with the BBC's pitch divider and its four
   envelopes (a decaying note, an upward sweep, noise and a fast tremolo), and triggered by the same
   events the original uses — firing, being hit, a kill, a missile launch, hyperspace and the E.C.M.
