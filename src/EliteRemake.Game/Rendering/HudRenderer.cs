@@ -141,7 +141,7 @@ public sealed class HudRenderer
                     colour);
             }
 
-            int size = Math.Max(2, (int)(2 * scannerScale));
+            int size = Math.Max(1, (int)MathF.Round(scannerScale));
             spriteBatch.Draw(pixel, new Rectangle((int)bx - (size / 2), (int)by - (size / 2), size, size), colour);
         }
     }
@@ -156,23 +156,22 @@ public sealed class HudRenderer
         float ry,
         Color colour)
     {
-        // A thin, continuous outline: each step is joined to the next by a line, rather than being
-        // drawn as a block of its own, which is what made the scanner look chunky. The original's
-        // scanner is a single-pixel ellipse.
-        float thickness = MathF.Max(1f, MathF.Round(ry / 26f));
-        int steps = Math.Max(96, (int)((rx + ry) * 2));
+        // A dotted outline: evenly spaced dots around the ellipse rather than a continuous line,
+        // which is the scanner style the dashboard is being drawn to match. The spacing is set so
+        // the dots read as a ring without merging into one.
+        float dot = MathF.Max(1f, MathF.Round(ry / 22f));
+        float circumference = MathF.PI * (3 * (rx + ry) - MathF.Sqrt(((3 * rx) + ry) * (rx + (3 * ry))));
+        int dots = Math.Max(24, (int)(circumference / (dot * 3.2f)));
 
-        for (int i = 0; i < steps; i++)
+        for (int i = 0; i < dots; i++)
         {
-            double a0 = i * Math.Tau / steps;
-            double a1 = (i + 1) * Math.Tau / steps;
-
-            float x0 = cx + (rx * (float)Math.Cos(a0));
-            float y0 = cy + (ry * (float)Math.Sin(a0));
-            float x1 = cx + (rx * (float)Math.Cos(a1));
-            float y1 = cy + (ry * (float)Math.Sin(a1));
-
-            DrawLine(spriteBatch, pixel, x0, y0, x1, y1, thickness, colour);
+            double a = i * Math.Tau / dots;
+            float x = cx + (rx * (float)Math.Cos(a));
+            float y = cy + (ry * (float)Math.Sin(a));
+            spriteBatch.Draw(
+                pixel,
+                new Rectangle((int)x, (int)y, (int)dot, (int)dot),
+                colour);
         }
     }
 

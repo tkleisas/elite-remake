@@ -323,3 +323,17 @@ they need to be so the scanner has room between the two panels, which is closer 
 arrangement. The EN and SP labels still sit very close to the scanner's right edge and the compass
 tucks into its lower right; a proper layout pass would space the panels from the scanner rather than
 from fixed fractions of the dashboard width.
+
+## Scanner style: a note on fidelity
+
+The scanner's ellipse and its blips are drawn as **dots**, which is the style the remake is being
+taken to and reads better at modern resolutions than a hairline outline.
+
+Worth recording for the record, because it is a deliberate departure: the BBC disc version draws
+the scanner's ellipse as a **continuous line** — its `CIRCLE` routine — and marks ships with
+**dashes** rather than dots, using `CPIX2` ("draw a single-height dash on the dashboard") and
+`CPIX4` ("draw a double-height dot on the dashboard"). The dotted ellipse in the reference image is
+the **NES** version's dashboard, which also has the `$ ELITE` panel along the top.
+
+So the dots are a presentation choice, not the disc version's own rendering. If strict disc parity
+is ever wanted here, the change is localised to `DrawEllipse` and the blip size in `HudRenderer`.
