@@ -68,7 +68,7 @@ public sealed class GameSession
     }
 
     /// <summary>The commander.</summary>
-    public Commander Commander { get; }
+    public Commander Commander { get; private set; }
 
     /// <summary>The flight simulation, which is paused while we are docked.</summary>
     public FlightSim Flight { get; }
@@ -207,6 +207,76 @@ public sealed class GameSession
 
     /// <summary>True when the commander is wanted, which the status screen shows.</summary>
     public bool IsWanted => Commander.LegalStatus > 0;
+
+    /// <summary>The default path of the commander's save file.</summary>
+    public static string DefaultSavePath =>
+        Path.Combine(AppContext.BaseDirectory, "commander.json");
+
+    /// <summary>
+    /// Saves the commander, as the original does when docked. Returns a message describing what
+    /// happened, so the docked screens can show it.
+    /// </summary>
+    public string Save(string? path = null)
+    {
+        if (Mode != GameMode.Docked)
+        {
+            Message = "You can only save while docked.";
+            return Message;
+        }
+
+        string target = path ?? DefaultSavePath;
+        try
+        {
+            File.WriteAllText(target, CommanderSave.FromCommander(Commander).ToJson());
+            Message = $"Commander saved to {Path.GetFileName(target)}.";
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            Message = $"Could not save: {error.Message}";
+        }
+
+        return Message;
+    }
+
+    /// <summary>
+    /// Loads a saved commander, replacing the one in play. Returns null on success, or a message
+    /// explaining why the load failed.
+    /// </summary>
+    public string? TryLoad(string? path = null)
+    {
+        string target = path ?? DefaultSavePath;
+        if (!File.Exists(target))
+        {
+            return $"No save file at {target}.";
+        }
+
+        try
+        {
+            CommanderSave save = CommanderSave.FromJson(File.ReadAllText(target));
+            Load(save.ToCommander());
+            Message = $"Loaded commander {Commander.Name}.";
+            return null;
+        }
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            return error.Message;
+        }
+    }
+
+    /// <summary>
+    /// Replaces the commander in play with a loaded one, which is what starting the game does when
+    /// a save file is present.
+    /// </summary>
+    public void Load(Commander commander)
+    {
+        Commander = commander;
+        Flight.Commander = commander;
+        Flight.Player.HasEnergyUnit = commander.EnergyUnit;
+
+        System = commander.CurrentSystem;
+        SelectedSystem = System;
+        Market = Universe.Market.Build(System, _random.Next());
+    }
 
     /// <summary>Docks at the station, refreshing the market as the original does.</summary>
     public void Dock()

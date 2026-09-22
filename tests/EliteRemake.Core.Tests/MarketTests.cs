@@ -1624,3 +1624,133 @@ public class GalacticHyperdriveTests
         Assert.Equal(first, session.System.Name);
     }
 }
+
+/// <summary>
+/// Checks saving and loading the commander: the round trip, what is carried across, and what
+/// happens when a save file is damaged.
+/// </summary>
+public class SaveTests
+{
+    private static Commander TradingCommander()
+    {
+        Commander commander = Commander.CreateDefault();
+        commander.Name = "TESTER";
+        commander.Cash = 12345;
+        commander.Fuel = 42;
+        commander.Kills = 100;
+        commander.LegalStatus = 20;
+        commander.Missiles = 2;
+        commander.Ecm = true;
+        commander.FuelScoops = true;
+        commander.EscapePod = true;
+        commander.EnergyUnit = true;
+        commander.SetLaser(LaserMount.Front, LaserType.Beam);
+        commander.SetLaser(LaserMount.Rear, LaserType.Pulse);
+        commander.AddCargo(3, 5);
+        commander.AddCargo(12, 7);
+        // A system in a different galaxy, whose name is nothing like Lave's
+        commander.CurrentSystem = Galaxy.GenerateGalaxy(2)[7];
+        commander.GalaxyNumber = 2;
+        return commander;
+    }
+
+    [Fact]
+    public void ACommanderSurvivesTheRoundTrip()
+    {
+        Commander original = TradingCommander();
+        CommanderSave save = CommanderSave.FromCommander(original);
+
+        Commander restored = CommanderSave.FromJson(save.ToJson()).ToCommander();
+
+        Assert.Equal(original.Name, restored.Name);
+        Assert.Equal(original.Cash, restored.Cash);
+        Assert.Equal(original.Fuel, restored.Fuel);
+        Assert.Equal(original.GalaxyNumber, restored.GalaxyNumber);
+        Assert.Equal(original.LegalStatus, restored.LegalStatus);
+        Assert.Equal(original.Kills, restored.Kills);
+        Assert.Equal(original.Missiles, restored.Missiles);
+        Assert.Equal(original.CargoCapacity, restored.CargoCapacity);
+        Assert.Equal(original.Ecm, restored.Ecm);
+        Assert.Equal(original.FuelScoops, restored.FuelScoops);
+        Assert.Equal(original.EscapePod, restored.EscapePod);
+        Assert.Equal(original.EnergyUnit, restored.EnergyUnit);
+        Assert.Equal(original.GalacticHyperdrive, restored.GalacticHyperdrive);
+
+        // Lasers and cargo come back mount by mount, item by item
+        foreach (LaserMount mount in Enum.GetValues<LaserMount>())
+        {
+            Assert.Equal(original.GetLaser(mount), restored.GetLaser(mount));
+        }
+
+        for (int item = 0; item < 17; item++)
+        {
+            Assert.Equal(original.GetCargo(item), restored.GetCargo(item));
+        }
+
+        // And so does where we are, seeds and all
+        Assert.Equal(original.CurrentSystem.Name, restored.CurrentSystem.Name);
+        Assert.Equal(original.CurrentSystem.X, restored.CurrentSystem.X);
+        Assert.Equal(original.CurrentSystem.Y, restored.CurrentSystem.Y);
+        Assert.Equal(original.CurrentSystem.Seeds, restored.CurrentSystem.Seeds);
+        Assert.Equal(original.CurrentSystem.Economy, restored.CurrentSystem.Economy);
+    }
+
+    [Fact]
+    public void ASavedGameCanBeWrittenAndReadBackFromDisk()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"elite-test-{Guid.NewGuid():N}.json");
+        try
+        {
+            var player = new Ship(11, "cobra-mk-3", "Cobra Mk III");
+            var session = new GameSession(TradingCommander(), new FlightSim(player));
+            session.Dock();
+
+            Assert.Contains("saved", session.Save(path));
+
+            var second = new GameSession(Commander.CreateDefault(), new FlightSim(player));
+            Assert.Null(second.TryLoad(path));
+
+            Assert.Equal("TESTER", second.Commander.Name);
+            Assert.Equal(12345, second.Commander.Cash);
+            Assert.Equal(5, second.Commander.GetCargo(3));
+            Assert.Equal(LaserType.Beam, second.Commander.GetLaser(LaserMount.Front));
+
+            // The session's system follows the loaded commander
+            Assert.Equal(second.Commander.CurrentSystem.Name, second.System.Name);
+            Assert.Equal(second.System.Name, second.SelectedSystem.Name);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void SavingNeedsUsToBeDocked()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"elite-test-{Guid.NewGuid():N}.json");
+        var session = new GameSession(Commander.CreateDefault(), new FlightSim(new Ship(11, "cobra-mk-3", "Cobra")));
+
+        Assert.Contains("docked", session.Save(path));
+        Assert.False(File.Exists(path));
+    }
+
+    [Fact]
+    public void ADamagedSaveIsRejectedRatherThanLoaded()
+    {
+        // Not JSON at all
+        Assert.Throws<InvalidDataException>(() => CommanderSave.FromJson("this is not a save file"));
+
+        // A save from a different version
+        Assert.Throws<InvalidDataException>(() => CommanderSave.FromJson("{\"Version\":99}"));
+
+        // A truncated hold
+        Assert.Throws<InvalidDataException>(() =>
+            CommanderSave.FromJson("{\"Version\":1,\"Cargo\":[1,2,3],\"Lasers\":[1,0,0,0]}"));
+
+        // A missing file is reported, not thrown
+        var session = new GameSession(Commander.CreateDefault(), new FlightSim(new Ship(11, "cobra-mk-3", "Cobra")));
+        string missing = Path.Combine(Path.GetTempPath(), $"elite-missing-{Guid.NewGuid():N}.json");
+        Assert.Contains("No save file", session.TryLoad(missing)!);
+    }
+}

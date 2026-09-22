@@ -54,6 +54,16 @@ public static class SceneFactory
 
         var session = new GameSession(commander, new FlightSim(player));
 
+        // Start from the saved commander if there is one, as the original does
+        if (!options.NewCommander)
+        {
+            string? failure = session.TryLoad();
+            if (failure is null)
+            {
+                Console.WriteLine($"Loaded commander {session.Commander.Name} at {session.System.Name}");
+            }
+        }
+
         if (options.StartDocked)
         {
             session.Dock();

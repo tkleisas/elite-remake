@@ -98,6 +98,12 @@ public sealed class MarketScene : IScene
             _session.Screen = DockedScreen.Status;
         }
 
+        // The original saves the commander from the docked screens
+        if (IsNewPress(keys, Keys.S) && (keys.IsKeyDown(Keys.LeftControl) || keys.IsKeyDown(Keys.RightControl)))
+        {
+            _session.Save();
+        }
+
         if (IsNewPress(keys, Keys.Escape))
         {
             _session.Launch();

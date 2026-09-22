@@ -104,7 +104,11 @@ Primary target variant: **`versions/disc`, variant `sth` (Stairway to Hell)**, w
   Status and Inventory (f9) — the shipyard is an Elite-A feature, so full disc parity does not need
   one. That entry has been removed.
 
-  Still to do: the system *description* generator, save/load, and the missions.
+  Also done: saving and loading the commander. The original writes a 76-byte block to disc ending
+  in two checksum bytes; this remake saves the same information — cash, fuel, galaxy, system seeds,
+  lasers, equipment, hold and kills — as a small versioned JSON file, validates what it reads rather
+  than trusting it, and starts from the saved commander when one is present. CTRL-S saves while
+  docked. Still to do: the system *description* generator and the missions.
 
   A note on the description generator: the phrases ("most famous for its vast rain forests…") live
   in the original's extended token table, TKN1, which runs to over six thousand lines of source, and

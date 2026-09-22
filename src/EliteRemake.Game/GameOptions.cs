@@ -56,6 +56,9 @@ public sealed class GameOptions
     /// <summary>If set, draw the whole font as a contact sheet and exit.</summary>
     public bool PrintFontSheet { get; private set; }
 
+    /// <summary>If set, ignore any saved commander and start a new one.</summary>
+    public bool NewCommander { get; private set; }
+
     /// <summary>If set, start docked at the station rather than in flight.</summary>
     public bool StartDocked { get; private set; }
 
@@ -131,6 +134,9 @@ public sealed class GameOptions
                     break;
                 case "--fully-equipped":
                     options.FullyEquipped = true;
+                    break;
+                case "--new-commander":
+                    options.NewCommander = true;
                     break;
                 case "--dock":
                     options.StartDocked = true;
@@ -209,6 +215,7 @@ public sealed class GameOptions
               --hold <controls>       hold controls during the warmup: left, right, up, down,
                                       faster, slower, fire (comma separated)
               --font-sheet            draw every character in the font and exit
+              --new-commander         ignore any saved commander and start fresh
               --dock [screen]         start docked, at the market or the equipment shop
               --laser <type>          fit a pulse, beam, military or none laser to the front
               --fully-equipped        start with every piece of equipment
