@@ -901,6 +901,16 @@ public sealed class FlightSim
 
             // Part 8: rotate the ship about its own axes by its pitch and roll counters, which is
             // how ships turn under their own power (and how the AI steers)
+            // The space station keeps its roll. The original gives it a random clockwise roll when
+            // it is created — a random value with bit 7 cleared, which is a roll with a 1 in 127
+            // chance of having no damping — and the station visibly turns for as long as it is
+            // there. MVEIT spends a counter as it uses it, so the station's roll is renewed from
+            // the value it was created with.
+            if (ship.Type == Combat.SpaceStationType)
+            {
+                ship.Data[ShipDataBlock.RollCounter] = ship.SpinRoll;
+            }
+
             ShipMovement.RotateShipAboutItself(ship.Orientation, ship.Data);
         }
     }

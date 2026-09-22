@@ -312,10 +312,10 @@ public sealed class FlightScene : IScene
         var station = Ship.Create(ShipTypes.Coriolis, "coriolis", "Coriolis space station", 0, 0, 0, 0, distance);
         SceneFactory.ApplyBlueprint(station);
 
-        // The Coriolis turns, as it does in the original. It matters for docking: the slot's
-        // orientation changes as the station rolls, so lining up means matching its roll — which is
-        // exactly what the docking computer's first phase does.
-        station.Data[ShipDataBlock.RollCounter] = 6 | 0x80;
+        // The Coriolis gets a random clockwise roll, as the original's main game loop gives it: a
+        // random value with bit 7 cleared. It matters for docking, because the slot's orientation
+        // changes as the station turns and the docking computer's first phase matches its roll.
+        station.SpinRoll = (byte)(Random.Shared.Next(64, 128) & 0x7F);
         _sim.Spawn(station);
         _stationSpawned = true;
     }

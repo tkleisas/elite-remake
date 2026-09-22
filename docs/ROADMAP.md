@@ -194,11 +194,15 @@ Commodore 64 only, and the altitude indicator is Apple II only.
   rather than more tuning.
 
   An approach from off to one side still overshoots: it flies past the station instead of turning
-  onto the slot. The likely cause is that the Coriolis does not turn in this implementation. In the
-  original the station rolls continuously, which is precisely what PH1's roll matching matches — it
-  sets a fixed, undamped roll so the ship turns with the station and the slot stays lined up. A
-  station that never rolls gives the matching nothing to match, so the ship's roll drifts and the
-  approach misses. Giving the station its rotation is the next step.
+  onto the slot. The station's rotation was the obvious suspect and is now right — the original
+  gives a station **a random clockwise roll**, a random value with bit 7 cleared and a 1 in 127
+  chance of no damping, set where the main game loop creates it, and the station turns for as long
+  as it is there (MVEIT spends a counter as it uses it, so the roll is renewed from the value the
+  station was created with). That replaced an invented constant. It was not enough on its own, so
+  the remaining fault is in the approach geometry rather than the station: with the station 6000
+  units away and 2000 to one side, about 18 degrees off, the autopilot does not turn onto the slot
+  before it arrives. Working out which of DOCKIT's tests is sending it down the wrong branch — PH1,
+  PH2 or PH3 — is the next step, and the harness to do it is in place.
 
   **DOCKIT writes the ship's roll and pitch counters directly** — `STA INWK+29` and `STA INWK+30` —
   rather than holding the controls down. The original's docking computer is not a pilot pressing
