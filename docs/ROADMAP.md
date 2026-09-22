@@ -68,8 +68,13 @@ Primary target variant: **`versions/disc`, variant `sth` (Stairway to Hell)**, w
   original's damage model, with the fore and aft shields absorbing hits before the energy banks
   (OOPS), the shields recharging from the banks only above half charge (SHD), the banks recharging at
   ENGY + 1 a frame, the energy-low warning, and death — resolved by an escape pod if one is fitted.
-  Still to do: missiles, E.C.M., energy bombs, spawning, bounty payouts, the kill-to-rating wiring,
-  and the full death sequence.
+  Also done: ship spawning, with the disc version's probabilities (a 47% chance of anything at all,
+  anarchy systems always busy and corporate ones quiet, then 61% pirates flying one of the eight
+  pack-hunter types and otherwise a lone bounty hunter flying one of four from the Cobra Mk III
+  pirate to the Fer-de-lance), spawned ships placed 9728 units ahead with a random heading and
+  dressed from their blueprints, and distant ships leaving the bubble so the twelve slots do not
+  silt up. Still to do: missiles, E.C.M., energy bombs, bounty payouts, the kill-to-rating wiring,
+  asteroids and cargo, and the full death sequence.
 - **M5 — Docked screens & missions.** In progress. Done: the commander data block with the
   original's default commander (100 credits, full tank, front pulse laser, three missiles, docked at
   Lave), the trade table and its price and availability formulas (GVL/TT151), a game session that

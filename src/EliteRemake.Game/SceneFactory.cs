@@ -106,6 +106,18 @@ public static class SceneFactory
                 ? blueprint.Header.TargetableArea
                 : 55 * 55;
 
+        sim.System = session.System;
+
+        // Give any ship that spawns a name and a blueprint from the catalogue, so it can be drawn
+        sim.ShipSpawned = ship =>
+        {
+            if (ShipCatalog.ByType(ship.Type) is { } spawned)
+            {
+                ship.BlueprintId = spawned.Id;
+                ship.Name = spawned.Name;
+                ApplyBlueprint(ship);
+            }
+        };
         scene.ArriveInSystem(session.System);
         scene.SpawnStationAhead(options.StationDistance);
 

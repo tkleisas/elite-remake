@@ -123,6 +123,9 @@ public sealed class FlightSim
     /// <summary>Fits a laser, as buying one at the station does.</summary>
     public void FitLaser(LaserMount mount, LaserType type) => Commander?.SetLaser(mount, type);
 
+    /// <summary>Called for each newly spawned ship so the game can dress it from its blueprint.</summary>
+    public Action<Ship>? ShipSpawned { get; set; }
+
     /// <summary>Adds a ship to the local bubble, up to the original's slot limit.</summary>
     public bool Spawn(Ship ship)
     {
@@ -131,6 +134,7 @@ public sealed class FlightSim
             return false;
         }
 
+        ShipSpawned?.Invoke(ship);
         _bubble.Add(ship);
         return true;
     }
@@ -174,11 +178,95 @@ public sealed class FlightSim
         Combat.RechargeShields(Player);
         Combat.RechargeEnergy(Player);
 
+        // Ships that have drifted out of range leave the bubble, as they do in the original
+        RemoveDistantShips();
+
+        // The main game loop runs the spawn decision once a frame
+        UpdateSpawning();
+
         MainLoopCounter++;
     }
 
     /// <summary>True once our ship has been destroyed; the game clears it once it has reacted.</summary>
     public bool PlayerDied { get; set; }
+
+    /// <summary>
+    /// The system we are flying in, which decides what spawns around us. Set by the game when we
+    /// arrive somewhere.
+    /// </summary>
+    public Universe.StarSystem? System { get; set; }
+
+    /// <summary>Set to false to fly without any ships spawning.</summary>
+    public bool SpawningEnabled { get; set; } = true;
+
+    /// <summary>
+    /// How far away a ship can get before it leaves the local bubble. The original drops ships out
+    /// of the bubble once they are far enough behind or ahead of us, which is what stops the twelve
+    /// slots filling up with ships we can no longer see.
+    /// </summary>
+    public int BubbleRange { get; set; } = 0x8000;
+
+    /// <summary>The extra vessels delay: frames to wait before the next spawn (the original's EV).</summary>
+    private int _spawnDelay;
+
+    /// <summary>What spawned this frame, for the game to report.</summary>
+    public SpawnKind LastSpawn { get; private set; }
+
+    /// <summary>Removes ships that have drifted beyond the bubble's range.</summary>
+    private void RemoveDistantShips()
+    {
+        _bubble.RemoveAll(ship =>
+        {
+            if (IsCelestial(ship.Type))
+            {
+                return false; // the planet and sun stay put
+            }
+
+            int z = ship.GetCoordinate(ShipDataBlock.Z);
+            int x = ship.GetCoordinate(ShipDataBlock.X);
+            int y = ship.GetCoordinate(ShipDataBlock.Y);
+            return Math.Abs(z) > BubbleRange || Math.Abs(x) > BubbleRange || Math.Abs(y) > BubbleRange;
+        });
+    }
+
+    /// <summary>
+    /// The original's spawn decision, run once a frame from the main game loop. A spawn is delayed
+    /// by the EV counter so ships arrive one at a time rather than in a rush.
+    /// </summary>
+    private void UpdateSpawning()
+    {
+        LastSpawn = SpawnKind.None;
+
+        if (!SpawningEnabled || System is null)
+        {
+            return;
+        }
+
+        if (_spawnDelay > 0)
+        {
+            _spawnDelay--;
+            return;
+        }
+
+        SpawnKind kind = Spawner.ChooseSpawn(System.Value, Random);
+        if (kind == SpawnKind.None)
+        {
+            return;
+        }
+
+        // A pack of pirates arrives together, up to the original's four in a group
+        int count = kind == SpawnKind.Pirates ? 1 + (Random.Next() % 4) : 1;
+        for (int i = 0; i < count; i++)
+        {
+            if (!Spawn(Spawner.Create(kind, System.Value, Random, i)))
+            {
+                break; // the bubble is full
+            }
+        }
+
+        LastSpawn = kind;
+        _spawnDelay = Spawner.SpawnDelay;
+    }
 
     /// <summary>
     /// Applies the speed keys. The original changes DELTA by one per frame, caps it at 40 and never

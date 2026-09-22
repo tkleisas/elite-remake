@@ -699,3 +699,155 @@ public class DamageTests
         Assert.Equal(200, ship.Energy);
     }
 }
+
+/// <summary>
+/// Checks ship spawning: that the system's government decides how busy it is, that the ship types
+/// come from the original's tables, and that spawned ships appear ahead of us.
+/// </summary>
+public class SpawnerTests
+{
+    private static StarSystem SystemWithGovernment(int government)
+    {
+        StarSystem lave = Galaxy.GenerateGalaxy(0).First(s => s.Name == "LAVE");
+        return lave with { Government = government };
+    }
+
+    [Fact]
+    public void SpawnShipTypesComeFromTheOriginalsTables()
+    {
+        var random = new EliteRandom(7);
+        var pirateTypes = new HashSet<int>();
+        var hunterTypes = new HashSet<int>();
+
+        for (int i = 0; i < 500; i++)
+        {
+            pirateTypes.Add(Spawner.ShipType(SpawnKind.Pirates, random));
+            hunterTypes.Add(Spawner.ShipType(SpawnKind.BountyHunter, random));
+        }
+
+        // Pirates fly the eight pack hunters, Sidewinder (17) to Cobra Mk III pirate (24)
+        Assert.Equal(Enumerable.Range(17, 8).ToHashSet(), pirateTypes);
+
+        // Bounty hunters fly the four from Cobra Mk III pirate (24) to Fer-de-lance (27). The
+        // Moray sits at 28 and so never spawns, exactly as in the original.
+        Assert.Equal(Enumerable.Range(24, 4).ToHashSet(), hunterTypes);
+        Assert.DoesNotContain(28, hunterTypes);
+    }
+
+    [Fact]
+    public void AnarchySystemsAreBusierThanSafeOnes()
+    {
+        var random = new EliteRandom(99);
+        int anarchySpawns = 0;
+        int corporateSpawns = 0;
+
+        for (int i = 0; i < 5000; i++)
+        {
+            if (Spawner.ChooseSpawn(SystemWithGovernment(0), random) != SpawnKind.None)
+            {
+                anarchySpawns++;
+            }
+
+            if (Spawner.ChooseSpawn(SystemWithGovernment(7), random) != SpawnKind.None)
+            {
+                corporateSpawns++;
+            }
+        }
+
+        Assert.True(anarchySpawns > corporateSpawns,
+            $"an anarchy should be busier: {anarchySpawns} vs {corporateSpawns}");
+
+        // Roughly half the rolls continue in an anarchy, as the original's 47% suggests
+        Assert.InRange(anarchySpawns, 2000, 2600);
+
+        // Corporate states are much quieter
+        Assert.True(corporateSpawns < anarchySpawns / 2);
+    }
+
+    [Fact]
+    public void PiratesAreMoreCommonThanBountyHunters()
+    {
+        var random = new EliteRandom(1234);
+        int pirates = 0;
+        int hunters = 0;
+
+        for (int i = 0; i < 5000; i++)
+        {
+            switch (Spawner.ChooseSpawn(SystemWithGovernment(0), random))
+            {
+                case SpawnKind.Pirates:
+                    pirates++;
+                    break;
+                case SpawnKind.BountyHunter:
+                    hunters++;
+                    break;
+            }
+        }
+
+        // The original's 61% pirates
+        Assert.True(pirates > hunters, $"expected more pirates: {pirates} vs {hunters}");
+        Assert.InRange(pirates / (double)(pirates + hunters), 0.5, 0.7);
+    }
+
+    [Fact]
+    public void SpawnedShipsAppearAheadOfUsAndAreAggressive()
+    {
+        var random = new EliteRandom(5);
+        StarSystem system = SystemWithGovernment(0);
+
+        // A pack is at most four ships, so the lead ship and its three companions
+        for (int i = 0; i < 4; i++)
+        {
+            Ship ship = Spawner.Create(i % 2 == 0 ? SpawnKind.Pirates : SpawnKind.BountyHunter, system, random, i);
+
+            (int x, int y, int z) = ship.GetPosition();
+            Assert.True(z > 0, "a spawned ship should be ahead of us");
+            Assert.InRange(z, Spawner.SpawnDistance, Spawner.SpawnDistance + (3 * 512));
+            Assert.InRange(x, -32768, 32768);
+            Assert.InRange(y, -32768, 32768);
+
+            // The AI flag has bit 7 set (AI enabled) and bit 6 (aggressive)
+            Assert.True((ship.AiFlag & 0xC0) == 0xC0, $"AI flag {ship.AiFlag:X2} should be aggressive");
+        }
+    }
+
+    [Fact]
+    public void TheSimulationSpawnsShipsAndRespectsTheBubbleLimit()
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            System = SystemWithGovernment(0),
+        };
+
+        for (int i = 0; i < 20000; i++)
+        {
+            sim.Step();
+        }
+
+        Assert.True(sim.Bubble.Count > 0, "an anarchy system should spawn ships");
+        Assert.True(sim.Bubble.Count <= FlightSim.MaxShipsInBubble);
+
+        // Everything that spawned is a piloted ship type from the original's tables
+        foreach (Ship ship in sim.Bubble)
+        {
+            Assert.True(Tactics.IsUnderPilotControl(ship.Type), $"type {ship.Type} should be piloted");
+        }
+    }
+
+    [Fact]
+    public void SpawningCanBeTurnedOff()
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            System = SystemWithGovernment(0),
+            SpawningEnabled = false,
+        };
+
+        for (int i = 0; i < 5000; i++)
+        {
+            sim.Step();
+        }
+
+        Assert.Empty(sim.Bubble);
+    }
+}
