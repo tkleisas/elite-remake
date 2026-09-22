@@ -21,6 +21,18 @@ Primary target variant: **`versions/disc`, variant `sth` (Stairway to Hell)**, w
 | Architecture | `EliteRemake.Core` (engine-free deterministic sim) + `EliteRemake.Data` (generated tables) + `EliteRemake.Game` (MonoGame) + `tools/EliteDataExtractor` + xUnit tests. |
 | Workflow | Long autonomous rounds, git commit per milestone, report per milestone. |
 
+## Dashboard audit
+
+The dashboard has been checked element by element against the original's four DIALS routines and is
+complete for the disc version: the speed indicator (SP), the pitch and roll indicators, the four
+energy banks (EN), and the shields (FS and AS), fuel (FU), laser temperature (LT) and cabin
+temperature (CT) of the last routine, plus the missile indicators, the compass and the 3D scanner.
+
+The one element that could not be placed — an altitude indicator mentioned in the fourth DIALS
+routine — is Apple II only. That makes three features this remake has been asked to account for
+which the BBC disc version does not have: the shipyard is Elite-A only, the docking music is
+Commodore 64 only, and the altitude indicator is Apple II only.
+
 ## Fidelity rules
 
 1. **Data is extracted, never retyped.** Ship blueprints, market/equipment tables, text tokens and
