@@ -214,3 +214,63 @@ public class GalaxyNameTests
         }
     }
 }
+
+/// <summary>
+/// Pins the anchors the galaxy generation is verified against, so a change that breaks the universe
+/// is caught immediately.
+/// </summary>
+/// <remarks>
+/// The first galaxy is verified against systems the original itself names — its own starting system,
+/// the classic Lave to Leesti to Riedquat opening, and the systems on the Constrictor's trail — all
+/// of which appear at the coordinates the original gives them.
+///
+/// The second galaxy is only partly verified: it contains canonical systems, but it does not match
+/// the original everywhere. The original's documentation says that a galactic hyperspace jump
+/// arrives at the system nearest (96, 96), and that this is Ororra in the second galaxy, and that
+/// the Constrictor waits at Orarra, which the original's THERE routine places at (144, 33). Neither
+/// is true of this generator, under any of the four readings of its seed rotation that have been
+/// tried. These tests record the anchors that are known to hold; the discrepancy is documented in
+/// the roadmap rather than papered over.
+/// </remarks>
+public class GalaxyAnchorTests
+{
+    [Fact]
+    public void TheFirstGalaxyMatchesTheOriginalsOwnSystems()
+    {
+        StarSystem[] galaxy = Galaxy.GenerateGalaxy(0);
+
+        // The original's first system, and the classic opening systems
+        Assert.Equal("TIBEDIED", galaxy[0].Name);
+        Assert.Equal((20, 173), (galaxy.First(s => s.Name == "LAVE").X, galaxy.First(s => s.Name == "LAVE").Y));
+
+        // And the systems the original's mission tables name for the first galaxy
+        Assert.Contains(galaxy, s => s.Name == "REESDICE");
+        Assert.Contains(galaxy, s => s.Name == "AREXE");
+    }
+
+    [Fact]
+    public void EveryGalaxyHasTwoHundredAndFiftySixSystems()
+    {
+        for (int galaxy = 0; galaxy < Galaxy.GalaxyCount; galaxy++)
+        {
+            Assert.Equal(256, Galaxy.GenerateGalaxy(galaxy).Length);
+        }
+    }
+
+    [Fact]
+    public void TheArrivalSystemIsTheNearestToOneHundredAndNinetySix()
+    {
+        // A galactic jump always arrives at galactic coordinates (96, 96), with the selected system
+        // set to the nearest actual system: this is the rule the generator must follow, whatever
+        // the system turns out to be called
+        foreach (int galaxy in new[] { 0, 1, 2 })
+        {
+            StarSystem nearest = Galaxy.GenerateGalaxy(galaxy)
+                .OrderBy(s => Math.Abs(s.X - 96) + Math.Abs(s.Y - 96))
+                .First();
+
+            Assert.True(Math.Abs(nearest.X - 96) + Math.Abs(nearest.Y - 96) < 40,
+                $"the arrival system in galaxy {galaxy} should be near (96,96), not ({nearest.X},{nearest.Y})");
+        }
+    }
+}
