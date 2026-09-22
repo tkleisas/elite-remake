@@ -63,6 +63,7 @@ public sealed class HudRenderer
         DrawLeftPanel(spriteBatch, pixel, sim);
         DrawRightPanel(spriteBatch, pixel, sim);
         DrawCompass(spriteBatch, pixel);
+        DrawScanner(spriteBatch, pixel, sim);
 
         // The original flashes "ENERGY LOW" when the banks drop below 50
         if (sim.Player.Energy < 50)
@@ -77,6 +78,95 @@ public sealed class HudRenderer
         }
 
         spriteBatch.End();
+    }
+
+    /// <summary>
+    /// Draws the 3D scanner: the ellipse, the centre line, and a blip and stick for every ship the
+    /// original's SCAN would show. The projection is done in the original's dashboard coordinates,
+    /// so this only has to scale them into place.
+    /// </summary>
+    private void DrawScanner(SpriteBatch spriteBatch, Texture2D pixel, FlightSim sim)
+    {
+        // The scanner occupies a 128 by 54 patch of the original's 256-wide dashboard, but it has
+        // to fit the gap between the two instrument panels here, so the scale is capped to whatever
+        // room is left in the middle
+        float gap = _dashboard.Width * 0.32f;
+        float scannerScale = MathF.Min(_scale, gap / (Scanner.HalfWidth * 2f));
+
+        float width = Scanner.HalfWidth * 2 * scannerScale;
+        float height = Scanner.HalfHeight * 2 * scannerScale;
+        float cx = _view.Width / 2f;
+        // Sit the scanner in the dashboard, just above the bottom edge
+        float cy = _dashboard.Top + (height * 0.5f);
+
+        // The ellipse, drawn as a ring of points
+        DrawEllipse(spriteBatch, pixel, cx, cy, width / 2, height / 2, Frame);
+
+        // The centre line, which runs across the middle of the scanner
+        spriteBatch.Draw(
+            pixel,
+            new Rectangle((int)(cx - (width / 2)), (int)cy, (int)width, (int)MathF.Max(1f, _scale)),
+            Frame);
+
+        foreach (Ship ship in sim.Bubble)
+        {
+            if (Scanner.Project(ship) is not { } blip)
+            {
+                continue;
+            }
+
+            // The original scales its dashboard coordinates into the scanner's patch
+            float bx = cx + ((blip.X - Scanner.CentreX) * scannerScale);
+            float by = cy + ((blip.Y - Scanner.CentreY) * scannerScale);
+            float rowY = cy + ((blip.StickY - Scanner.CentreY) * scannerScale);
+            float stickX = cx + ((blip.StickX - Scanner.CentreX) * scannerScale);
+
+            // Skip anything that would fall outside the ellipse
+            if (!Scanner.IsInside(blip.X, blip.Y))
+            {
+                continue;
+            }
+
+            Color colour = blip.Missile ? Palette.Yellow : new Color(120, 255, 120);
+
+            // The stick joins the blip to the centre line of its row, showing its height
+            if (Math.Abs(by - rowY) >= scannerScale)
+            {
+                spriteBatch.Draw(
+                    pixel,
+                    new Rectangle((int)stickX, (int)MathF.Min(by, rowY), (int)MathF.Max(1f, scannerScale), (int)MathF.Abs(by - rowY)),
+                    colour);
+            }
+
+            int size = Math.Max(2, (int)(2 * scannerScale));
+            spriteBatch.Draw(pixel, new Rectangle((int)bx - (size / 2), (int)by - (size / 2), size, size), colour);
+        }
+    }
+
+    /// <summary>Draws an ellipse outline, by walking round it and joining the points.</summary>
+    private static void DrawEllipse(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        float cx,
+        float cy,
+        float rx,
+        float ry,
+        Color colour)
+    {
+        // Enough steps that consecutive points overlap into a solid ring
+        int steps = Math.Max(48, (int)(rx + ry));
+        float thickness = MathF.Max(1.5f, ry / 9f);
+
+        for (int i = 0; i < steps; i++)
+        {
+            double a = i * Math.Tau / steps;
+            float x = cx + (rx * (float)Math.Cos(a));
+            float y = cy + (ry * (float)Math.Sin(a));
+            spriteBatch.Draw(
+                pixel,
+                new Rectangle((int)x, (int)y, (int)MathF.Max(1f, thickness), (int)MathF.Max(1f, thickness)),
+                colour);
+        }
     }
 
     /// <summary>Draws the fixed gunsight at the centre of the space view.</summary>

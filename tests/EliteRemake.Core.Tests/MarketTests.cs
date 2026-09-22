@@ -2137,3 +2137,89 @@ public class DockingComputerTests
         Assert.False(input.Fire);
     }
 }
+
+/// <summary>
+/// Checks the 3D scanner: the original's projection from a ship's position to a blip on the
+/// dashboard, and the stick that shows its height.
+/// </summary>
+public class ScannerTests
+{
+    private static Ship ShipAt(int x, int y, int z)
+    {
+        var ship = Ship.Create(17, "sidewinder", "Sidewinder", 0, 0, 0, 0, 2000);
+        ship.SetPosition(x, y, z);
+        ship.ShowOnScanner = true;
+        return ship;
+    }
+
+    [Fact]
+    public void AShipStraightAheadIsOnTheCentreLine()
+    {
+        ScannerBlip? blip = Scanner.Project(ShipAt(0, 0, 4096));
+        Assert.NotNull(blip);
+
+        // Straight ahead: centred across, and up the scanner because it is in front of us
+        Assert.Equal(Scanner.CentreX, blip!.Value.X);
+        Assert.Equal(Scanner.CentreY - (4096 / 256 / 4), blip.Value.Y);
+        Assert.True(blip.Value.Y < Scanner.CentreY, "a ship ahead should be above the centre row");
+    }
+
+    [Fact]
+    public void LeftRightAndUpDownFollowTheOriginalsSigns()
+    {
+        // x_hi of 16 puts the blip 16 to the right of centre
+        Assert.Equal(Scanner.CentreX + 16, Scanner.Project(ShipAt(16 * 256, 0, 0))!.Value.X);
+        Assert.Equal(Scanner.CentreX - 16, Scanner.Project(ShipAt(-16 * 256, 0, 0))!.Value.X);
+
+        // A ship above us lifts its blip off the centre line, and one below drops it
+        ScannerBlip above = Scanner.Project(ShipAt(0, 16 * 256, 0))!.Value;
+        ScannerBlip below = Scanner.Project(ShipAt(0, -16 * 256, 0))!.Value;
+        Assert.True(above.Y < Scanner.CentreY, "a ship above us should be above the centre row");
+        Assert.True(below.Y > Scanner.CentreY, "a ship below us should be below the centre row");
+
+        // The stick runs from the blip to the centre line of its row
+        Assert.Equal(Scanner.CentreX, above.StickX);
+        Assert.NotEqual(above.Y, above.StickY);
+    }
+
+    [Fact]
+    public void DistantShipsFallOffTheScanner()
+    {
+        // The original only shows ships within 16383 units on every axis
+        Assert.Null(Scanner.Project(ShipAt(0, 0, 64 * 256)));
+        Assert.Null(Scanner.Project(ShipAt(64 * 256, 0, 0)));
+        Assert.NotNull(Scanner.Project(ShipAt(0, 0, 63 * 256)));
+    }
+
+    [Fact]
+    public void ThePlanetAndSunAreNeverOnTheScanner()
+    {
+        var planet = Ship.Create(128, "planet", "Planet", 0, 0, 0, 0, 3000);
+        planet.ShowOnScanner = true;
+        Assert.Null(Scanner.Project(planet));
+    }
+
+    [Fact]
+    public void MissilesAreMarkedForTheirOwnColour()
+    {
+        var missile = Ship.Create(Missiles.MissileType, "missile", "Missile", 0, 0, 0, 0, 2000);
+        missile.SetPosition(0, 0, 2000);
+        missile.ShowOnScanner = true;
+
+        Assert.True(Scanner.Project(missile)!.Value.Missile);
+
+        var ship = ShipAt(0, 0, 2000);
+        Assert.False(Scanner.Project(ship)!.Value.Missile);
+    }
+
+    [Fact]
+    public void TheEllipseIsWidestAcrossTheMiddle()
+    {
+        Assert.Equal(Scanner.HalfWidth, Scanner.HalfWidthAt(Scanner.CentreY));
+        Assert.Equal(0, Scanner.HalfWidthAt(Scanner.Top - 10));
+        Assert.True(Scanner.HalfWidthAt(Scanner.CentreY - 13) < Scanner.HalfWidth);
+
+        Assert.True(Scanner.IsInside(Scanner.CentreX, Scanner.CentreY));
+        Assert.False(Scanner.IsInside(Scanner.CentreX + Scanner.HalfWidth + 1, Scanner.CentreY));
+    }
+}

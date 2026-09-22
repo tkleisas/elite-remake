@@ -139,6 +139,12 @@ public sealed class FlightSim
             return false;
         }
 
+        // Everything in the bubble belongs on the scanner unless it is the planet or the sun
+        if (!IsCelestial(ship.Type))
+        {
+            ship.ShowOnScanner = true;
+        }
+
         ShipSpawned?.Invoke(ship);
         _bubble.Add(ship);
         return true;

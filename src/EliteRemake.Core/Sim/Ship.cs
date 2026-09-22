@@ -53,6 +53,12 @@ public static class ShipDataBlock
     /// <summary>Offset of the newly spawned ship flags.</summary>
     public const int NewbFlags = 36;
 
+    /// <summary>
+    /// Bit 4 of the flag byte: whether the original shows this ship on the dashboard's 3D scanner.
+    /// The planet and the sun never are, and neither is anything already destroyed.
+    /// </summary>
+    public const byte FlagShowOnScanner = 0x10;
+
     /// <summary>Flag bit: the ship is exploding.</summary>
     public const byte FlagExploding = 0x20;
 
@@ -121,6 +127,13 @@ public sealed class Ship
     }
 
     /// <summary>The ship's flags (INWK+31).</summary>
+    /// <summary>True when this ship belongs on the 3D scanner.</summary>
+    public bool ShowOnScanner
+    {
+        get => (Flags & ShipDataBlock.FlagShowOnScanner) != 0;
+        set => Flags = value ? (byte)(Flags | ShipDataBlock.FlagShowOnScanner) : (byte)(Flags & ~ShipDataBlock.FlagShowOnScanner);
+    }
+
     public byte Flags
     {
         get => _data[ShipDataBlock.Flags];
