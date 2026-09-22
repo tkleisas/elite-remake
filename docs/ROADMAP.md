@@ -77,8 +77,11 @@ Primary target variant: **`versions/disc`, variant `sth` (Stairway to Hell)**, w
   spawn chance and three-bit junk limit, its tumbling rocks, the laser-type split (2% canisters,
   50% boulders, 48% asteroids), mining lasers that shatter asteroids into one to three scoopable
   splinters and boulders into one half the time, ordinary lasers that leave a cargo canister, and
-  scooping with fuel scoops. Still to do: missiles, E.C.M., energy bombs, bounty payouts, the
-  kill-to-rating wiring, and the full death sequence.
+  scooping with fuel scoops. Also done: missiles (lock with T, fire with M, homing that steers with
+  the same counters ships use, 250 damage on a hit and 80 for one that goes off nearby), the E.C.M.
+  countermeasure with its energy cost, bounty payouts from the blueprints with the kill tally and
+  the legal status that shooting innocents costs, and the missile lock indicator. Still to do: enemy
+  missile launches against us, energy bombs, and the full death sequence.
 - **M5 — Docked screens & missions.** In progress. Done: the commander data block with the
   original's default commander (100 credits, full tank, front pulse laser, three missiles, docked at
   Lave), the trade table and its price and availability formulas (GVL/TT151), a game session that

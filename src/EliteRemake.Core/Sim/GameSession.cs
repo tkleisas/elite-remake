@@ -72,6 +72,33 @@ public sealed class GameSession
     public bool GameOver { get; private set; }
 
     /// <summary>
+    /// How much bounty a ship type is worth, from its blueprint. Set by the game, because the
+    /// simulation does not know about blueprints.
+    /// </summary>
+    public Func<Ship, int> BountyProvider { get; set; } = _ => 0;
+
+    /// <summary>
+    /// Awards the bounty for a destroyed ship and counts the kill, as the original's KILLSHP and
+    /// kill tally do. Destroying an innocent ship costs us our legal status.
+    /// </summary>
+    /// <param name="destroyed">The ship we destroyed.</param>
+    /// <returns>The bounty paid, in tenths of a credit.</returns>
+    public int RegisterKill(Ship destroyed)
+    {
+        int bounty = BountyProvider(destroyed);
+        Commander.Cash += bounty;
+        Commander.RegisterKill();
+
+        // Shooting up innocent traders makes us wanted
+        if (destroyed.AiFlag < 0x80)
+        {
+            Commander.LegalStatus = Math.Min(255, Commander.LegalStatus + 4);
+        }
+
+        return bounty;
+    }
+
+    /// <summary>
     /// Handles the destruction of our ship. With an escape pod fitted the commander survives, loses
     /// the cargo and wakes up in the station, as the original does; without one it is game over,
     /// and the commander is rebuilt from scratch (until save and load arrive, this stands in for

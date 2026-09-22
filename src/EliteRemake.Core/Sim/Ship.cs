@@ -222,4 +222,10 @@ public sealed class Ship
         orientation.AsSpan().CopyTo(ship.Data[ShipDataBlock.Orientation..]);
         return ship;
     }
+
+    /// <summary>
+    /// The ship this missile is chasing, or null when it is chasing us. The original tracks this in
+    /// the missile's data block; a reference keeps it simple and obvious.
+    /// </summary>
+    public Ship? Target { get; set; }
 }

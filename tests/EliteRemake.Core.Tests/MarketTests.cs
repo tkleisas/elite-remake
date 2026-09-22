@@ -1004,3 +1004,215 @@ public class DebrisTests
         Assert.True(canister.IsKilled);
     }
 }
+
+/// <summary>
+/// Checks missiles and the E.C.M.: locking on, firing, homing, the damage a hit does, and the
+/// countermeasure.
+/// </summary>
+public class MissileTests
+{
+    private static (FlightSim Sim, Ship Enemy) CreateSim()
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = false,
+            Commander = Commander.CreateDefault(),
+        };
+
+        sim.Player.Energy = 150;
+        sim.Player.ForeShield = 255;
+        sim.Player.AftShield = 255;
+
+        Ship enemy = Ship.Create(17, "sidewinder", "Sidewinder", 0, 0, 0, 0, 2000);
+        enemy.Energy = 70;
+        sim.Spawn(enemy);
+        return (sim, enemy);
+    }
+
+    [Fact]
+    public void AMissileNeedsALockAndAmmunition()
+    {
+        var (sim, enemy) = CreateSim();
+
+        // No lock, so nothing fires
+        Assert.False(sim.FireMissile());
+
+        sim.MissileLock = enemy;
+        Assert.True(sim.CanFireMissile);
+        Assert.True(sim.FireMissile());
+
+        // Firing spends a missile and clears the lock
+        Assert.Equal(2, sim.Commander!.Missiles);
+        Assert.Null(sim.MissileLock);
+        Assert.Contains(sim.Bubble, s => s.Type == Missiles.MissileType);
+
+        // And an empty rack cannot fire
+        sim.Commander.Missiles = 0;
+        sim.MissileLock = enemy;
+        Assert.False(sim.FireMissile());
+    }
+
+    [Fact]
+    public void FiringAMissileMakesTheTargetHostile()
+    {
+        var (sim, enemy) = CreateSim();
+        enemy.AiFlag = 0x10; // peaceful
+        sim.MissileLock = enemy;
+
+        sim.FireMissile();
+
+        Assert.Equal(0xFF, enemy.AiFlag);
+    }
+
+    [Fact]
+    public void AMissileHomesInAndDestroysItsTarget()
+    {
+        var (sim, enemy) = CreateSim();
+        enemy.SetPosition(200, 200, 3000);
+        enemy.Orientation.SetUnity(Orientation.Nosev, Orientation.Z, 1.0);
+
+        sim.MissileLock = enemy;
+        Assert.True(sim.FireMissile());
+
+        // Missiles travel fast, so a few seconds should be plenty
+        bool destroyed = false;
+        for (int i = 0; i < 400 && !destroyed; i++)
+        {
+            sim.Step();
+            destroyed = enemy.IsExploding || enemy.IsKilled || enemy.Energy == 0;
+        }
+
+        Assert.True(destroyed, $"the missile should have caught the Sidewinder; it is at {enemy.GetPosition()}");
+    }
+
+    [Fact]
+    public void AMissileThatCatchesUsDoesTwoHundredAndFiftyDamage()
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = false,
+            Commander = Commander.CreateDefault(),
+        };
+
+        sim.Player.Energy = 255;
+        sim.Player.ForeShield = 255;
+        sim.Player.AftShield = 255;
+
+        // An enemy missile bearing down on us: it starts close and pointing our way, as a missile
+        // that has just been launched at us would be
+        Ship missile = Missiles.CreateMissile(target: null);
+        missile.SetPosition(0, 0, Missiles.ImpactRange - 10);
+        missile.Orientation.SetUnity(Orientation.Nosev, Orientation.Z, -1.0);
+        sim.Spawn(missile);
+
+        bool hit = false;
+        for (int i = 0; i < 200 && !hit; i++)
+        {
+            sim.Step();
+            hit = sim.HitByMissile;
+        }
+
+        Assert.True(hit, "the missile should have gone off on us");
+
+        // 250 damage: the shield takes 255 -> 5 and nothing reaches the energy
+        Assert.Equal(5, sim.Player.ForeShield);
+        Assert.Equal(255, sim.Player.Energy);
+        Assert.True(missile.IsKilled, "the missile is spent");
+    }
+
+    [Fact]
+    public void TheEcmDestroysMissilesAndCostsEnergy()
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = false,
+            Commander = Commander.CreateDefault(),
+        };
+
+        sim.Player.Energy = 150;
+        sim.Commander!.Ecm = false;
+
+        // Without an E.C.M. nothing happens
+        Assert.False(sim.FireEcm());
+
+        sim.Commander.Ecm = true;
+        Ship missile = Missiles.CreateMissile(target: null);
+        missile.SetPosition(0, 0, 5000);
+        sim.Spawn(missile);
+
+        Assert.True(sim.FireEcm());
+        Assert.Equal(150 - Missiles.EcmEnergyCost, sim.Player.Energy);
+
+        sim.Step();
+        Assert.True(missile.IsKilled, "the E.C.M. should have destroyed the missile");
+        Assert.True(sim.EcmActive);
+    }
+}
+
+/// <summary>
+/// Checks the kill tally and bounty: what a destroyed ship pays, and what shooting innocents costs.
+/// </summary>
+public class BountyTests
+{
+    private static GameSession CreateSession()
+    {
+        var player = new Ship(11, "cobra-mk-3", "Cobra Mk III");
+        var session = new GameSession(Commander.CreateDefault(), new FlightSim(player));
+
+        // A Sidewinder is worth 50 credits, which the original stores as 5
+        session.BountyProvider = ship => ship.Type == 17 ? 500 : 0;
+        return session;
+    }
+
+    [Fact]
+    public void DestroyingAShipPaysItsBountyAndCountsTheKill()
+    {
+        GameSession session = CreateSession();
+        var pirate = new Ship(17, "sidewinder", "Sidewinder") { AiFlag = 0xF8 };
+
+        int cash = session.Commander.Cash;
+        int bounty = session.RegisterKill(pirate);
+
+        Assert.Equal(500, bounty);
+        Assert.Equal(cash + 500, session.Commander.Cash);
+        Assert.Equal(1, session.Commander.Kills);
+
+        // A pirate is fair game, so our legal status is untouched
+        Assert.Equal(0, session.Commander.LegalStatus);
+    }
+
+    [Fact]
+    public void ShootingInnocentsMakesUsWanted()
+    {
+        GameSession session = CreateSession();
+        var trader = new Ship(12, "python", "Python") { AiFlag = 0x10 };
+
+        session.RegisterKill(trader);
+
+        Assert.True(session.Commander.LegalStatus > 0, "shooting a trader should make us an offender");
+        Assert.Equal("Offender", session.Commander.LegalStatusName);
+
+        // Enough of it and we are a fugitive
+        for (int i = 0; i < 10; i++)
+        {
+            session.RegisterKill(new Ship(12, "python", "Python") { AiFlag = 0x10 });
+        }
+
+        Assert.Equal("Fugitive", session.Commander.LegalStatusName);
+    }
+
+    [Fact]
+    public void KillsMoveTheRating()
+    {
+        GameSession session = CreateSession();
+        Assert.Equal("Harmless", session.Commander.Rating);
+
+        for (int i = 0; i < 6400; i++)
+        {
+            session.RegisterKill(new Ship(17, "sidewinder", "Sidewinder") { AiFlag = 0xF8 });
+        }
+
+        Assert.Equal("Elite", session.Commander.Rating);
+        Assert.Equal(6400 * 500, session.Commander.Cash - 1000);
+    }
+}

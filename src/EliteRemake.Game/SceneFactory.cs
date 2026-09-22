@@ -127,6 +127,12 @@ public static class SceneFactory
             }
         };
         scene.ArriveInSystem(session.System);
+        session.BountyProvider = ship =>
+            ShipCatalog.ByType(ship.Type) is { } bountyShip &&
+            EliteRemake.Data.Ships.ShipData.ById(bountyShip.Id) is { } bountyBlueprint
+                ? bountyBlueprint.Header.Bounty * 10
+                : 0;
+
         scene.SpawnStationAhead(options.StationDistance);
 
         if (!options.EmptySystem)

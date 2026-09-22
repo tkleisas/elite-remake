@@ -34,6 +34,23 @@ public sealed class FlightScene : IScene
     private float _accumulator;
     private bool _stationSpawned;
     private bool _dockingRequested;
+    private bool _targetPressed;
+    private bool _missilePressed;
+    private bool _ecmPressed;
+
+    /// <summary>The ship in our crosshairs, which a missile can lock onto.</summary>
+    private Ship? FindTargetInCrosshairs()
+    {
+        foreach (Ship ship in _sim.Bubble)
+        {
+            if (Combat.IsInCrosshairs(ship, _sim.TargetableAreaOf(ship)))
+            {
+                return ship;
+            }
+        }
+
+        return null;
+    }
 
     public FlightScene(GraphicsDevice device, ViewCamera camera, FlightSim sim, HudRenderer hud)
     {
@@ -199,6 +216,50 @@ public sealed class FlightScene : IScene
             Fire = ReadInput().Fire || HeldInput.Fire,
         };
 
+        if (Session is not null)
+        {
+            KeyboardState keys = Microsoft.Xna.Framework.Input.Keyboard.GetState();
+
+            // T locks the missile onto whatever is in the crosshairs, as the original does
+            if (keys.IsKeyDown(Keys.T) && !_targetPressed)
+            {
+                _targetPressed = true;
+                Session.Flight.MissileLock = FindTargetInCrosshairs();
+            }
+            else if (!keys.IsKeyDown(Keys.T))
+            {
+                _targetPressed = false;
+            }
+
+            // M fires a missile, E fires the E.C.M.
+            if (keys.IsKeyDown(Keys.M) && !_missilePressed)
+            {
+                _missilePressed = true;
+                Session.Flight.FireMissile();
+            }
+            else if (!keys.IsKeyDown(Keys.M))
+            {
+                _missilePressed = false;
+            }
+
+            if (keys.IsKeyDown(Keys.E) && !_ecmPressed)
+            {
+                _ecmPressed = true;
+                Session.Flight.FireEcm();
+            }
+            else if (!keys.IsKeyDown(Keys.E))
+            {
+                _ecmPressed = false;
+            }
+
+            // Destroying a ship pays its bounty and counts the kill
+            if (_sim.DestroyedThisFrame is { } wreck)
+            {
+                Session.RegisterKill(wreck);
+                _sim.DestroyedThisFrame = null;
+            }
+        }
+
         // Docking is a debug shortcut for now: flying into the station's slot comes with the
         // docking milestone
         if (Session is not null &&
@@ -334,6 +395,8 @@ public sealed class FlightScene : IScene
         DrawExplosions(spriteBatch, pixel);
         spriteBatch.End();
 
+        _hud.MissilesArmed = Session?.Commander.Missiles ?? 0;
+        _hud.Locked = _sim.MissileLock is not null;
         _hud.Draw(spriteBatch, pixel, Camera, _sim);
     }
 

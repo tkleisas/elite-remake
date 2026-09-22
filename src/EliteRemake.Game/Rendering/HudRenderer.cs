@@ -50,6 +50,9 @@ public sealed class HudRenderer
     /// <summary>How many missile indicators are lit, which the commander's loadout will drive.</summary>
     public int MissilesArmed { get; set; } = 3;
 
+    /// <summary>True when a missile is locked onto a target, which lights the leftmost indicator.</summary>
+    public bool Locked { get; set; }
+
     /// <summary>Draws the whole dashboard and the crosshair.</summary>
     public void Draw(SpriteBatch spriteBatch, Texture2D pixel, ViewCamera camera, FlightSim sim)
     {
@@ -145,13 +148,16 @@ public sealed class HudRenderer
         for (int i = 0; i < _missiles.Count; i++)
         {
             bool armed = i < MissilesArmed;
-            spriteBatch.Draw(pixel, _missiles[i], armed ? Palette.Yellow : Off);
+
+            // The leftmost indicator shows missile lock, as the original's does
+            bool locked = i == 0 && Locked;
+            spriteBatch.Draw(pixel, _missiles[i], locked ? Palette.Red : armed ? Palette.Yellow : Off);
             DrawOutline(spriteBatch, pixel, _missiles[i], Frame);
         }
 
         _text.Draw(
             spriteBatch,
-            "MISSILES",
+            Locked ? "LOCKED" : "MISSILES",
             _missiles[^1].Right + (int)(6 * _scale),
             _missiles[0].Top,
             TextScale,

@@ -108,8 +108,11 @@ public sealed class FlightSim
     /// <summary>The ship the laser is hitting this frame, if any.</summary>
     public Ship? LaserTarget { get; private set; }
 
-    /// <summary>Set for one frame when a shot destroys a ship, so the caller can pay the bounty.</summary>
-    public Ship? DestroyedThisFrame { get; private set; }
+    /// <summary>
+    /// Set for one frame when a shot destroys a ship, so the caller can pay the bounty. The game
+    /// clears it once it has done so.
+    /// </summary>
+    public Ship? DestroyedThisFrame { get; set; }
 
     /// <summary>Which mount is firing; the front view is all the remake has so far.</summary>
     public LaserMount ActiveMount { get; set; } = LaserMount.Front;
@@ -178,11 +181,17 @@ public sealed class FlightSim
         Combat.RechargeShields(Player);
         Combat.RechargeEnergy(Player);
 
+        // Missiles home in, and the E.C.M. swats them down
+        UpdateMissiles();
+
         // Scoop anything we are flying at, if we have the equipment for it
         UpdateScooping();
 
         // Ships that have drifted out of range leave the bubble, as they do in the original
         RemoveDistantShips();
+
+        // Wrecked ships leave the bubble, as the original's KILLSHP does
+        RemoveKilledShips();
 
         // The main game loop runs the spawn decision once a frame
         UpdateSpawning();
@@ -231,6 +240,145 @@ public sealed class FlightSim
 
     /// <summary>How a canister's contents are decided, from the blueprints.</summary>
     public Func<Ship, int> ScoopItemProvider { get; set; } = _ => 0;
+
+    /// <summary>The ship our missiles are locked onto, or null.</summary>
+    public Ship? MissileLock { get; set; }
+
+    /// <summary>Set when a missile goes off on us, for the game to report.</summary>
+    public bool HitByMissile { get; private set; }
+
+    /// <summary>Set when the E.C.M. is active, which destroys missiles.</summary>
+    public bool EcmActive { get; private set; }
+
+    /// <summary>How long the E.C.M. stays on for once fired.</summary>
+    public int EcmFrames { get; private set; }
+
+    /// <summary>True if the commander can fire a missile right now.</summary>
+    public bool CanFireMissile => Commander is { Missiles: > 0 } && MissileLock is not null;
+
+    /// <summary>
+    /// Fires a missile at the locked target, which the original's FRMIS does after making the
+    /// target angry.
+    /// </summary>
+    public bool FireMissile()
+    {
+        if (!CanFireMissile)
+        {
+            return false;
+        }
+
+        Ship missile = Missiles.CreateMissile(MissileLock);
+        missile.SetPosition(0, 0, 64);
+
+        // It leaves our ship heading the way we are facing
+        Orientation.FromHeadingPitch(0, 0).AsSpan().CopyTo(missile.Data[ShipDataBlock.Orientation..]);
+
+        if (!Spawn(missile))
+        {
+            return false;
+        }
+
+        // The target is now thoroughly annoyed
+        MissileLock!.AiFlag = 0xFF;
+        Commander!.Missiles--;
+        MissileLock = null;
+        return true;
+    }
+
+    /// <summary>Fires the E.C.M., which destroys every missile in the bubble.</summary>
+    public bool FireEcm()
+    {
+        if (Commander is not { Ecm: true } || EcmFrames > 0)
+        {
+            return false;
+        }
+
+        EcmFrames = 60; // the original keeps the E.C.M. running for a while
+        EcmActive = true;
+
+        if (Player.Energy > Missiles.EcmEnergyCost)
+        {
+            Player.Energy -= Missiles.EcmEnergyCost;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Runs the missiles: each one chases its target, and anything the E.C.M. can reach is
+    /// destroyed. A missile that catches us does the original's 250 damage.
+    /// </summary>
+    private void UpdateMissiles()
+    {
+        HitByMissile = false;
+
+        if (EcmFrames > 0)
+        {
+            EcmFrames--;
+            if (EcmFrames == 0)
+            {
+                EcmActive = false;
+            }
+        }
+
+        for (int i = _bubble.Count - 1; i >= 0; i--)
+        {
+            Ship missile = _bubble[i];
+            if (!Missiles.IsMissile(missile.Type) || missile.IsKilled)
+            {
+                continue;
+            }
+
+            // The E.C.M. destroys missiles within range
+            if (EcmActive)
+            {
+                (int ex, int ey, int ez) = missile.GetPosition();
+                double ecmDistance = Math.Sqrt(((double)ex * ex) + ((double)ey * ey) + ((double)ez * ez));
+                if (ecmDistance < Missiles.EcmRange)
+                {
+                    missile.IsKilled = true;
+                    continue;
+                }
+            }
+
+            // Chase the target: an enemy ship for our missiles, us for theirs
+            (int X, int Y, int Z) targetPosition;
+            if (missile.Target is { } target)
+            {
+                targetPosition = target.GetPosition();
+            }
+            else
+            {
+                targetPosition = (0, 0, 0); // us
+            }
+
+            if (Missiles.Steer(missile, targetPosition))
+            {
+                // It went off
+                if (missile.Target is { } hit)
+                {
+                    if (Combat.ApplyHit(hit, Missiles.DirectHitDamage))
+                    {
+                        hit.IsExploding = true;
+                        hit.Flags |= 0x40;
+                        DestroyedThisFrame = hit;
+                        DropsThisFrame = Debris.DestructionDrops(hit.Type, 0, Random);
+                    }
+                }
+                else
+                {
+                    // The missile has gone off on us: record the hit, and note whether it was fatal
+                    HitByMissile = true;
+                    if (Combat.TakeDamage(Player, Missiles.DirectHitDamage, fromBehind: false))
+                    {
+                        PlayerDied = true;
+                    }
+                }
+
+                missile.IsKilled = true;
+            }
+        }
+    }
 
     /// <summary>
     /// Scoops up anything scoopable that we are close enough to. The original checks each item in
@@ -476,6 +624,9 @@ public sealed class FlightSim
     private int LaserPowerOf(Ship ship) => LaserPowerProvider(ship);
 
     private int DamageOf(Ship ship) => DamageProvider(ship);
+
+    /// <summary>The targetable area of a ship, for callers that need to test their own aim.</summary>
+    public int TargetableAreaOf(Ship ship) => TargetableAreaProvider(ship);
 
     private int TargetableArea(Ship ship) => TargetableAreaProvider(ship);
 
