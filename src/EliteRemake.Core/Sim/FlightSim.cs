@@ -231,11 +231,13 @@ public sealed class FlightSim
     public bool SpawningEnabled { get; set; } = true;
 
     /// <summary>
-    /// How far away a ship can get before it leaves the local bubble. The original drops ships out
-    /// of the bubble once they are far enough behind or ahead of us, which is what stops the twelve
-    /// slots filling up with ships we can no longer see.
+    /// How far away a ship can get before it leaves the local bubble. The original's FAROF sets
+    /// A = 224 and compares it with x_hi, y_hi and z_hi, dropping the ship if any of them is
+    /// bigger — so a ship leaves once it is more than 224 in the high byte, which is 57344 units.
+    /// Note that this is well beyond the scanner's range, so the original also keeps ships that
+    /// the scanner does not show: they have flown past and are on their way out.
     /// </summary>
-    public int BubbleRange { get; set; } = 0x8000;
+    public int BubbleRange { get; set; } = 224 << 8;
 
     /// <summary>The extra vessels delay: frames to wait before the next spawn (the original's EV).</summary>
     private int _spawnDelay;
