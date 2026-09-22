@@ -59,7 +59,7 @@ public sealed class GameSession
     public FlightSim Flight { get; }
 
     /// <summary>The system we are in.</summary>
-    public StarSystem System { get; }
+    public StarSystem System { get; private set; }
 
     /// <summary>The station's market for this visit.</summary>
     public MarketEntry[] Market { get; private set; }
@@ -72,6 +72,90 @@ public sealed class GameSession
 
     /// <summary>An optional message to show the player, such as the result of a trade.</summary>
     public string Message { get; set; } = string.Empty;
+
+    /// <summary>The system the charts have selected, which a hyperspace jump will take us to.</summary>
+    public StarSystem SelectedSystem { get; set; }
+
+    /// <summary>Frames left on the hyperspace countdown, or 0 when we are not jumping.</summary>
+    public int HyperspaceCountdown { get; private set; }
+
+    /// <summary>The distance to the selected system, in tenths of a light year.</summary>
+    public int SelectedDistance => Galaxy.DistanceTenths(System, SelectedSystem);
+
+    /// <summary>
+    /// Starts a hyperspace jump to the selected system, as the original's hyp routine does: the
+    /// jump needs enough fuel for the distance, and then runs a countdown before we arrive.
+    /// </summary>
+    public bool StartHyperspace()
+    {
+        if (HyperspaceCountdown > 0)
+        {
+            return false;
+        }
+
+        if (SelectedSystem.Seeds == System.Seeds)
+        {
+            Message = "You are already here.";
+            return false;
+        }
+
+        int distance = SelectedDistance;
+        if (distance > Commander.Fuel)
+        {
+            Message = $"Not enough fuel: {FormatTenths(distance)} light years needed, " +
+                      $"{FormatTenths(Commander.Fuel)} in the tank.";
+            return false;
+        }
+
+        HyperspaceCountdown = 20; // the original counts down before the jump
+        Message = $"Hyperspace to {SelectedSystem.Name} ({FormatTenths(distance)} light years).";
+        return true;
+    }
+
+    /// <summary>
+    /// Completes the jump: the fuel is spent, we arrive in the new system, and its station, planet
+    /// and sun are set up.
+    /// </summary>
+    public bool CompleteHyperspace()
+    {
+        if (HyperspaceCountdown > 0)
+        {
+            return false;
+        }
+
+        int distance = SelectedDistance;
+        if (distance > Commander.Fuel)
+        {
+            return false;
+        }
+
+        Commander.Fuel -= distance;
+        Commander.CurrentSystem = SelectedSystem;
+        System = SelectedSystem;
+        Market = Universe.Market.Build(System, _random.Next());
+        Message = $"Arrived in the {System.Name} system.";
+        return true;
+    }
+
+    /// <summary>Advances the hyperspace countdown, returning true when the jump completes.</summary>
+    public bool TickHyperspace()
+    {
+        if (HyperspaceCountdown <= 0)
+        {
+            return false;
+        }
+
+        HyperspaceCountdown--;
+        if (HyperspaceCountdown > 0)
+        {
+            return false;
+        }
+
+        return CompleteHyperspace();
+    }
+
+    /// <summary>Formats tenths of a light year the way the original prints them.</summary>
+    public static string FormatTenths(int tenths) => $"{tenths / 10}.{Math.Abs(tenths % 10)}";
 
     /// <summary>Docks at the station, refreshing the market as the original does.</summary>
     public void Dock()

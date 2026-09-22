@@ -87,8 +87,11 @@ Primary target variant: **`versions/disc`, variant `sth` (Stairway to Hell)**, w
   the market screen with buying and selling, and the equipment shop — the original's fourteen items
   with their prices, gated by tech level the way EQSHP does it (three plus the tech level, capped at
   fourteen), with fuel sold by the light year at 2 credits each and each purchase applying its
-  effect. Still to do: the shipyard, the charts, Data on System, save/load, missions, and galactic
-  hyperspace.
+  effect. Also done: hyperspace — the distance formula is the original's, four times the eight-bit
+  square root of the sum of the squared coordinate differences, so a full tank reaches Leesti from
+  Lave at 5.6 light years but not Riedquat at 7.2, exactly as in the original. Still to do: the
+  chart screens to choose a destination, the shipyard, Data on System and its description generator,
+  save/load, missions, and the galactic hyperdrive.
 - **M6 — Audio, polish, parity sweep.** Synthesized beeper SFX + docking music, gamepad/rebinding,
   settings, full feature sweep against the original, performance pass.
 

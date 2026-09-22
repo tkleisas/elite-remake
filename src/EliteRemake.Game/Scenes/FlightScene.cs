@@ -37,6 +37,44 @@ public sealed class FlightScene : IScene
     private bool _targetPressed;
     private bool _missilePressed;
     private bool _ecmPressed;
+    private bool _jumpPressed;
+
+    /// <summary>The nearest system we have the fuel to reach, which is where H takes us.</summary>
+    private EliteRemake.Core.Universe.StarSystem NearestReachableSystem()
+    {
+        EliteRemake.Core.Universe.StarSystem best = Session!.System;
+        int bestDistance = int.MaxValue;
+
+        foreach (EliteRemake.Core.Universe.StarSystem candidate in
+                 EliteRemake.Core.Universe.Galaxy.GenerateGalaxy(Session.System.Seeds))
+        {
+            if (candidate.Seeds == Session.System.Seeds)
+            {
+                continue;
+            }
+
+            int distance = EliteRemake.Core.Universe.Galaxy.DistanceTenths(Session.System, candidate);
+            if (distance <= Session.Commander.Fuel && distance < bestDistance)
+            {
+                bestDistance = distance;
+                best = candidate;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>Clears the local bubble, as arriving in a new system does.</summary>
+    private void ResetBubble()
+    {
+        foreach (Ship ship in _sim.Bubble.ToArray())
+        {
+            _sim.Remove(ship);
+        }
+
+        _stationSpawned = false;
+        SpawnStationAhead();
+    }
 
     /// <summary>The ship in our crosshairs, which a missile can lock onto.</summary>
     private Ship? FindTargetInCrosshairs()
@@ -220,6 +258,13 @@ public sealed class FlightScene : IScene
         {
             KeyboardState keys = Microsoft.Xna.Framework.Input.Keyboard.GetState();
 
+            // Run the hyperspace countdown, and arrive when it finishes
+            if (Session.HyperspaceCountdown > 0 && Session.TickHyperspace())
+            {
+                ArriveInSystem(Session.System);
+                ResetBubble();
+            }
+
             // T locks the missile onto whatever is in the crosshairs, as the original does
             if (keys.IsKeyDown(Keys.T) && !_targetPressed)
             {
@@ -240,6 +285,22 @@ public sealed class FlightScene : IScene
             else if (!keys.IsKeyDown(Keys.M))
             {
                 _missilePressed = false;
+            }
+
+            // H jumps to the nearest system we can reach, until the charts arrive
+            if (keys.IsKeyDown(Keys.H) && !_jumpPressed)
+            {
+                _jumpPressed = true;
+                if (Session.SelectedSystem.Seeds == Session.System.Seeds)
+                {
+                    Session.SelectedSystem = NearestReachableSystem();
+                }
+
+                Session.StartHyperspace();
+            }
+            else if (!keys.IsKeyDown(Keys.H))
+            {
+                _jumpPressed = false;
             }
 
             if (keys.IsKeyDown(Keys.E) && !_ecmPressed)

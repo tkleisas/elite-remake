@@ -1,5 +1,7 @@
 using System.Text;
 
+using EliteRemake.Core.Maths;
+
 namespace EliteRemake.Core.Universe;
 
 /// <summary>
@@ -279,13 +281,46 @@ public static class Galaxy
         return (Describe(bestSeeds, bestIndex), best);
     }
 
-    /// <summary>The distance in light years between two systems, as the original works it out.</summary>
+    /// <summary>
+    /// The distance between two systems in tenths of a light year, worked out exactly as the
+    /// original does: the squares of the coordinate differences are added and the result is passed
+    /// through the original's 8-bit square root, then multiplied by four.
+    /// </summary>
     /// <remarks>
-    /// The original's hyperspace fuel check uses a quarter of the squared distance, floored, in
-    /// hundredths of a light year; see TT105. This is the plain Euclidean distance in galactic
-    /// units, which is what the charts plot.
+    /// This matters because the original's square root is a restoring division that is only eight
+    /// bits wide, so the distances it produces are slightly coarse. Jump ranges in the original are
+    /// measured in these units, which is why a full tank takes you exactly 7.0 light years.
     /// </remarks>
-    public static double DistanceBetween(StarSystem from, StarSystem to)
+    public static int DistanceTenths(StarSystem from, StarSystem to)
+    {
+        byte dx = (byte)Math.Abs(to.X - from.X);
+        byte dy = (byte)Math.Abs(to.Y - from.Y);
+
+        ushort xSquared = EliteMath.Squa2(dx);
+        byte r = EliteMath.Hi(xSquared);
+        byte q = EliteMath.Lo(xSquared);
+
+        ushort ySquared = EliteMath.Squa2(dy);
+        byte t = EliteMath.Hi(ySquared);
+        byte p = EliteMath.Lo(ySquared);
+
+        int low = q + p;
+        q = (byte)low;
+        int high = r + t + (low > 0xFF ? 1 : 0);
+        r = (byte)high;
+
+        byte root = EliteMath.Sqrt(r, q); // LL5
+
+        // The original shifts the square root left twice, so the distance is four times as much
+        return root * 4;
+    }
+
+    /// <summary>The distance between two systems in light years, for display.</summary>
+    public static double DistanceLightYears(StarSystem from, StarSystem to) =>
+        DistanceTenths(from, to) / 10.0;
+
+    /// <summary>The plain coordinate distance between two systems, which is what the charts plot.</summary>
+    public static double CoordinateDistance(StarSystem from, StarSystem to)
     {
         double dx = to.X - from.X;
         double dy = to.Y - from.Y;

@@ -1354,3 +1354,111 @@ public class OutfittingTests
         Assert.True(session.Flight.Player.HasEnergyUnit);
     }
 }
+
+/// <summary>
+/// Checks hyperspace: the distance formula, the fuel it needs, and arriving in the new system.
+/// </summary>
+public class HyperspaceTests
+{
+    private static GameSession CreateSession()
+    {
+        var player = new Ship(11, "cobra-mk-3", "Cobra Mk III");
+        return new GameSession(Commander.CreateDefault(), new FlightSim(player));
+    }
+
+    [Fact]
+    public void DistancesUseTheOriginalsSquareRoot()
+    {
+        StarSystem[] systems = Galaxy.GenerateGalaxy(0);
+        StarSystem lave = systems.First(s => s.Name == "LAVE");
+
+        // The distance to itself is nothing
+        Assert.Equal(0, Galaxy.DistanceTenths(lave, lave));
+
+        // A full tank is 7.0 light years, and the original's fuel is in tenths, so a jump needs at
+        // most 70 units of distance
+        int nearest = systems.Where(s => s.Seeds != lave.Seeds)
+            .Min(s => Galaxy.DistanceTenths(lave, s));
+        Assert.True(nearest > 0, "there should be a nearest neighbour");
+
+        // Distances grow with the coordinate distance
+        StarSystem far = systems.OrderByDescending(s => Galaxy.CoordinateDistance(lave, s)).First();
+        Assert.True(Galaxy.DistanceTenths(lave, far) > nearest);
+    }
+
+    [Fact]
+    public void AHyperspaceJumpCostsFuelAndMovesUs()
+    {
+        GameSession session = CreateSession();
+        StarSystem[] systems = Galaxy.GenerateGalaxy(0);
+
+        // Find somewhere within range of a full tank
+        StarSystem target = systems
+            .Where(s => s.Seeds != session.System.Seeds)
+            .Where(s => Galaxy.DistanceTenths(session.System, s) <= session.Commander.Fuel)
+            .OrderBy(s => Galaxy.DistanceTenths(session.System, s))
+            .First();
+
+        session.SelectedSystem = target;
+        int distance = session.SelectedDistance;
+        int fuel = session.Commander.Fuel;
+
+        Assert.True(session.StartHyperspace());
+        Assert.True(session.HyperspaceCountdown > 0);
+
+        // Tick the countdown out
+        for (int i = 0; i < 100 && session.HyperspaceCountdown > 0; i++)
+        {
+            session.TickHyperspace();
+        }
+
+        Assert.Equal(target.Name, session.System.Name);
+        Assert.Equal(fuel - distance, session.Commander.Fuel);
+        Assert.Equal(session.System.Name, session.Commander.CurrentSystem.Name);
+    }
+
+    [Fact]
+    public void AJumpBeyondTheFuelIsRefused()
+    {
+        GameSession session = CreateSession();
+        StarSystem[] systems = Galaxy.GenerateGalaxy(0);
+
+        // Somewhere far beyond a full tank
+        StarSystem far = systems
+            .Where(s => Galaxy.DistanceTenths(session.System, s) > session.Commander.Fuel)
+            .OrderByDescending(s => Galaxy.DistanceTenths(session.System, s))
+            .First();
+
+        session.SelectedSystem = far;
+        Assert.False(session.StartHyperspace());
+        Assert.Contains("Not enough fuel", session.Message);
+
+        // And jumping to where we already are is pointless
+        session.SelectedSystem = session.System;
+        Assert.False(session.StartHyperspace());
+        Assert.Contains("already here", session.Message);
+    }
+
+    [Fact]
+    public void ArrivingGivesUsAFreshMarket()
+    {
+        GameSession session = CreateSession();
+        MarketEntry[] before = session.Market;
+
+        StarSystem target = Galaxy.GenerateGalaxy(0)
+            .Where(s => s.Seeds != session.System.Seeds)
+            .Where(s => Galaxy.DistanceTenths(session.System, s) <= session.Commander.Fuel)
+            .OrderBy(s => Galaxy.DistanceTenths(session.System, s))
+            .First();
+
+        session.SelectedSystem = target;
+        session.StartHyperspace();
+        for (int i = 0; i < 100 && session.HyperspaceCountdown > 0; i++)
+        {
+            session.TickHyperspace();
+        }
+
+        Assert.NotEqual(before, session.Market);
+        Assert.Equal(17, session.Market.Length);
+    }
+}
