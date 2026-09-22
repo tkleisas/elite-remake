@@ -39,6 +39,53 @@ public sealed class FlightScene : IScene
     private bool _ecmPressed;
     private bool _jumpPressed;
 
+    /// <summary>
+    /// Plays the sounds for whatever happened this frame, using the original's own triggers: a zap
+    /// when we fire, a hit when we are struck, an explosion when something dies, a whoosh for
+    /// hyperspace and a buzz for the E.C.M.
+    /// </summary>
+    private void UpdateSounds()
+    {
+        if (Sounds is null)
+        {
+            return;
+        }
+
+        if (_sim.FiringLaserPower > 0)
+        {
+            Sounds.Play(Core.Audio.SoundEffect.LaserFire);
+        }
+
+        if (_sim.DamageTakenThisFrame > 0 || _sim.HitByMissile)
+        {
+            Sounds.Play(Core.Audio.SoundEffect.LaserHit);
+        }
+
+        if (_sim.DestroyedThisFrame is not null && Session is not null)
+        {
+            Sounds.Play(Core.Audio.SoundEffect.Explosion);
+        }
+
+        if (_sim.EcmActive && EcmSoundPending)
+        {
+            EcmSoundPending = false;
+            Sounds.Play(Core.Audio.SoundEffect.EcmOn);
+        }
+
+        if (Session is { HyperspaceCountdown: > 0 } && !_hyperspaceSoundPlayed)
+        {
+            _hyperspaceSoundPlayed = true;
+            Sounds.Play(Core.Audio.SoundEffect.Hyperspace);
+        }
+        else if (Session is { HyperspaceCountdown: 0 })
+        {
+            _hyperspaceSoundPlayed = false;
+        }
+    }
+
+    private bool EcmSoundPending = true;
+    private bool _hyperspaceSoundPlayed;
+
     /// <summary>The nearest system we have the fuel to reach, which is where H takes us.</summary>
     private EliteRemake.Core.Universe.StarSystem NearestReachableSystem()
     {
@@ -241,6 +288,9 @@ public sealed class FlightScene : IScene
     /// <summary>The session this scene is flying in, so docking can be requested.</summary>
     public GameSession? Session { get; set; }
 
+    /// <summary>The sounds, or null when the game is running silently.</summary>
+    public Audio.SoundBank? Sounds { get; set; }
+
     public void Update(float elapsedSeconds)
     {
         LastInput = ReadInput() with
@@ -280,7 +330,10 @@ public sealed class FlightScene : IScene
             if (keys.IsKeyDown(Keys.M) && !_missilePressed)
             {
                 _missilePressed = true;
-                Session.Flight.FireMissile();
+                if (Session.Flight.FireMissile())
+                {
+                    Sounds?.Play(Core.Audio.SoundEffect.Missile);
+                }
             }
             else if (!keys.IsKeyDown(Keys.M))
             {
@@ -320,6 +373,8 @@ public sealed class FlightScene : IScene
                 _sim.DestroyedThisFrame = null;
             }
         }
+
+        UpdateSounds();
 
         // Docking is a debug shortcut for now: flying into the station's slot comes with the
         // docking milestone

@@ -94,8 +94,12 @@ Primary target variant: **`versions/disc`, variant `sth` (Stairway to Hell)**, w
   will reach, and the long-range chart of the whole galaxy, both with the crosshairs moved by the
   cursor keys and the selected system's data underneath, and H to jump. Still to do: the shipyard,
   the system description generator, save/load, missions, and the galactic hyperdrive.
-- **M6 — Audio, polish, parity sweep.** Synthesized beeper SFX + docking music, gamepad/rebinding,
-  settings, full feature sweep against the original, performance pass.
+- **M6 — Audio, polish, parity sweep.** In progress. Done: the original's ten sound effects with
+  their exact SFX bytes, rendered as square waves with the BBC's pitch divider and its four
+  envelopes (a decaying note, an upward sweep, noise and a fast tremolo), and triggered by the same
+  events the original uses — firing, being hit, a kill, a missile launch, hyperspace and the E.C.M.
+  The sounds flush one another, as a single sound chip does. Still to do: the docking music (Blue
+  Danube), gamepad rebinding, a settings screen, the full parity sweep and a performance pass.
 
 ## Verification strategy
 

@@ -17,6 +17,7 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
     private SpriteBatch _spriteBatch = null!;
     private Texture2D _pixel = null!;
     private TextRenderer _text = null!;
+    private Audio.SoundBank _sound = null!;
     private IScene _scene = null!;
     private FlightScene? _flightScene;
     private MarketScene? _marketScene;
@@ -62,8 +63,16 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
         Layout = ScreenLayout.ForWindow(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
         Camera = CreateCamera();
         _text = new TextRenderer(GraphicsDevice, Data.FontData.Font);
+        _sound = new Audio.SoundBank();
+        _sound.Load();
+        Console.WriteLine($"Loaded {_sound.SoundCount} sounds");
         _session = SceneFactory.CreateSession(_options);
         _scene = CreateSceneForMode();
+
+        if (_scene is Scenes.FlightScene sounds)
+        {
+            sounds.Sounds = _sound;
+        }
 
         if (_options.SimWarmupFrames > 0 && _scene is Scenes.FlightScene flight)
         {
@@ -116,6 +125,7 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
 
     protected override void UnloadContent()
     {
+        _sound?.Dispose();
         _text?.Dispose();
         _pixel?.Dispose();
         _spriteBatch?.Dispose();
@@ -154,6 +164,12 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
         if (!ReferenceEquals(wanted, _scene))
         {
             _scene = wanted;
+
+            if (_scene is Scenes.FlightScene flightSounds)
+            {
+                flightSounds.Sounds = _sound;
+            }
+
             Console.WriteLine(_scene.StatusLine);
         }
 

@@ -1,3 +1,4 @@
+using EliteRemake.Core.Audio;
 using EliteRemake.Core.Maths;
 using EliteRemake.Core.Sim;
 using EliteRemake.Core.Universe;
@@ -1460,5 +1461,112 @@ public class HyperspaceTests
 
         Assert.NotEqual(before, session.Market);
         Assert.Equal(17, session.Market.Length);
+    }
+}
+
+/// <summary>
+/// Checks the sound effects: that the table is the original's, and that each sound renders to
+/// samples with the shape its envelope implies.
+/// </summary>
+public class AudioTests
+{
+    [Fact]
+    public void TheSoundTableIsTheOriginals()
+    {
+        // The four bytes of each sound come straight from the original's SFX table
+        Beeps.SoundData laser = Beeps.Table[SoundEffect.LaserFire];
+        Assert.Equal(0x12, laser.ChannelAndFlush); // channel 2, flush on
+        Assert.Equal(2, laser.Channel);
+        Assert.True(laser.Flush);
+        Assert.Equal(0x10, laser.Duration);        // sixteenth twentieths of a second
+        Assert.Equal(0.8f, laser.Seconds, 3);
+
+        Beeps.SoundData hyperspace = Beeps.Table[SoundEffect.Hyperspace];
+        Assert.Equal(2, hyperspace.Envelope);       // the sweep
+        Assert.Equal(0x60, hyperspace.Pitch);
+
+        Beeps.SoundData explosion = Beeps.Table[SoundEffect.Explosion];
+        Assert.Equal(3, explosion.Envelope);        // noise
+
+        Beeps.SoundData ecm = Beeps.Table[SoundEffect.EcmOn];
+        Assert.Equal(4, ecm.Envelope);              // tremolo
+        Assert.Equal(0xFF, ecm.Duration);
+
+        // Every sound the game can make has an entry
+        foreach (SoundEffect effect in Enum.GetValues<SoundEffect>())
+        {
+            Assert.True(Beeps.Table.ContainsKey(effect), $"{effect} has no sound data");
+        }
+    }
+
+    [Fact]
+    public void PitchFollowsTheBbcDivider()
+    {
+        // The sound chip divides 125000 by the pitch, so a high pitch number is a low note
+        Assert.Equal(125000.0 / 12, Beeps.Frequency(12));
+        Assert.Equal(125000.0 / 100, Beeps.Frequency(100));
+        Assert.True(Beeps.Frequency(12) > Beeps.Frequency(24));
+
+        // A pitch of zero means the chip's largest divider, the lowest note it can make
+        Assert.True(Beeps.Frequency(0) < 200);
+    }
+
+    [Fact]
+    public void EverySoundRendersToSamplesOfTheRightLength()
+    {
+        foreach ((SoundEffect effect, Beeps.SoundData data) in Beeps.Table)
+        {
+            float[] samples = Beeps.Render(effect);
+
+            // A sound with no duration, such as the E.C.M. switching off, is silent and has no
+            // samples at all
+            Assert.Equal((int)(data.Seconds * Beeps.SampleRate), samples.Length);
+            if (samples.Length == 0)
+            {
+                continue;
+            }
+
+            // The beeper is a square wave, so samples are at full amplitude or none
+            foreach (float sample in samples)
+            {
+                Assert.InRange(sample, -1f, 1f);
+            }
+        }
+    }
+
+    [Fact]
+    public void EnvelopesShapeTheSounds()
+    {
+        // The E.C.M. off sound has no amplitude at all, so it is silent
+        float[] silent = Beeps.Render(SoundEffect.EcmOff);
+        Assert.All(silent, sample => Assert.Equal(0f, sample));
+
+        // The explosion is noise that dies away, so it starts loud and ends quiet
+        float[] explosion = Beeps.Render(SoundEffect.Explosion);
+        Assert.True(Math.Abs(explosion[0]) > Math.Abs(explosion[^1]));
+
+        // The laser is a short, loud zap
+        float[] laser = Beeps.Render(SoundEffect.LaserFire);
+        Assert.True(laser.Max(Math.Abs) > 0.5f);
+
+        // The hyperspace sweep rises in frequency, so it crosses zero more often as it goes
+        float[] sweep = Beeps.Render(SoundEffect.Hyperspace);
+        int firstHalf = CountZeroCrossings(sweep, 0, sweep.Length / 2);
+        int secondHalf = CountZeroCrossings(sweep, sweep.Length / 2, sweep.Length);
+        Assert.True(secondHalf > firstHalf, $"the sweep should rise: {firstHalf} then {secondHalf}");
+    }
+
+    private static int CountZeroCrossings(float[] samples, int from, int to)
+    {
+        int crossings = 0;
+        for (int i = from + 1; i < to; i++)
+        {
+            if ((samples[i - 1] < 0 && samples[i] >= 0) || (samples[i - 1] >= 0 && samples[i] < 0))
+            {
+                crossings++;
+            }
+        }
+
+        return crossings;
     }
 }
