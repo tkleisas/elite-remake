@@ -24,15 +24,37 @@ public static class DockingComputer
     /// <summary>How close we may get before it stops thrusting and coasts in.</summary>
     public const int CoastDistance = 600;
 
+    /// <summary>
+    /// The glide slope: the speed the autopilot will allow itself at a given distance. The original
+    /// eases in rather than charging at the station, and without this the autopilot overshoots and
+    /// leaves the station behind it, which the flight model cannot recover from since it has no yaw.
+    /// </summary>
+    public static int ApproachSpeed(float distance) => (int)Math.Clamp(distance / 160f, 4, 30);
+
     /// <summary>How small an aim error is close enough, in dot product terms.</summary>
     public const float AimDeadZone = 0.008f;
+
+    /// <summary>
+    /// The fastest the autopilot will ask the ship to turn, as an offset from the centre of the
+    /// rate range. Full deflection is 128 either side, and asking for less than that is what stops
+    /// the ship swinging past the station.
+    /// </summary>
+    public const float MaxTurnRate = 70f;
+
+    /// <summary>
+    /// How far the rate may differ from what the autopilot wants before it presses a control. A
+    /// dead band keeps it from chattering between the two directions.
+    /// </summary>
+    public const float RateDeadBand = 8f;
 
     /// <summary>
     /// Works out the controls to fly us into the station's slot, and whether we are lined up.
     /// </summary>
     /// <param name="station">The space station.</param>
     /// <param name="speed">Our current speed.</param>
-    public static (FlightInput Input, bool LinedUp) Fly(Ship station, int speed)
+    /// <param name="rollRate">Our current roll rate, which the original centres on 128.</param>
+    /// <param name="pitchRate">Our current pitch rate, which the original centres on 128.</param>
+    public static (FlightInput Input, bool LinedUp) Fly(Ship station, int speed, int rollRate, int pitchRate)
     {
         (int sx, int sy, int sz) = station.GetPosition();
         var stationPosition = new Vector3(sx, sy, sz);
@@ -59,13 +81,24 @@ public static class DockingComputer
         float aimX = aim.X;
         float aimY = aim.Y;
 
+        // Rather than holding a control down until the station is centred — which overshoots and
+        // swings past it — ask for a turn no faster than the aim error warrants, and then let the
+        // controls off once the ship is already turning at that rate. Rolling right takes the rate
+        // below the centre of its range and pulling up does the same for pitch, so the rates the
+        // autopilot wants are negative offsets.
+        float wantedRoll = -Math.Clamp(aimX, -1f, 1f) * MaxTurnRate;
+        float wantedPitch = -Math.Clamp(aimY, -1f, 1f) * MaxTurnRate;
+
+        float rollError = wantedRoll - (rollRate - 128);
+        float pitchError = wantedPitch - (pitchRate - 128);
+
         var input = new FlightInput(
-            RollLeft: aimX < -AimDeadZone,
-            RollRight: aimX > AimDeadZone,
-            PullUp: aimY > AimDeadZone,
-            PitchDown: aimY < -AimDeadZone,
-            SpeedUp: distance > CoastDistance && speed < 30,
-            SlowDown: distance <= CoastDistance && speed > 10,
+            RollLeft: rollError > RateDeadBand,
+            RollRight: rollError < -RateDeadBand,
+            PullUp: pitchError < -RateDeadBand,
+            PitchDown: pitchError > RateDeadBand,
+            SpeedUp: speed < ApproachSpeed(distance),
+            SlowDown: speed > ApproachSpeed(distance),
             Fire: false);
 
         // Lined up when the station is straight ahead and we are looking down the slot's axis

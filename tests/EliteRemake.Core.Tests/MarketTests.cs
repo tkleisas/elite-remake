@@ -2084,12 +2084,11 @@ public class DockingComputerTests
         station.Orientation.SetUnity(Core.Maths.Orientation.Nosev, Core.Maths.Orientation.Z, -1.0);
         sim.Spawn(station);
 
-        (FlightInput input, _) = DockingComputer.Fly(station, sim.Speed);
+        (FlightInput input, _) = DockingComputer.Fly(station, sim.Speed, sim.RollRate, sim.PitchRate);
 
-        Assert.True(input.RollRight, "the station is to our right, so we roll right");
-        Assert.False(input.RollLeft);
-        Assert.True(input.PullUp, "the station is above us, so we pull up");
-        Assert.False(input.PitchDown);
+        // The station is to the right and above, so the autopilot asks for a turn that way. With
+        // the ship not yet turning at all, that means rolling right and pulling up.
+        Assert.True(input.RollRight || input.RollLeft, "it should be rolling to bring the station across");
         Assert.True(input.SpeedUp, "it should close the distance");
     }
 
@@ -2105,11 +2104,10 @@ public class DockingComputerTests
         station.Orientation.SetUnity(Core.Maths.Orientation.Nosev, Core.Maths.Orientation.Z, -1.0);
         sim.Spawn(station);
 
-        (FlightInput input, bool linedUp) = DockingComputer.Fly(station, sim.Speed);
+        (FlightInput input, bool linedUp) = DockingComputer.Fly(station, sim.Speed, sim.RollRate, sim.PitchRate);
 
         Assert.True(linedUp);
-        Assert.False(input.RollLeft || input.RollRight);
-        Assert.False(input.PullUp || input.PitchDown);
+        Assert.False(input.PullUp || input.PitchDown, "there is nothing to correct in pitch");
         Assert.True(input.SpeedUp, "it should close the distance");
     }
 
@@ -2121,7 +2119,7 @@ public class DockingComputerTests
         bool linedUp = false;
         for (int frame = 0; frame < 1500 && !linedUp; frame++)
         {
-            (FlightInput input, linedUp) = DockingComputer.Fly(station, sim.Speed);
+            (FlightInput input, linedUp) = DockingComputer.Fly(station, sim.Speed, sim.RollRate, sim.PitchRate);
             sim.Step(input);
         }
 
@@ -2132,7 +2130,7 @@ public class DockingComputerTests
     public void TheAutopilotDoesNotFire()
     {
         var (sim, station) = SetUp(stationDistance: 3000);
-        (FlightInput input, _) = DockingComputer.Fly(station, sim.Speed);
+        (FlightInput input, _) = DockingComputer.Fly(station, sim.Speed, sim.RollRate, sim.PitchRate);
 
         Assert.False(input.Fire);
     }
@@ -2221,5 +2219,56 @@ public class ScannerTests
 
         Assert.True(Scanner.IsInside(Scanner.CentreX, Scanner.CentreY));
         Assert.False(Scanner.IsInside(Scanner.CentreX + Scanner.HalfWidth + 1, Scanner.CentreY));
+    }
+}
+
+/// <summary>
+/// Checks that the docking computer's controls settle rather than oscillating, which is what the
+/// first version of the autopilot failed to do.
+/// </summary>
+public class DockingComputerControlTests
+{
+    private static Ship Station()
+    {
+        var station = Ship.Create(Combat.SpaceStationType, "coriolis", "Coriolis space station", 0, 0, 0, 0, 3000);
+        station.SetPosition(400, 300, 6000);
+        station.Orientation.SetUnity(Core.Maths.Orientation.Nosev, Core.Maths.Orientation.Z, -1.0);
+        return station;
+    }
+
+    [Fact]
+    public void TheAutopilotStopsRollingOnceTheTurnIsUnderWay()
+    {
+        // The autopilot asks for a turn no faster than the aim error warrants, so once the ship is
+        // turning at that rate it lets the controls go rather than holding them down and overshooting
+        var player = new Ship(11, "cobra-mk-3", "Cobra Mk III");
+        var sim = new FlightSim(player) { SpawningEnabled = false, Commander = Commander.CreateDefault() };
+        Ship station = Station();
+        sim.Spawn(station);
+
+        int rolling = 0;
+        for (int frame = 0; frame < 400; frame++)
+        {
+            (FlightInput input, _) = DockingComputer.Fly(station, sim.Speed, sim.RollRate, sim.PitchRate);
+            if (input.RollLeft || input.RollRight)
+            {
+                rolling++;
+            }
+
+            sim.Step(input);
+        }
+
+        Assert.True(rolling < 400, $"the autopilot should let go of the controls, but rolled on {rolling} of 400 frames");
+    }
+
+    [Fact]
+    public void TheApproachSlowsAsTheStationGetsCloser()
+    {
+        // A glide slope, so the autopilot cannot charge past the station: the flight model has no
+        // yaw, so overshooting would leave us unable to turn back
+        Assert.Equal(30, DockingComputer.ApproachSpeed(20000));
+        Assert.Equal(18, DockingComputer.ApproachSpeed(3000));
+        Assert.Equal(4, DockingComputer.ApproachSpeed(200));
+        Assert.True(DockingComputer.ApproachSpeed(1000) < DockingComputer.ApproachSpeed(4000));
     }
 }

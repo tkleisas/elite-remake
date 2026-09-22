@@ -140,7 +140,18 @@ Commodore 64 only, and the altitude indicator is Apple II only.
   slot must be roughly level), with a collision anywhere else on the station being fatal, as it is
   in the original.
 
-  **The docking computer is started but does not finish the job.** Its shape is right: like the
+  **The docking computer's controls now settle, but it still cannot dock.** Two fixes have landed
+  since it was first written: the controls are no longer full deflection or nothing — the autopilot
+  asks for a turn no faster than the aim error warrants and lets go once the ship is turning at that
+  rate, reading the roll and pitch rates (whose centre is 128, and which rolling right takes below
+  it) — and the approach follows a glide slope, so it can no longer charge past the station. Without
+  the glide slope it overshot and left the station behind, which this flight model cannot recover
+  from because it has no yaw. What remains is that it arrives slightly off the slot's axis — a
+  couple of hundred units wide at a few hundred out, which is just outside the 22 degree cone — and
+  collides instead of docking. Centring on the slot axis before closing is the next step, and the
+  tests currently pin the settling and the glide slope rather than a docking that does not happen.
+
+  The original's docking computer, for reference: Its shape is right: like the
   original, which drives its docking computer through the key logger so that a person and the
   computer fly the ship with the same code, this one produces a FlightInput — the same thing the
   keyboard produces — so the autopilot has no special path into the flight model, and its controls
