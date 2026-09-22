@@ -38,6 +38,20 @@ public static class SceneFactory
         player.Energy = 150;
 
         var commander = Commander.CreateDefault();
+        commander.SetLaser(LaserMount.Front, options.FrontLaser);
+
+        if (options.FullyEquipped)
+        {
+            commander.Ecm = true;
+            commander.FuelScoops = true;
+            commander.EnergyBomb = true;
+            commander.DockingComputer = true;
+            commander.GalacticHyperdrive = true;
+            commander.EscapePod = true;
+            commander.SetLaser(LaserMount.Rear, LaserType.Pulse);
+            commander.Missiles = 4;
+        }
+
         var session = new GameSession(commander, new FlightSim(player));
 
         if (options.StartDocked)
@@ -70,6 +84,13 @@ public static class SceneFactory
         {
             scene.RegisterMesh(entry.Id, entry.Mesh);
         }
+
+        // The hit test needs each ship's targetable area, straight from its blueprint
+        sim.TargetableAreaProvider = ship =>
+            ShipCatalog.ByType(ship.Type) is { } entry &&
+            EliteRemake.Data.Ships.ShipData.ById(entry.Id) is { } blueprint
+                ? blueprint.Header.TargetableArea
+                : 55 * 55;
 
         scene.ArriveInSystem(session.System);
         scene.SpawnStationAhead(options.StationDistance);

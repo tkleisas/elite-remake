@@ -332,3 +332,128 @@ public class GameSessionTests
         }
     }
 }
+
+/// <summary>
+/// Checks the combat rules: what is in the crosshairs, how much a laser hurts, and how firing heats
+/// the laser and drains our energy.
+/// </summary>
+public class CombatTests
+{
+    private static (FlightSim Sim, Ship Target) CreateSim()
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"));
+        sim.Commander = Commander.CreateDefault();
+        var target = Ship.Create(17, "sidewinder", "Sidewinder", 0, 0, 0, 0, 1000);
+        target.Energy = 70;
+        sim.Spawn(target);
+        sim.TargetableAreaProvider = _ => 55 * 55;
+        return (sim, target);
+    }
+
+    [Fact]
+    public void LaserPowerMatchesTheOriginalsValues()
+    {
+        // The original's constants: POW = 15, a beam laser is POW with bit 7 set, and a military
+        // laser is Armlas = 128 + 23
+        Assert.Equal(15, Combat.LaserRawByte(LaserType.Pulse));
+        Assert.Equal(143, Combat.LaserRawByte(LaserType.Beam));
+        Assert.Equal(151, Combat.LaserRawByte(LaserType.Military));
+        Assert.Equal(15, Combat.Power(LaserType.Pulse));
+        Assert.Equal(15, Combat.Power(LaserType.Beam));
+        Assert.Equal(23, Combat.Power(LaserType.Military));
+
+        // A pulse laser has to wait ten frames between shots; beam lasers fire continuously
+        Assert.Equal(10, Combat.FireInterval(LaserType.Pulse));
+        Assert.Equal(0, Combat.FireInterval(LaserType.Beam));
+        Assert.Equal(0, Combat.FireInterval(LaserType.Military));
+    }
+
+    [Fact]
+    public void AShipInTheCrosshairsIsHit()
+    {
+        var (sim, target) = CreateSim();
+        target.SetPosition(10, 10, 1000);
+
+        Assert.True(Combat.IsInCrosshairs(target, 55 * 55));
+
+        // Off to one side by more than the targetable area, it is not
+        target.SetPosition(200, 0, 1000);
+        Assert.False(Combat.IsInCrosshairs(target, 55 * 55));
+
+        // Beyond 256 units off the centre line it cannot be hit at all
+        target.SetPosition(10, 300, 1000);
+        Assert.False(Combat.IsInCrosshairs(target, 55 * 55));
+
+        // And a ship behind us is never hit
+        target.SetPosition(0, 0, -1000);
+        Assert.False(Combat.IsInCrosshairs(target, 55 * 55));
+    }
+
+    [Fact]
+    public void FiringDamagesTheTargetAndCostsUsEnergy()
+    {
+        var (sim, target) = CreateSim();
+        sim.Player.Energy = 150;
+
+        sim.Step(new FlightInput(Fire: true));
+
+        Assert.Equal(15, sim.FiringLaserPower);
+        Assert.Same(target, sim.LaserTarget);
+        Assert.Equal(70 - 15, target.Energy);
+        Assert.Equal(149, sim.Player.Energy);
+        // The shot adds 8 degrees and the frame's cooling takes one back off again
+        Assert.Equal(Combat.HeatPerShot - Combat.CoolingPerFrame, sim.LaserTemperature);
+        Assert.True(sim.LaserCooldown > 0, "a pulse laser should have to wait between shots");
+    }
+
+    [Fact]
+    public void EnoughHitsDestroyAShip()
+    {
+        var (sim, target) = CreateSim();
+        target.Energy = 30;
+
+        // A pulse laser does 15 a shot with a ten-frame gap, so two shots finish a Sidewinder
+        int shots = 0;
+        for (int i = 0; i < 40 && sim.DestroyedThisFrame is null; i++)
+        {
+            sim.Step(new FlightInput(Fire: true));
+            if (sim.FiringLaserPower > 0)
+            {
+                shots++;
+            }
+        }
+
+        Assert.Equal(2, shots);
+        Assert.Same(target, sim.DestroyedThisFrame);
+        Assert.Equal(0, target.Energy);
+        Assert.True(target.IsExploding, "a destroyed ship should be exploding");
+    }
+
+    [Fact]
+    public void LasersOverheatAndThenStopFiring()
+    {
+        var (sim, target) = CreateSim();
+        sim.Commander!.SetLaser(LaserMount.Front, LaserType.Beam);
+        target.Energy = 255;
+
+        // A beam laser fires every frame and heats by 8 while cooling by 1, so it must overheat
+        for (int i = 0; i < 200; i++)
+        {
+            sim.Step(new FlightInput(Fire: true));
+        }
+
+        Assert.True(sim.LaserTemperature >= Combat.OverheatTemperature, $"temperature {sim.LaserTemperature}");
+
+        // Once overheated it will not fire at all
+        sim.Step(new FlightInput(Fire: true));
+        Assert.Equal(0, sim.FiringLaserPower);
+
+        // And it cools down again once we stop
+        for (int i = 0; i < 300; i++)
+        {
+            sim.Step();
+        }
+
+        Assert.Equal(0, sim.LaserTemperature);
+    }
+}

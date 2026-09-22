@@ -59,6 +59,12 @@ public sealed class GameOptions
     /// <summary>If set, start docked at the station rather than in flight.</summary>
     public bool StartDocked { get; private set; }
 
+    /// <summary>The type of laser to fit before starting, for testing.</summary>
+    public LaserType FrontLaser { get; private set; } = LaserType.Pulse;
+
+    /// <summary>If set, the commander starts with every piece of equipment.</summary>
+    public bool FullyEquipped { get; private set; }
+
     public static GameOptions Parse(string[] args)
     {
         var options = new GameOptions();
@@ -111,6 +117,18 @@ public sealed class GameOptions
                 case "--sim-warmup":
                     options.SimWarmupFrames = int.Parse(Next() ?? "0");
                     break;
+                case "--laser":
+                    options.FrontLaser = (Next() ?? "pulse").ToLowerInvariant() switch
+                    {
+                        "none" => LaserType.None,
+                        "beam" => LaserType.Beam,
+                        "military" => LaserType.Military,
+                        _ => LaserType.Pulse,
+                    };
+                    break;
+                case "--fully-equipped":
+                    options.FullyEquipped = true;
+                    break;
                 case "--dock":
                     options.StartDocked = true;
                     break;
@@ -150,6 +168,7 @@ public sealed class GameOptions
                 "down" => input with { PitchDown = true },
                 "faster" => input with { SpeedUp = true },
                 "slower" => input with { SlowDown = true },
+                "fire" => input with { Fire = true },
                 _ => throw new ArgumentException($"Unknown control: {name}"),
             };
         }
@@ -176,9 +195,11 @@ public sealed class GameOptions
               --empty                 start the flight scene with an empty system
               --sim-warmup <frames>   run the flight simulation this many frames before drawing
               --hold <controls>       hold controls during the warmup: left, right, up, down,
-                                      faster, slower (comma separated)
+                                      faster, slower, fire (comma separated)
               --font-sheet            draw every character in the font and exit
               --dock                  start docked at the station
+              --laser <type>          fit a pulse, beam, military or none laser to the front
+              --fully-equipped        start with every piece of equipment
               --screenshot <path>   write a PNG of frame --frame and exit
               --frame <n>           frame to capture (default 60)
             """);

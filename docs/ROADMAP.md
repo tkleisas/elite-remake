@@ -41,7 +41,7 @@ Primary target variant: **`versions/disc`, variant `sth` (Stairway to Hell)**, w
   docked hangar block inside `T.CODE`), 527 XX21 slots, 204 blueprints, 0 mismatches. Text tokens,
   galaxy seeds, market and equipment tables come next.
 - **M2 — Core maths & universe.** In progress. Done: fixed-point maths ✅; the procedural galaxy ✅;
-  the market and the commander's starting state ✅
+  the market and the commander's starting state ✅; lasers and combat ✅
   (`TT54` twist, `cpl` name generation from the two-letter tokens, `TT24` system data, `TT111`
   closest-system search, `GHY` galactic jumps), verified against the original's own universe —
   **TIBEDIED** is system 0 of galaxy 0 from seeds `&5A4A/&0248/&B753`, and **LAVE** comes out at
@@ -56,9 +56,13 @@ Primary target variant: **`versions/disc`, variant `sth` (Stairway to Hell)**, w
   energy banks, speed, roll and pitch indicators, compass). Still to do: the sun and planet objects,
   the authentic dial coordinates from `dials_part_*`, the bitmap font and dashboard text, detail
   edge lines for close ships, and hyperspace arrival.
-- **M4 — Combat & AI.** Lasers, missiles, ECM, energy banks, shields, `TACTICS` ship AI, spawning,
-  explosions, escape pods, bounty, rating. (The flight loop already runs the original's TIDY
-  schedule and per-ship own-motion; tactics and the rest come here.)
+- **M4 — Combat & AI.** In progress. Done: the laser powers (pulse 15, beam 15 with bit 7 set,
+  military 23, mining 50), the pulse-rate rule from LASCT, heating at 8 a shot and cooling at 1 a
+  frame with overheat at 242, the energy cost per shot, the HITCH crosshair test against each
+  blueprint's targetable area, damage and destruction with an explosion, and the laser beams drawn
+  from the bottom corners to the crosshairs exactly as the original draws them. Still to do: the
+  `TACTICS` ship AI so ships fight back, missiles, E.C.M., shields, spawning, bounty payouts, escape
+  pods, and the kill-to-rating wiring.
 - **M5 — Docked screens & missions.** In progress. Done: the commander data block with the
   original's default commander (100 credits, full tank, front pulse laser, three missiles, docked at
   Lave), the trade table and its price and availability formulas (GVL/TT151), a game session that

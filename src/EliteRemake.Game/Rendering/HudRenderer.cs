@@ -114,7 +114,7 @@ public sealed class HudRenderer
         DrawLabelledBar(spriteBatch, pixel, left, top + spacing, width, height, 1.0f, Palette.Cyan, "AS");
         DrawLabelledBar(spriteBatch, pixel, left, top + (spacing * 2), width, height, 0.7f, Palette.Yellow, "FU");
         DrawLabelledBar(spriteBatch, pixel, left, top + (spacing * 3), width, height, 0.25f, Palette.Red, "CT");
-        DrawLabelledBar(spriteBatch, pixel, left, top + (spacing * 4), width, height, 0.15f, Palette.Red, "LT");
+        DrawLabelledBar(spriteBatch, pixel, left, top + (spacing * 4), width, height, sim.LaserTemperature / 255f, Palette.Red, "LT");
 
         // Missile indicators: four boxes that fill in as missiles are armed
         _missiles.Clear();
@@ -156,10 +156,11 @@ public sealed class HudRenderer
         float spacing = _dashboard.Height * 0.105f;
         float left = right - width;
 
-        // Four energy banks, drawn from the right
+        // Four energy banks, drawn from the right, filled to the commander's current energy
         for (int i = 0; i < 4; i++)
         {
-            DrawLabelledBar(spriteBatch, pixel, left, top + (i * spacing), width, height, 1.0f, Palette.Green, "EN");
+            float level = Math.Clamp((sim.Player.Energy / 4f - i), 0f, 1f);
+            DrawLabelledBar(spriteBatch, pixel, left, top + (i * spacing), width, height, level, Palette.Green, "EN");
         }
 
         // Speed: a bar that fills as we accelerate, plus the roll and pitch indicators below it,

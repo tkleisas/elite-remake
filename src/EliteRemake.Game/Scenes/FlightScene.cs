@@ -27,6 +27,7 @@ public sealed class FlightScene : IScene
     private readonly MeshRenderer _renderer;
     private readonly CelestialRenderer _celestial;
     private readonly Starfield _starfield = new();
+    private readonly Texture2D _explosionDisc;
     private readonly FlightSim _sim;
     private readonly HudRenderer _hud;
     private readonly Dictionary<string, ShipMesh> _meshes = [];
@@ -38,6 +39,7 @@ public sealed class FlightScene : IScene
     {
         _renderer = new MeshRenderer(device);
         _celestial = new CelestialRenderer(device);
+        _explosionDisc = CreateExplosionDisc(device);
         _sim = sim;
         _hud = hud;
         Camera = camera;
@@ -46,6 +48,29 @@ public sealed class FlightScene : IScene
     /// <summary>Draws the planet and the sun, as well as the ships.</summary>
     public CelestialRenderer Celestial => _celestial;
 
+    /// <summary>Builds a soft disc for explosion clouds.</summary>
+    private static Texture2D CreateExplosionDisc(GraphicsDevice device)
+    {
+        const int size = 128;
+        var pixels = new Color[size * size];
+        float radius = size / 2f;
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float dx = x - (radius - 0.5f);
+                float dy = y - (radius - 0.5f);
+                float distance = MathF.Sqrt((dx * dx) + (dy * dy)) / radius;
+                byte alpha = (byte)(Math.Clamp(1f - distance, 0f, 1f) * 220);
+                pixels[(y * size) + x] = new Color((byte)255, (byte)255, (byte)255, alpha);
+            }
+        }
+
+        var texture = new Texture2D(device, size, size);
+        texture.SetData(pixels);
+        return texture;
+    }
+
     /// <summary>The simulation this scene is driving.</summary>
     public FlightSim Sim => _sim;
 
@@ -53,6 +78,12 @@ public sealed class FlightScene : IScene
 
     /// <summary>The last input read, exposed for diagnostics.</summary>
     public FlightInput LastInput { get; private set; }
+
+    /// <summary>
+    /// Controls to hold down in every frame, on top of whatever the keyboard says. This is what
+    /// lets a screenshot show the result of flying or firing without a human at the controls.
+    /// </summary>
+    public FlightInput HeldInput { get; set; }
 
     public string StatusLine
     {
@@ -141,6 +172,8 @@ public sealed class FlightScene : IScene
     /// </summary>
     public void Warmup(int frames, FlightInput input)
     {
+        HeldInput = input;
+
         for (int i = 0; i < frames; i++)
         {
             _sim.Step(input);
@@ -155,7 +188,16 @@ public sealed class FlightScene : IScene
 
     public void Update(float elapsedSeconds)
     {
-        LastInput = ReadInput();
+        LastInput = ReadInput() with
+        {
+            RollLeft = ReadInput().RollLeft || HeldInput.RollLeft,
+            RollRight = ReadInput().RollRight || HeldInput.RollRight,
+            PullUp = ReadInput().PullUp || HeldInput.PullUp,
+            PitchDown = ReadInput().PitchDown || HeldInput.PitchDown,
+            SpeedUp = ReadInput().SpeedUp || HeldInput.SpeedUp,
+            SlowDown = ReadInput().SlowDown || HeldInput.SlowDown,
+            Fire = ReadInput().Fire || HeldInput.Fire,
+        };
 
         // Docking is a debug shortcut for now: flying into the station's slot comes with the
         // docking milestone
@@ -205,7 +247,10 @@ public sealed class FlightScene : IScene
         bool slowDown = keys.IsKeyDown(Keys.OemQuestion) || keys.IsKeyDown(Keys.Divide) ||
                         pad.Buttons.B == ButtonState.Pressed;
 
-        return new FlightInput(left, right, pullUp, pitchDown, speedUp, slowDown);
+        // "A" fires the lasers, as it does in the original
+        bool fire = keys.IsKeyDown(Keys.A) || pad.Buttons.RightShoulder == ButtonState.Pressed;
+
+        return new FlightInput(left, right, pullUp, pitchDown, speedUp, slowDown, fire);
     }
 
     public void Draw(SpriteBatch spriteBatch, Texture2D pixel, GraphicsDevice device)
@@ -268,7 +313,106 @@ public sealed class FlightScene : IScene
 
         _renderer.End();
 
+        spriteBatch.Begin();
+        DrawLaserBeam(spriteBatch, pixel);
+        DrawExplosions(spriteBatch, pixel);
+        spriteBatch.End();
+
         _hud.Draw(spriteBatch, pixel, Camera, _sim);
+    }
+
+    /// <summary>
+    /// Draws the laser beams. The original draws two lines from the bottom corners of the view to
+    /// the middle of the crosshairs, with a random wobble on the x coordinate, so the beams dance
+    /// as they fire.
+    /// </summary>
+    private void DrawLaserBeam(SpriteBatch spriteBatch, Texture2D pixel)
+    {
+        if (_sim.FiringLaserPower == 0)
+        {
+            return;
+        }
+
+        float centreX = Camera.CentreX;
+        float centreY = Camera.CentreY;
+        float bottom = Camera.ViewportHeight;
+        float wobble = (Random.Shared.Next(0, 8) - 4) * MathF.Max(1f, Camera.ViewportHeight / 192f);
+
+        var colour = _sim.LaserTarget is not null ? Palette.White : Palette.Laser;
+        float thickness = MathF.Max(1f, Camera.ViewportHeight / 192f);
+
+        DrawBeam(spriteBatch, pixel, centreX - (Camera.ViewportWidth * 0.25f), bottom, centreX + wobble, centreY, colour, thickness);
+        DrawBeam(spriteBatch, pixel, centreX + (Camera.ViewportWidth * 0.25f), bottom, centreX + wobble, centreY, colour, thickness);
+    }
+
+    private static void DrawBeam(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        float x0,
+        float y0,
+        float x1,
+        float y1,
+        Color colour,
+        float thickness)
+    {
+        float dx = x1 - x0;
+        float dy = y1 - y0;
+        float length = MathF.Sqrt((dx * dx) + (dy * dy));
+        if (length < 1)
+        {
+            return;
+        }
+
+        spriteBatch.Draw(
+            pixel,
+            new Vector2(x0, y0),
+            null,
+            colour,
+            MathF.Atan2(dy, dx),
+            Vector2.Zero,
+            new Vector2(length, thickness),
+            SpriteEffects.None,
+            0);
+    }
+
+    /// <summary>
+    /// Draws an expanding cloud for each exploding ship, growing as the original's explosion
+    /// counter runs down.
+    /// </summary>
+    private void DrawExplosions(SpriteBatch spriteBatch, Texture2D pixel)
+    {
+        _ = pixel;
+        foreach (Ship ship in _sim.Bubble)
+        {
+            if (!ship.IsExploding)
+            {
+                continue;
+            }
+
+            (int x, int y, int z) = ship.GetPosition();
+            if (z <= 0)
+            {
+                continue;
+            }
+
+            float radius = Camera.FocalLength * (200 + (ship.Energy * 4)) / z;
+            if (radius < 1)
+            {
+                continue;
+            }
+
+            var position = new System.Numerics.Vector3(x, y, z);
+            if (!Camera.Project(position, out System.Numerics.Vector2 centre))
+            {
+                continue;
+            }
+
+            float size = radius * 2;
+            spriteBatch.Draw(
+                _explosionDisc,
+                new Rectangle((int)(centre.X - radius), (int)(centre.Y - radius), (int)size, (int)size),
+                Palette.Explosion);
+        }
     }
 
     private static Color ColourFor(Ship ship) => ship.Type switch

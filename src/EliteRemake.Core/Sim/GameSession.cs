@@ -30,6 +30,7 @@ public sealed class GameSession
     {
         Commander = commander;
         Flight = flight;
+        Flight.Commander = commander;
         System = commander.CurrentSystem;
 
         // Seed the generator from the system's seeds so the same system always gets the same

@@ -15,7 +15,8 @@ public readonly record struct FlightInput(
     bool PullUp = false,
     bool PitchDown = false,
     bool SpeedUp = false,
-    bool SlowDown = false);
+    bool SlowDown = false,
+    bool Fire = false);
 
 /// <summary>
 /// The flight simulation: our ship at the centre of its own universe, with everything else moving
@@ -82,6 +83,33 @@ public sealed class FlightSim
     /// <summary>The pitch direction applied this frame (BET2).</summary>
     public byte PitchSign { get; private set; }
 
+    /// <summary>The laser temperature (the original's GNTMP); at 242 the laser overheats.</summary>
+    public int LaserTemperature { get; private set; }
+
+    /// <summary>Frames to wait before the laser can fire again (the original's LASCT).</summary>
+    public int LaserCooldown { get; private set; }
+
+    /// <summary>The power of the laser being fired this frame, or zero.</summary>
+    public int FiringLaserPower { get; private set; }
+
+    /// <summary>The ship the laser is hitting this frame, if any.</summary>
+    public Ship? LaserTarget { get; private set; }
+
+    /// <summary>Set for one frame when a shot destroys a ship, so the caller can pay the bounty.</summary>
+    public Ship? DestroyedThisFrame { get; private set; }
+
+    /// <summary>Which mount is firing; the front view is all the remake has so far.</summary>
+    public LaserMount ActiveMount { get; set; } = LaserMount.Front;
+
+    /// <summary>
+    /// The commander whose lasers we fire. The original keeps the laser loadout in the commander
+    /// data block rather than the ship, so this is how the simulation reaches it.
+    /// </summary>
+    public Commander? Commander { get; set; }
+
+    /// <summary>Fits a laser, as buying one at the station does.</summary>
+    public void FitLaser(LaserMount mount, LaserType type) => Commander?.SetLaser(mount, type);
+
     /// <summary>Adds a ship to the local bubble, up to the original's slot limit.</summary>
     public bool Spawn(Ship ship)
     {
@@ -105,6 +133,7 @@ public sealed class FlightSim
     {
         UpdateSpeed(input);
         UpdateRotation(input);
+        UpdateLasers(input);
 
         for (int slot = 0; slot < _bubble.Count; slot++)
         {
@@ -160,6 +189,67 @@ public sealed class FlightSim
     /// <summary>True for the planet and the sun, which the original moves with MV40.</summary>
     public static bool IsCelestial(int shipType) =>
         shipType is ShipTypes.Sun or SystemArrival.PlanetTypeA or SystemArrival.PlanetTypeB;
+
+    /// <summary>
+    /// Fires the laser if the trigger is held and the laser is neither cooling down nor
+    /// overheated, works out what it hits, and then cools the laser down by a degree.
+    /// </summary>
+    private void UpdateLasers(FlightInput input)
+    {
+        FiringLaserPower = 0;
+        LaserTarget = null;
+        DestroyedThisFrame = null;
+
+        LaserType laser = Commander?.GetLaser(ActiveMount) ?? LaserType.Pulse;
+        int power = Combat.Power(laser);
+
+        if (input.Fire && power > 0 && LaserCooldown == 0 && LaserTemperature < Combat.OverheatTemperature)
+        {
+            FiringLaserPower = power;
+            LaserTemperature = Math.Min(255, LaserTemperature + Combat.HeatPerShot);
+            LaserCooldown = Combat.FireInterval(laser);
+
+            // Deplete our energy, as firing does in the original
+            if (Player.Energy > 0)
+            {
+                Player.Energy--;
+            }
+
+            // Find the first ship in the crosshairs, which is the one we hit
+            foreach (Ship ship in _bubble)
+            {
+                if (Combat.IsInCrosshairs(ship, TargetableArea(ship)))
+                {
+                    LaserTarget = ship;
+                    if (Combat.ApplyHit(ship, power))
+                    {
+                        // The hit destroyed it, so start its explosion and report the kill
+                        ship.IsExploding = true;
+                        ship.Flags |= 0x40; // the original's bit 6: an explosion is running
+                        DestroyedThisFrame = ship;
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        if (LaserCooldown > 0)
+        {
+            LaserCooldown--;
+        }
+
+        // The laser cools by one degree a frame, as the original's main game loop does
+        if (LaserTemperature > 0)
+        {
+            LaserTemperature -= Combat.CoolingPerFrame;
+        }
+    }
+
+    /// <summary>The targetable area of a ship, which the hit test uses.</summary>
+    public Func<Ship, int> TargetableAreaProvider { get; set; } = _ => 95 * 95;
+
+    private int TargetableArea(Ship ship) => TargetableAreaProvider(ship);
 
     /// <summary>
     /// MVEIT: moves one ship for this frame, in the original's order.
