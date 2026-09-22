@@ -62,8 +62,8 @@ public sealed class HudRenderer
         DrawDashboardBackground(spriteBatch, pixel);
         DrawLeftPanel(spriteBatch, pixel, sim);
         DrawRightPanel(spriteBatch, pixel, sim);
-        DrawCompass(spriteBatch, pixel);
         DrawScanner(spriteBatch, pixel, sim);
+        DrawCompass(spriteBatch, pixel, sim);
 
         // The original flashes "ENERGY LOW" when the banks drop below 50
         if (sim.Player.Energy < 50)
@@ -284,14 +284,55 @@ public sealed class HudRenderer
     }
 
     /// <summary>The compass: a circle with a dot showing where the space station is.</summary>
-    private void DrawCompass(SpriteBatch spriteBatch, Texture2D pixel)
+    /// <summary>
+    /// Draws the compass: a fixed circle with a dot inside it showing where the planet or the space
+    /// station is. The original's SP2 works the dot's position out by dividing the body's
+    /// x and y coordinates by ten, giving a value from -9 to +9, and placing the dot at
+    /// (195 + x, 204 - y) on its dashboard — so the dot moves inside a circle a little under twenty
+    /// pixels across, and there is no large ring at all.
+    /// </summary>
+    private void DrawCompass(SpriteBatch spriteBatch, Texture2D pixel, FlightSim sim)
     {
-        float radius = MathF.Min(_dashboard.Height * 0.28f, 26 * _scale);
-        float cx = _dashboard.Center.X;
-        float cy = _dashboard.Center.Y;
+        // The original's compass sits to the right of the scanner, just inside its edge
+        float scale = MathF.Min(_scale, _dashboard.Width * 0.02f);
+        float cx = _dashboard.Left + (_dashboard.Width * 0.762f);
+        float cy = _dashboard.Top + (_dashboard.Height * 0.62f);
+        float radius = 10 * scale;
 
-        DrawCircle(spriteBatch, pixel, cx, cy, radius, Frame, 32);
-        DrawCircle(spriteBatch, pixel, cx, cy, radius * 0.55f, new Color(60, 66, 78), 24);
+        DrawCircle(spriteBatch, pixel, cx, cy, radius, Frame, 24);
+
+        // Find the planet, or failing that the station, and plot where it is
+        Ship? body = null;
+        foreach (Ship ship in sim.Bubble)
+        {
+            if (ship.Type is 128 or 130)
+            {
+                body = ship;
+                break;
+            }
+
+            if (ship.Type == Combat.SpaceStationType && body is null)
+            {
+                body = ship;
+            }
+        }
+
+        if (body is null)
+        {
+            return;
+        }
+
+        (int bx, int by, _) = body.GetPosition();
+
+        // The original divides each coordinate by ten to get a value from -9 to +9, so the dot
+        // stays inside the circle whatever the distance
+        int dotX = Math.Clamp(bx / 10, -9, 9);
+        int dotY = Math.Clamp(by / 10, -9, 9);
+
+        float x = cx + (dotX * scale);
+        float y = cy - (dotY * scale); // the y-axis is flipped, as the original notes
+        float size = MathF.Max(2f, 2 * scale);
+        spriteBatch.Draw(pixel, new Rectangle((int)(x - (size / 2)), (int)(y - (size / 2)), (int)size, (int)size), Palette.White);
     }
 
     /// <summary>Draws a labelled bar, with the label to its left as the original does.</summary>
