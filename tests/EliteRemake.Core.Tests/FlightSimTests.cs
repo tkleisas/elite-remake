@@ -40,6 +40,26 @@ public class FlightSimTests
         Assert.Equal(FlightSim.MaxSpeed, sim.Speed);
     }
 
+    /// <summary>
+    /// Braking while already at rest must leave the ship at rest. The original brakes with a DEC and
+    /// bumps the speed back to 1 with INC only when it has actually reached zero, so the test is on
+    /// the value after the decrement. Testing the value before it lets a stopped ship brake from
+    /// zero, which wraps the byte to 255 and fires it off at full speed instead of holding station.
+    /// </summary>
+    [Fact]
+    public void BrakingWhileStoppedLeavesTheShipStopped()
+    {
+        var (sim, _) = CreateSim();
+        Assert.Equal(0, sim.Speed);
+
+        for (int i = 0; i < 10; i++)
+        {
+            sim.Step(new FlightInput(SlowDown: true));
+        }
+
+        Assert.Equal(0, sim.Speed);
+    }
+
     [Fact]
     public void OurSpeed_MovesTheUniverseBackwards()
     {

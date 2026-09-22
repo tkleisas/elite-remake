@@ -2283,6 +2283,52 @@ public class DockingComputerControlTests
         Assert.True(far.SpeedUp, "far away and slow, it should be speeding up");
         Assert.False(far.SlowDown);
     }
+
+    /// <summary>
+    /// The rotation counters turn the ship the same way the original's MVEIT part 8 does, which is
+    /// what the autopilot steers with. These directions are measured, not reasoned: the whole
+    /// off-axis docking failure came down to the sign encodings here, and they are not all the same
+    /// way round.
+    /// </summary>
+    [Fact]
+    public void RotationCountersTurnTheShipTheWayTheOriginalDoes()
+    {
+        // A station above and ahead of us. Rolling right moves it left; pitching up moves it down.
+        static (int X, int Y) Turn(byte roll, byte pitch)
+        {
+            var player = new Ship(11, "cobra-mk-3", "Cobra Mk III");
+            var sim = new FlightSim(player) { SpawningEnabled = false, Commander = Commander.CreateDefault() };
+            var station = Ship.Create(Combat.SpaceStationType, "coriolis", "Coriolis space station", 0, 0, 0, 0, 3000);
+            station.SetPosition(0, 300, 3000);
+            sim.Spawn(station);
+
+            for (int frame = 0; frame < 10; frame++)
+            {
+                sim.SetRotationCounters(roll, pitch);
+                sim.Step();
+                sim.ClearRotationCounters();
+            }
+
+            (int x, int y, _) = station.GetPosition();
+            return (x, y);
+        }
+
+        // 0x82 is a roll to the right, so the station moves to the left
+        Assert.True(Turn(0x82, 0x80).X < -100, "a roll counter of 0x82 should roll us to the right");
+
+        // 0x02 is a roll to the left, so the station moves to the right
+        Assert.True(Turn(0x02, 0x80).X > 0, "a roll counter of 0x02 should roll us to the left");
+
+        // 0x82 brings a station above the centre line down to it, and 0x02 pushes it away
+        Assert.True(Turn(0x80, 0x82).Y < 290, "a pitch counter of 0x82 should bring the station down");
+        Assert.True(Turn(0x80, 0x02).Y > 310, "a pitch counter of 0x02 should pitch the nose down");
+
+        // A counter of zero magnitude is no turn at all, whichever way its sign bit is set, and the
+        // autopilot uses both encodings of it: the station stays where it is, give or take the
+        // couple of units a frame that the rest of the simulation moves it
+        Assert.InRange(Turn(0x80, 0x80).Y, 285, 300);
+        Assert.InRange(Turn(0x00, 0x00).Y, 285, 300);
+    }
 }
 
 /// <summary>

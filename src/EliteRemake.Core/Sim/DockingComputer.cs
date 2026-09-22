@@ -129,20 +129,37 @@ public static class DockingComputer
         {
             LastPhase = Phase.IdealPosition;
             Vector3 ideal = stationPosition + (slot * IdealDockingSteps * UnitVector);
-            Vector3 aim = ideal.LengthSquared() > 0 ? Vector3.Normalize(ideal) : toStation;
-            return Steer(aim, speed, distance, matchStationRoll: true, station.Data[ShipDataBlock.RollCounter], linedUp);
+            return Steer(Misalignment(ideal), speed, distance, matchStationRoll: true, station.Data[ShipDataBlock.RollCounter], linedUp);
         }
 
         // PH2: too close and badly placed, so turn away rather than press on into the hull
         if (distance < TooCloseDistance && Math.Abs(approach) < 0.5f)
         {
             LastPhase = Phase.TurnAway;
-            return Steer(-toStation, speed, distance, false, 0, linedUp);
+            return Steer(Misalignment(-stationPosition), speed, distance, false, 0, linedUp);
         }
 
         // PH3: refine the approach, rolling and pitching towards the station
         LastPhase = Phase.Refine;
-        return Steer(toStation, speed, distance, false, 0, linedUp);
+        return Steer(Misalignment(stationPosition), speed, distance, false, 0, linedUp);
+    }
+
+    /// <summary>
+    /// The small-angle misalignment of a target: the unit vector to it, whose x and y components are
+    /// the amounts it is off the centre line to the right and above.
+    /// </summary>
+    /// <remarks>
+    /// This is what the original's PH3 works from. It holds XX15, the unit vector from the ship to
+    /// the station, and uses its x and y directly: the turn needed to centre a target is a rotation
+    /// about those two axes, so for a target nearly ahead the components are the angles themselves.
+    /// Its threshold of 6 against twice the high byte, with a unit vector scaled so that 96 is one,
+    /// is therefore a threshold on the angle - which is why the test below is a plain comparison
+    /// against 6/96 and does not depend on how far away the target is.
+    /// </remarks>
+    private static Vector3 Misalignment(Vector3 target)
+    {
+        float length = target.Length();
+        return length > 0 ? target / length : Vector3.Zero;
     }
 
     /// <summary>
@@ -184,12 +201,9 @@ public static class DockingComputer
             // use, to head the ship for the ideal docking position. Rolling to match the station
             // without ever pitching towards the position leaves the ship circling the station for
             // ever, which is exactly what the trace showed.
-            // Measured, not reasoned: a clockwise counter — bit 7 set — brings a target that is
-            // above the centre line down to it, because that is a rate below the centre of the rate
-            // range and the world turns around a fixed ship. The sign test here was inverted.
             if (Math.Abs(pitchAngle) > TurnThreshold)
             {
-                pitchCounter = (byte)(TurnCounter | (pitchAngle > 0 ? 0x80 : 0x00));
+                pitchCounter = PitchCounterFor(pitchAngle);
             }
         }
         else
@@ -204,16 +218,22 @@ public static class DockingComputer
 
             if (Math.Abs(pitchAngle) > TurnThreshold)
             {
-                pitchCounter = (byte)(TurnCounter | (pitchAngle > 0 ? 0x00 : 0x80));
+                pitchCounter = PitchCounterFor(pitchAngle);
             }
 
-            // If the target is more than six units off the centre line the original stops
-            // manoeuvring altogether and slows right down, because it is out of our sights: this is
-            // a fine adjustment, and getting roughly lined up is PH1's job.
-            if (Math.Abs(aim.X) * 6 >= 0.375f)
+            // If the station is more than six units off the centre line it is out of our sights,
+            // and the original slams on the brakes: its PH22 sets the acceleration to zero and the
+            // speed to 1, and returns without touching the counters again. So the turn it has just
+            // asked for still happens - that is how the ship swings round to bring the station back
+            // into view - but it does it at a crawl instead of charging past at docking speed.
+            //
+            // The six is in the original's units, where a unit vector's component is 96, so this is
+            // a comparison against 6/96 of a unit vector rather than against six of them. Reading it
+            // as six whole units puts the limit at about one degree, which then also cancels the
+            // turn, and the autopilot does nothing at all for any station it is not already facing.
+            if (Math.Abs(aim.X) * UnitVector > TurnThreshold)
             {
-                rollCounter = 128;
-                pitchCounter = 128;
+                return new Manoeuvre(rollCounter, pitchCounter, SpeedUp: false, SlowDown: true, linedUp);
             }
         }
 
@@ -222,6 +242,18 @@ public static class DockingComputer
 
         return new Manoeuvre(rollCounter, pitchCounter, speed < allowed, speed > allowed, linedUp);
     }
+
+    /// <summary>
+    /// The pitch counter that brings a target off the centre line by <paramref name="pitchAngle"/>
+    /// back down to it, measured rather than reasoned.
+    /// </summary>
+    /// <remarks>
+    /// A target above the centre line is brought down by pitching our nose up, and the counter that
+    /// does that is 0x82 — magnitude 2 with bit 7 set. Measured: holding 0x82 takes a station at
+    /// y = 300 down to y = 60 over ten frames, while 0x02 takes it up to y = 530.
+    /// </remarks>
+    private static byte PitchCounterFor(int pitchAngle) =>
+        (byte)(TurnCounter | (pitchAngle > 0 ? 0x80 : 0x00));
 
     /// <summary>Reads one of a ship's orientation vectors as a unit vector.</summary>
     private static Vector3 Unit(Orientation orientation, int vector)

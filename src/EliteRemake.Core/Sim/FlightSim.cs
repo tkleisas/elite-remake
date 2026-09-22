@@ -800,8 +800,12 @@ public sealed class FlightSim
             Speed++;
         }
 
-        if (input.SlowDown)
+        if (input.SlowDown && Speed > 0)
         {
+            // The original brakes with DEC DELTA and bumps the speed back to 1 with INC when it
+            // reaches zero, so the test is on the value *after* the decrement. Testing the value
+            // before it lets a ship already at rest brake from zero, which wraps a byte to 255 and
+            // sends it off at full speed instead of leaving it stationary.
             Speed--;
             if (Speed == 0)
             {
@@ -834,13 +838,15 @@ public sealed class FlightSim
 
     private void UpdateRotation(FlightInput input)
     {
-        // The docking computer's counters, when it has set any, bypass the keys and the damping:
-        // the original's manoeuvring code writes the counters and lets the flight model fly the ship
+        // The docking computer writes rotation counters rather than touching the keys, and the
+        // original's MVEIT applies those counters through MVS5: one fixed 1/16 radian turn of the
+        // ship about its own axes for every frame the counter is non-zero. That is what the counter
+        // *is* - a number of frames of turning - so its magnitude is an angle, not a key rate.
+        // Handing it to the keyboard path instead rounds a counter of 4 or less away to no turn at
+        // all, which is why the autopilot could not make small corrections.
         if (_rotationOverride is { } counters)
         {
-            RollRate = CounterToRate(counters.Roll);
-            PitchRate = CounterToRate(counters.Pitch);
-            UpdateAngles();
+            SetCounters(counters.Roll, counters.Pitch);
             return;
         }
 
@@ -854,14 +860,94 @@ public sealed class FlightSim
         UpdateAngles();
     }
 
-    /// <summary>Turns a rotation counter into the rate the simulation flies with.</summary>
-    private static byte CounterToRate(byte counter)
+    /// <summary>
+    /// Turns the ship by the amount MVEIT part 8 would turn it for a pair of rotation counters.
+    /// </summary>
+    /// <remarks>
+    /// Because our ship never moves and the universe turns around it, the turn is applied as the
+    /// inverse rotation of the world, exactly as MVS4 does it for the keyboard. The counter's
+    /// magnitude is the angle directly: a counter of <c>m</c> is <c>m</c> frames of turning at the
+    /// original's fixed 1/16 radian a frame, so the turn it asks for is <c>m</c> steps. The rate is
+    /// derived only for the dashboard's RL and DC dials - and derived to preserve the step count
+    /// exactly, which is why it is scaled by <see cref="CounterToAngleStep"/> rather than by four:
+    /// the flight model's own rate-to-angle conversion divides small values by eight, and would
+    /// otherwise round a small counter away to no turn at all.
+    /// </remarks>
+    public void SetCounters(byte rollCounter, byte pitchCounter)
+    {
+        (RollAngle, RollSign) = CounterToAngle(rollCounter, pitchSignInverted: false);
+        (PitchAngleValue, PitchSign) = CounterToAngle(pitchCounter, pitchSignInverted: true);
+
+        RollRate = CounterToRate(rollCounter, pitchSignInverted: false);
+        PitchRate = CounterToRate(pitchCounter, pitchSignInverted: true);
+    }
+
+    /// <summary>
+    /// What the flight model multiplies a counter by to turn it back into the angle MVS5 gives.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="FlightControls.RollAngle"/> and <see cref="FlightControls.PitchAngle"/> halve
+    /// their input again whenever the quartered value would be under eight, so the step size is
+    /// eight in that range and four above it. Seven is the largest angle in the halved range.
+    /// </remarks>
+    private const int CounterToAngleStep = 8;
+
+    private const int HalvedAngleLimit = 7;
+
+    /// <summary>
+    /// The angle the original would turn a ship through for a rotation counter, and the sign.
+    /// </summary>
+    /// <remarks>
+    /// A counter is a number of frames of turning at a fixed 1/16 radian a frame, so its magnitude
+    /// is the angle directly.
+    ///
+    /// The sign is the counter's sign bit read the same way round as a key rate: a counter with
+    /// bit 7 set is a <em>negative</em> rotation, which is a roll to the right or a pull up, and
+    /// that is exactly how the flight model already reads a rate below the centre. So the sign bit
+    /// carries straight over, and a counter and the matching key give the same turn.
+    /// </remarks>
+    private static (byte Angle, byte Sign) CounterToAngle(byte counter, bool pitchSignInverted)
     {
         int magnitude = counter & 0x7F;
-        bool clockwise = (counter & 0x80) != 0;
-        int rate = clockwise
-            ? FlightControls.Centre - magnitude
-            : FlightControls.Centre + magnitude;
+        bool negative = (counter & 0x80) != 0;
+
+        // The roll counter's sign reads the same way round as a key rate. The pitch counter's does
+        // not: the flight model takes a rate below the centre as a pull up, so a pitch counter with
+        // bit 7 set has to come out as a rate below the centre. This is measured, twice over: a
+        // pitch counter of 0x02 moves a station that is above the centre line down towards it, and
+        // 0x82 moves it up.
+        bool rateBelowCentre = pitchSignInverted ? negative : !negative;
+
+        return ((byte)magnitude, (byte)(rateBelowCentre ? 0x00 : 0x80));
+    }
+
+    /// <summary>
+    /// The key rate that would print the counter's turn on the dashboard's roll and pitch dials.
+    /// </summary>
+    /// <remarks>
+    /// A zero magnitude is no turn whatever its sign bit says, and both encodings of it appear in
+    /// DOCKIT: it writes 0 to stop pitching, and 128 — sign bit set, magnitude zero — as its
+    /// "no turn" roll counter. Reading 128 as a turn would give a rate below the centre and leave
+    /// the autopilot forever rolling gently to one side, which is exactly what it did.
+    /// </remarks>
+    private static byte CounterToRate(byte counter, bool pitchSignInverted)
+    {
+        int magnitude = Math.Min(counter & 0x7F, 31);
+        if (magnitude == 0)
+        {
+            return FlightControls.Centre;
+        }
+
+        int deviation = magnitude <= HalvedAngleLimit
+            ? magnitude * CounterToAngleStep
+            : magnitude * 4;
+
+        bool negative = (counter & 0x80) != 0;
+        bool rateBelowCentre = pitchSignInverted ? negative : !negative;
+
+        int rate = rateBelowCentre
+            ? FlightControls.Centre - deviation
+            : FlightControls.Centre + deviation;
 
         return (byte)Math.Clamp(rate, 0, 255);
     }

@@ -722,3 +722,60 @@ slower on hardware that ticks less often, and the BBC original often managed wel
 second while drawing a whole screen of lines. The rate is kept as the source defines it, at the
 source's frame rate. If a slower station is wanted as a presentation choice, the honest place for
 it is a documented departure with a speed multiplier, not a change to the rate itself.
+
+## The docking computer: counters, signs and a speed wrap
+
+This round found the rest of the off-axis docking failure, and it was four separate faults, three
+of them in the flight model rather than in DOCKIT.
+
+**The counters now reach the flight model as counters.** DOCKIT writes rotation counters into
+INWK+29 and INWK+30 and lets MVEIT part 8 turn the ship. The previous round established that routing
+them through the keyboard *rate* path rounded small counters away to nothing. They now go through
+`FlightSim.SetCounters`, where the counter's magnitude **is** the turn: a counter of `m` is `m`
+frames of the original's fixed 1/16 radian step, so the world turns by `m` angle units. Measured
+afterwards: a counter of 2 turns, a counter of 127 turns nearly a quarter circle, and the two
+directions mirror each other.
+
+**The counter signs are not all the same way round.** Measured, one at a time, on a station above
+the centre line:
+
+| counter held | effect on the station |
+| --- | --- |
+| roll 0x82 | moves it left — a roll to the right |
+| roll 0x02 | moves it right — a roll to the left |
+| pitch 0x82 | moves it **down**, towards the centre — a pull up |
+| pitch 0x02 | moves it **up**, away — a nose-down pitch |
+
+So the roll counter's sign reads the same way round as a key rate, and the pitch counter's is
+inverted relative to it. `SetCounters` now encodes that difference explicitly rather than assuming
+one convention for both, because assuming one convention is exactly what put the autopilot into a
+diverging spiral: it pitched away from the station every frame, which took the station from y = 300
+to y = 2300 in 120 frames.
+
+**A zero-magnitude counter is no turn, whatever its sign bit says.** DOCKIT writes 0 to stop
+pitching and **128** — sign bit set, magnitude zero — as its "no turn" roll. Reading 128 as a turn
+gives a rate below the centre and leaves the autopilot rolling gently to one side for ever.
+
+**The sights threshold was out by a factor of six.** The original's RAT2 of 6 is compared against
+twice the high byte of a unit vector whose component is 96, so it is a threshold of 6/96 of a unit
+vector. The code compared `|x| * 6` against 0.375, which is a threshold of about one degree — so
+every target that was not already centred was "out of our sights" and the controls were cancelled.
+That is the single reason the autopilot used to do nothing at all when the station was off-axis.
+
+**And the brakes wrapped the speed byte.** `UpdateSpeed` read as:
+
+```csharp
+Speed--;
+if (Speed == 0) Speed = 1;
+```
+
+The original is `DEC DELTA` / `BNE` / `INC DELTA`, so it tests the value *after* the decrement.
+Testing it before lets a ship already at rest brake from zero, which wraps the byte to 255 — the
+autopilot braked every frame while lining up, so it accelerated to full speed and shot past the
+station it was trying to dock with. A test now pins this.
+
+**Where the docking computer stands.** Dead ahead it docks at frame 367. From off to one side it
+used to fly away for ever; it now flies to the station, and of six approaches tested, two dock
+(including one starting 900 units off to the right) and four reach the station within 240 units and
+then collide with it — that is, they arrive but do not get lined up with the slot in time. Closing
+that last gap is the next piece of work, and the harness for it is four lines long.
