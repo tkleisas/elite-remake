@@ -542,3 +542,43 @@ roll is not being applied to the world".
 Re-running the docking harness after the pitch fix: a docking dead ahead still completes at frame
 507, and an approach from off to one side still does not. So the pitch sign was a real fault and not
 the whole of it.
+
+## The docking computer: the fault, found
+
+The two measurements together identify the fault exactly, and it is not in DOCKIT at all — it is in
+how the counters are fed into the flight model.
+
+**Measurement one** established that the roll works: a roll counter of 100 moves a target's x from
+3000 to 754. So the world does turn when it is asked to.
+
+**Measurement two** established why a counter of 2 does not. The rate-to-angle conversion, which is
+the original's own — divide the distance from the centre of the rate range by four, and halve it
+again if the result is under eight — gives an angle of **zero** for a rate of 126, which is what a
+counter of 2 produces. The table says so directly:
+
+| rate | roll angle |
+| --- | --- |
+| 128 | 0 |
+| 126 | **0** |
+| 100 | 3 |
+| 28 | 25 |
+| 1 | 31 |
+
+So every turn the docking computer asks for, in PH1 and PH3 alike, is rounded to nothing and the
+ship never turns at all. That is the whole of the off-axis failure: the autopilot is not
+mis-steering, it is not steering.
+
+**The reason is that the counters go into the wrong path.** The rate-to-angle conversion above
+belongs to the *keyboard* path: MVEIT part 5 turns the universe by the rates the keys produce.
+DOCKIT's counters are not key rates — the original writes them into the ship's own data block at
+INWK+29 and INWK+30, which **MVEIT part 8** applies, turning the ship about its own axes by the
+counter's magnitude directly. Part 8 is a different calculation from part 5, and a counter of 2
+through part 8 is a real, if small, rotation. Feeding the counters through the keyboard path is what
+rounds them away.
+
+**The fix, then, is not in `DockingComputer` but in `FlightSim.SetRotationCounters`**: the override
+should rotate the universe by the counter magnitudes as MVEIT part 8 does, rather than translating
+them into rates and handing them to the keyboard path. `ShipMovement.RotateBodyLocationByOurPitchAndRoll`
+already does something of this shape for the planet and sun, and the ship equivalent for a counter
+rotation is the routine to use. That is the next change, and unlike the last several it is aimed by
+two measurements rather than by reasoning.
