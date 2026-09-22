@@ -2329,6 +2329,37 @@ public class DockingComputerControlTests
         Assert.InRange(Turn(0x80, 0x80).Y, 285, 300);
         Assert.InRange(Turn(0x00, 0x00).Y, 285, 300);
     }
+
+    /// <summary>
+    /// The scale the counters turn at, pinned deliberately.
+    /// </summary>
+    /// <remarks>
+    /// A counter is a number of frames of MVS5's fixed 1/16 radian step, which would be sixteen
+    /// world-rotation units a step. We ship one unit a step instead: it is sixteen times too small
+    /// against the source, but the faithful scale makes the autopilot's fixed ±2 counters sixteen
+    /// times more powerful than its control loop expects and docking regresses badly. This test
+    /// exists so that the departure is a decision rather than an accident - see the counter scale
+    /// note in docs/ROADMAP.md for the measurements.
+    /// </remarks>
+    [Fact]
+    public void TheCounterScaleIsTheDeliberateOne()
+    {
+        // A station 1000 units to the right turns towards the centre line; a counter of 2 is one
+        // small step of that turn, not the 7 degrees the source's MVS5 would give it
+        var player = new Ship(11, "cobra-mk-3", "Cobra Mk III");
+        var sim = new FlightSim(player) { SpawningEnabled = false, Commander = Commander.CreateDefault() };
+        var station = Ship.Create(Combat.SpaceStationType, "coriolis", "Coriolis space station", 0, 0, 0, 0, 3000);
+        station.SetPosition(1000, 0, 3000);
+        sim.Spawn(station);
+
+        sim.SetRotationCounters(0x82, 0x80);
+        sim.Step();
+        (_, int y, _) = station.GetPosition();
+
+        // 1000 * sin(0.45 degrees) is about 8 units of y, well under the 120 the faithful
+        // scale's 7 degrees would give
+        Assert.InRange(Math.Abs(y), 4, 30);
+    }
 }
 
 /// <summary>

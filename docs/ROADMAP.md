@@ -819,3 +819,42 @@ which is meant to fly for the *ideal docking position* out along the slot — sh
 at that range. `IdealDockingSteps` puts that position 768 units out from the station centre, and the
 ship is inside it by then, so PH3 has taken over and PH3 has no way to correct a purely sideways
 offset without a yaw control, which the original does not have either.
+
+## The counter scale, measured to the bottom
+
+The last note said a counter is a number of frames rather than an angle, and that `SetCounters`
+should therefore turn by `m * 16` angle units instead of `m`. That was tried, and the answer is more
+interesting than a straight fix.
+
+**The arithmetic checks out.** One MVS5 step is 1/16 radian, and the world rotation's own unit is
+1/(16*256) of a radian, so sixteen world-rotation units make exactly one step. Driving the world
+rotation with a counter of `m` read as `m * 16` units reproduced the source's own numbers precisely:
+a counter of 1 turned the world 3.55 degrees against the 3.58 the source implies, and a counter of 2
+turned it 6.95 against 7.16. That is a much better fit than the `m` we ship, which gives 0.22 degrees
+and 0.45.
+
+**But the rate path cannot express it.** `SetCounters` has to go through `FlightSim.RollAngle`, and
+that clamps: a rate is a byte, the deviation from its centre of 128 cannot exceed 127, and `RollAngle`
+divides by four, so the angle it returns never exceeds **31** — about 6.93 degrees. The measured
+turn duly saturates: counters of 2, 4 and 8 all turned the world 6.95 degrees. To turn further the
+world rotation would have to be applied once per step, as MVS5 applies it to the orientation vectors,
+rather than being asked for one large angle.
+
+**So the shipped scale stays at `m`, and that is a deliberate departure.** It is sixteen times too
+small against the source, and it is kept because it is the one that works: with the faithful scaling
+the autopilot's fixed ±2 counters become sixteen times more powerful than its control loop expects,
+and docking regressed from three successes out of five to one. A docking computer that cannot dock is
+worse than a counter scale that is numerically wrong, and the divergence is recorded here rather than
+hidden.
+
+The measurements behind that decision:
+
+| counter scale | turn for m = 1 | turn for m = 2 | docking (five approaches) |
+| --- | --- | --- | --- |
+| `m` (shipped) | 0.22° | 0.45° | 3 dock, 2 reach the station |
+| `m * 16` (faithful) | 3.55° | 6.95° | 1 docks, 4 fail |
+
+**What the real fix looks like.** The world rotation needs to accept a turn larger than 31 units —
+either by applying MVS4 once per step, or by giving the world rotation the wider angle range MVS5
+itself works in — and then the autopilot's gains want re-deriving against the larger step. That is a
+piece of work on the flight model rather than on DOCKIT, and it is the next thing to do here.
