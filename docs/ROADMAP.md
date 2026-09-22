@@ -463,3 +463,25 @@ into PH1 and matching the station's roll without closing. Since PH3 is now the d
 code, the remaining fault is either in PH1 — the ideal docking position and how the ship is meant to
 reach it — or in the handover between the phases. That is where to look next, and the phase trace is
 the tool.
+
+## PH1: what it does, and the state it leaves
+
+Reading PH1 again rather than guessing at it: it works the ideal docking position out with VCSU1 and
+DCS1, normalises and negates the vector, **sets the roll counter to 127 to match the space station's
+roll**, and then falls through into the same turning code the other phases use — the code at TN13,
+which heads the ship in the direction of the vector it has just built. So PH1 does two things, and
+this implementation only did the first: it matched the station's roll and never pitched towards the
+ideal position, which is why the trace showed the ship circling the station for ever.
+
+That second half is now in, so PH1 heads for the ideal position as the original does. It has not
+made the off-axis approach dock in the harness — the trace still ends with the ship circling at a
+growing distance — so something in how the ideal position is built or how the turn is applied is
+still not faithful. The turn itself is the next suspect rather than the position: the shared turning
+code at TN13 is `TA151`'s shape, and the pitch counter it sets is the same ±RAT the refinement uses,
+so if the ship is turning the wrong way the fault is in the sign convention of that shared code
+rather than in PH1's own logic.
+
+The state is worth being plain about: **the docking computer completes a docking when the station is
+dead ahead and does not from off to one side.** Every piece of it is now the original's own code
+rather than an invention, so the remaining fault is a translation error somewhere in the turning,
+and the phase trace plus the counters it prints are the tools for finding it.

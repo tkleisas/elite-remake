@@ -179,6 +179,15 @@ public static class DockingComputer
             {
                 rollCounter = (byte)(magnitude | (clockwise ? 0x00 : 0x80));
             }
+
+            // ...and then the original falls through into the same turning code the other phases
+            // use, to head the ship for the ideal docking position. Rolling to match the station
+            // without ever pitching towards the position leaves the ship circling the station for
+            // ever, which is exactly what the trace showed.
+            if (Math.Abs(pitchAngle) > TurnThreshold)
+            {
+                pitchCounter = (byte)(TurnCounter | (pitchAngle > 0 ? 0x00 : 0x80));
+            }
         }
         else
         {
