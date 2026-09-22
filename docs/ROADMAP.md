@@ -513,3 +513,32 @@ rates is where to look.
 The method note is the point of recording this. Several sign and counter changes have now been made
 to this one loop on reasoning alone, and each was reverted or left unverified because the harness
 did not improve. Reasoning is not evidence; the loop needs a measurable step before the next change.
+
+## The turn, measured
+
+The measurement the last note asked for, and it produced one clear answer and one surprise.
+
+Setting a counter by hand and watching where a target to the right and above actually goes:
+
+| counter set | rate | target's y |
+| --- | --- | --- |
+| pitch 2, clockwise (bit 7 set) | 126 | 3000 -> **2960**, to the centre |
+| pitch 2, anticlockwise | 130 | 3000 -> 3000, unmoved |
+| roll 2, clockwise | 126 | target's x unmoved |
+| roll 2, anticlockwise | 130 | target's x unmoved |
+
+**The pitch sign was inverted**, and the fix is in: a clockwise counter is a rate below the centre
+of the rate range, the world turns around a fixed ship, and that brings a target which is above the
+centre line down to it. The reasoning of the previous round was right about this; it is the
+*measurement* that makes it a fix rather than a guess.
+
+**The roll did nothing at all** — the target's x did not move by a single unit under either counter
+direction. That is a surprise and it is the more interesting of the two results: a counter of 2 is
+the slowest turn the original has, so it may simply be too small to move anything measurable in
+forty frames, with the pitch moving only forty units over the same run. The next measurement is the
+same one with a large roll counter, which will separate "the roll is too slow to matter" from "the
+roll is not being applied to the world".
+
+Re-running the docking harness after the pitch fix: a docking dead ahead still completes at frame
+507, and an approach from off to one side still does not. So the pitch sign was a real fault and not
+the whole of it.

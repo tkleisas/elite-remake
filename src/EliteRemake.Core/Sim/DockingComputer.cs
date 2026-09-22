@@ -184,9 +184,12 @@ public static class DockingComputer
             // use, to head the ship for the ideal docking position. Rolling to match the station
             // without ever pitching towards the position leaves the ship circling the station for
             // ever, which is exactly what the trace showed.
+            // Measured, not reasoned: a clockwise counter — bit 7 set — brings a target that is
+            // above the centre line down to it, because that is a rate below the centre of the rate
+            // range and the world turns around a fixed ship. The sign test here was inverted.
             if (Math.Abs(pitchAngle) > TurnThreshold)
             {
-                pitchCounter = (byte)(TurnCounter | (pitchAngle > 0 ? 0x00 : 0x80));
+                pitchCounter = (byte)(TurnCounter | (pitchAngle > 0 ? 0x80 : 0x00));
             }
         }
         else
