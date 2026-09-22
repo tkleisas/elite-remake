@@ -16,7 +16,7 @@ public static class ShipMath
     /// <param name="vector">Byte offset of the vector to rotate (0 = nosev, 6 = roofv, 12 = sidev).</param>
     /// <param name="alpha">The roll angle.</param>
     /// <param name="beta">The pitch angle.</param>
-    public static void Mvs4(ref Orientation orientation, int vector, byte alpha, byte beta)
+    public static void Mvs4(Orientation orientation, int vector, byte alpha, byte beta)
     {
         int y = vector;
 
@@ -62,7 +62,7 @@ public static class ShipMath
     /// <param name="x">Byte offset of the first component (0, 2, 4, 6, 8, 10, 12, 14 or 16).</param>
     /// <param name="y">Byte offset of the second component.</param>
     /// <param name="rat2">The direction of the rotation: 0 for positive, 0x80 for negative.</param>
-    public static void Mvs5(ref Orientation orientation, int x, int y, byte rat2)
+    public static void Mvs5(Orientation orientation, int x, int y, byte rat2)
     {
         // T = |v[x]| / 512, i.e. |v[x]_hi| / 2
         byte t = (byte)((orientation[x + 1] & 0x7F) >> 1);
@@ -155,10 +155,10 @@ public static class ShipMath
     /// of shape over time. It normalises nosev and roofv, rebuilds the component of roofv most
     /// orthogonal to nosev, then sets sidev to the cross product of the other two.
     /// </summary>
-    public static void Tidy(ref Orientation orientation)
+    public static void Tidy(Orientation orientation)
     {
         Span<byte> xx15 = stackalloc byte[3];
-        Span<byte> all = MemoryMarshal.CreateSpan(ref orientation[0], 18);
+        Span<byte> all = orientation.AsSpan();
         ReadOnlySpan<byte> nosev = all.Slice(0, 6);
         ReadOnlySpan<byte> roofv = all.Slice(6, 6);
 

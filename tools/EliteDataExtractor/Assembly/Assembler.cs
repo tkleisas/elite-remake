@@ -601,10 +601,14 @@ internal sealed class Assembler
             _image.Add(0);
         }
 
+        int previous = _pc;
         _image.Add((byte)value);
         _pc++;
 
-        if (_guard >= 0 && _pc > _guard)
+        // GUARD is an upper bound that must not be crossed upwards: the ship files assemble at &5600
+        // with GUARD &6000 (the start of screen memory). Files that assemble entirely above the
+        // guard, such as the missile blueprint at &7F00, are unaffected.
+        if (_guard >= 0 && previous < _guard && _pc >= _guard)
         {
             Error(line, $"assembly has crossed the GUARD address &{_guard:X4}");
         }

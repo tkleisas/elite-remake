@@ -66,6 +66,10 @@ internal sealed class ShipSet
     /// <summary>Base load address of the binary (the XX21 table pointer base).</summary>
     public int BaseAddress { get; init; }
 
+    /// <summary>Offset of BaseAddress within the reference binary (0 for the D.MO? files).</summary>
+    [JsonIgnore]
+    public int BinaryOffset { get; init; }
+
     /// <summary>Number of 16-bit entries in the XX21 table.</summary>
     public int SlotCount { get; init; }
 
@@ -78,6 +82,10 @@ internal sealed class ShipSet
 
     [JsonIgnore]
     public byte[]? BinaryData { get; set; }
+
+    /// <summary>The assembled image, for ship sets that are assembled (all but the docked table).</summary>
+    [JsonIgnore]
+    public Assembly.AssemblyResult? Assembly { get; init; }
 }
 
 internal sealed class ShipSetSlot
@@ -221,6 +229,18 @@ internal sealed class ShipBlueprint
     public List<ShipFace> Faces { get; init; } = [];
 }
 
+/// <summary>The geometry and header of a blueprint (used for the docked/hangar variant).</summary>
+internal sealed class ShipGeometry
+{
+    public ShipHeader Header { get; init; } = new();
+
+    public List<ShipVertex> Vertices { get; init; } = [];
+
+    public List<ShipEdge> Edges { get; init; } = [];
+
+    public List<ShipFace> Faces { get; init; } = [];
+}
+
 /// <summary>A canonical ship entry in the top-level ships array.</summary>
 internal sealed class ShipDocument
 {
@@ -251,6 +271,12 @@ internal sealed class ShipDocument
     /// <summary>Ids of the ship sets (D.MOA ... D.MOP, docked) that register this ship.</summary>
     public List<string> ShipSets { get; init; } = [];
 
+    /// <summary>Label the edge data was read from (may belong to another ship, e.g. the Thargon).</summary>
+    public string? EdgesFrom { get; init; }
+
+    /// <summary>Label the face data was read from (may belong to another ship).</summary>
+    public string? FacesFrom { get; init; }
+
     public ShipHeader Header { get; init; } = new();
 
     public List<ShipVertex> Vertices { get; init; } = [];
@@ -258,6 +284,12 @@ internal sealed class ShipDocument
     public List<ShipEdge> Edges { get; init; } = [];
 
     public List<ShipFace> Faces { get; init; } = [];
+
+    /// <summary>
+    /// The blueprint as assembled inside T.CODE for the ship hangar and mission briefing, emitted
+    /// only when it differs from the flight blueprint.
+    /// </summary>
+    public ShipGeometry? DockedVariant { get; init; }
 
     /// <summary>Extraction notes for this ship, omitted from JSON when empty.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

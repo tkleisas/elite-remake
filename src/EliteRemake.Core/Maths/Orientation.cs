@@ -43,6 +43,21 @@ public sealed class Orientation
         this[vector + axis + 1] = EliteMath.Hi(value);
     }
 
+    /// <summary>
+    /// The component value that represents unity (a direction cosine of 1.0). Unity is 96 in the
+    /// high byte, so the value is 96 * 256 = 24576: see the original's planet.asm, which sets
+    /// "(A P+1 P) = (0 96 0) = 24576", and title.asm's "96 is the value of unity in the
+    /// orientation vectors".
+    /// </summary>
+    public const int UnityValue = 96 * 256;
+
+    /// <summary>Sets a component from a direction cosine, where 1.0 is unity.</summary>
+    public void SetUnity(int vector, int axis, double directionCosine) =>
+        SetValue(vector, axis, (int)Math.Round(directionCosine * UnityValue));
+
+    /// <summary>Reads a component as a direction cosine, where 1.0 is unity.</summary>
+    public double GetUnity(int vector, int axis) => (double)GetValue(vector, axis) / UnityValue;
+
     /// <summary>Reads a component as a signed integer value.</summary>
     public int GetValue(int vector, int axis) => EliteMath.ToSigned(GetComponent(vector, axis));
 
@@ -72,7 +87,6 @@ public sealed class Orientation
     /// </summary>
     public static Orientation FromHeadingPitch(double heading, double pitch)
     {
-        const double unity = 96.0;
         double sinH = Math.Sin(heading);
         double cosH = Math.Cos(heading);
         double sinP = Math.Sin(pitch);
@@ -80,17 +94,17 @@ public sealed class Orientation
 
         var orientation = new Orientation();
 
-        orientation.SetValue(Nosev, X, (int)Math.Round(unity * sinH * cosP));
-        orientation.SetValue(Nosev, Y, (int)Math.Round(unity * sinP));
-        orientation.SetValue(Nosev, Z, (int)Math.Round(unity * cosH * cosP));
+        orientation.SetUnity(Nosev, X, sinH * cosP);
+        orientation.SetUnity(Nosev, Y, sinP);
+        orientation.SetUnity(Nosev, Z, cosH * cosP);
 
-        orientation.SetValue(Roofv, X, (int)Math.Round(-unity * sinH * sinP));
-        orientation.SetValue(Roofv, Y, (int)Math.Round(unity * cosP));
-        orientation.SetValue(Roofv, Z, (int)Math.Round(-unity * cosH * sinP));
+        orientation.SetUnity(Roofv, X, -sinH * sinP);
+        orientation.SetUnity(Roofv, Y, cosP);
+        orientation.SetUnity(Roofv, Z, -cosH * sinP);
 
-        orientation.SetValue(Sidev, X, (int)Math.Round(-unity * cosH));
-        orientation.SetValue(Sidev, Y, 0);
-        orientation.SetValue(Sidev, Z, (int)Math.Round(unity * sinH));
+        orientation.SetUnity(Sidev, X, -cosH);
+        orientation.SetUnity(Sidev, Y, 0);
+        orientation.SetUnity(Sidev, Z, sinH);
 
         return orientation;
     }
