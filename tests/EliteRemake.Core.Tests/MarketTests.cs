@@ -2341,3 +2341,66 @@ public class CollisionTests
         Assert.Same(other, sim.DestroyedThisFrame);
     }
 }
+
+/// <summary>
+/// Checks the altitude check the original runs against the planet and the sun: fly too close and it
+/// is the end of you.
+/// </summary>
+public class AltitudeCheckTests
+{
+    private static (FlightSim Sim, Ship Planet) SetUp(int x, int y, int z)
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = false,
+            Commander = Commander.CreateDefault(),
+        };
+
+        sim.Player.Energy = 255;
+        var planet = Ship.Create(128, "planet", "Planet", 0, 0, 0, 0, 3000);
+        planet.SetPosition(x, y, z);
+        sim.Spawn(planet);
+        return (sim, planet);
+    }
+
+    [Fact]
+    public void FlyingIntoThePlanetIsFatal()
+    {
+        // Just inside the planet's surface: the squares of the high bytes come to less than the
+        // planet's radius, which the original tests as 96 * 96 / 256 = 36
+        var (sim, _) = SetUp(2000, 0, 2000);
+
+        // The check runs on iteration 10 of every 32, so give it a block to come round
+        for (int i = 0; i < 32 && !sim.PlayerDied; i++)
+        {
+            sim.Step();
+        }
+
+        Assert.True(sim.HitABody, "we should have flown into the planet");
+        Assert.True(sim.PlayerDied);
+    }
+
+    [Fact]
+    public void PassingWellAboveThePlanetIsSafe()
+    {
+        // Far enough out that the squares of the high bytes are well past the planet's radius
+        var (sim, _) = SetUp(20000, 0, 20000);
+
+        for (int i = 0; i < 64; i++)
+        {
+            sim.Step();
+        }
+
+        Assert.False(sim.HitABody);
+        Assert.False(sim.PlayerDied);
+
+        // And a planet far away is not even considered
+        var (far, _) = SetUp(0, 0, 262144);
+        for (int i = 0; i < 64; i++)
+        {
+            far.Step();
+        }
+
+        Assert.False(far.HitABody);
+    }
+}

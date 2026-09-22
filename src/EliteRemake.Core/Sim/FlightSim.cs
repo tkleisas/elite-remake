@@ -192,6 +192,10 @@ public sealed class FlightSim
         // Flying into another ship hurts us badly and annoys it
         UpdateCollisions();
 
+        // Flying into a planet or a sun is the end of us
+        HitABody = false;
+        UpdateAltitudeChecks();
+
         // The energy bomb, if it is going off, kills everything in reach
         BombKillsThisFrame = 0;
         UpdateEnergyBomb();
@@ -325,6 +329,67 @@ public sealed class FlightSim
 
     /// <summary>How many ships the energy bomb destroyed this frame.</summary>
     public int BombKillsThisFrame { get; private set; }
+
+    /// <summary>
+    /// The planet's radius in the units the altitude check works in. The original's planet radius
+    /// is 96 in its 8-bit unit vectors, and the check squares the high bytes of our position, which
+    /// divides by 256, so the figure to test against is 96 * 96 / 256 = 36.
+    /// </summary>
+    public const int PlanetRadiusSquared = 36;
+
+    /// <summary>Set when we fly into a planet or a sun, which is fatal.</summary>
+    public bool HitABody { get; private set; }
+
+    /// <summary>
+    /// The altitude check the original runs every 32 iterations of its main loop: if we are close
+    /// enough to a planet or sun for the top byte of its position to be zero, the squares of the
+    /// high bytes of the position say how far above its surface we are, and if they come to no more
+    /// than the planet's radius then we have flown into it.
+    /// </summary>
+    private void UpdateAltitudeChecks()
+    {
+        // The original runs this on iteration 10 of every 32
+        if ((MainLoopCounter & 31) != 10)
+        {
+            return;
+        }
+
+        foreach (Ship body in _bubble)
+        {
+            if (!IsCelestial(body.Type))
+            {
+                continue;
+            }
+
+            (int x, int y, int z) = body.GetPosition();
+
+            // The original ORs the top bytes of the three coordinates together: if any of them is
+            // non-zero we are more than 65535 away and there is nothing to check. Note this is the
+            // *top* byte, which carries the high bits of the coordinate rather than a sign.
+            int topByte = ((x >> 16) | (y >> 16) | (z >> 16)) & 0x7F;
+            if (topByte != 0)
+            {
+                continue;
+            }
+
+            // We are close, so the high bytes are the significant ones. The planet's radius in
+            // these units is 36, and the original subtracts 37 so that the surface itself counts.
+            int xHi = Math.Abs(x) >> 8 & 0xFF;
+            int yHi = Math.Abs(y) >> 8 & 0xFF;
+            int zHi = Math.Abs(z) >> 8 & 0xFF;
+            // The original divides the sum of the squares by 256 so it fits in a byte, which is
+            // what makes the planet's radius come out as 36 rather than 9216
+            int altitude = ((xHi * xHi) + (yHi * yHi) + (zHi * zHi)) / 256;
+
+            if (altitude <= PlanetRadiusSquared + 1)
+            {
+                HitABody = true;
+                PlayerDied = true;
+                Player.Energy = 0;
+                return;
+            }
+        }
+    }
 
     /// <summary>
     /// The damage we take when we fly into another ship, and the damage we do to it. The original's
