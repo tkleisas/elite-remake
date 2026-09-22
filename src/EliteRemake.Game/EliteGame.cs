@@ -215,10 +215,17 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
         base.Draw(gameTime);
 
         _frame++;
+        if (_framesDrawn == 0)
+        {
+            _clock.Restart();
+        }
+
         if (_frame == 2)
         {
             Console.WriteLine(_scene.StatusLine);
         }
+
+        _framesDrawn++;
 
         if (_options.PrintFontSheet && _frame == 3)
         {
@@ -241,8 +248,35 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
 
         if (_options.ExitAfterFrames is { } exitAfter && _frame >= exitAfter)
         {
+            ReportFrameRate();
             Exit();
         }
+    }
+
+    /// <summary>When the first frame was drawn, and how many have been, for the frame-rate report.</summary>
+    private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
+
+    private int _framesDrawn;
+
+    /// <summary>
+    /// Prints how long the frames actually took. The display's vertical sync caps this, so the
+    /// figure is a floor on the achievable rate rather than a measure of raw throughput: if it
+    /// matches the refresh rate then the game is keeping up with the display, and if it does not
+    /// then something is too slow to.
+    /// </summary>
+    private void ReportFrameRate()
+    {
+        double seconds = _clock.Elapsed.TotalSeconds;
+        if (seconds <= 0 || _framesDrawn <= 0)
+        {
+            return;
+        }
+
+        double perFrame = seconds * 1000 / _framesDrawn;
+        double fps = _framesDrawn / seconds;
+        Console.WriteLine(
+            $"Drew {_framesDrawn} frames in {seconds:0.00}s: {perFrame:0.00} ms a frame, {fps:0.0} fps " +
+            $"(simulation steps run at {Scenes.FlightScene.FrameRate:0} Hz, up to 10 a frame)");
     }
 
     /// <summary>

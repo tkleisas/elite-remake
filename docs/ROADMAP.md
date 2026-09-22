@@ -288,15 +288,32 @@ says what was checked and what was not.
    face is what you see head-on — but it has not been checked against the blueprint's geometry and
    lighting, and it is the sort of thing that has been wrong before.
 
-4. **The energy bomb against Thargoids and the Constrictor.** The disc version has no exemption for
-   either, unlike the Master and later versions. That reading came from a grep rather than a careful
-   read of the surrounding branches, so it wants confirming.
+4. ~~**The energy bomb against Thargoids and the Constrictor.**~~ **Settled, and the code is
+   right.** Read from the source this time, in `main_flight_loop_part_5_of_16`: the disc version's
+   exemption list is exactly one entry, the space station (`CPY #2*SST / BEQ MA21`). The Thargoid
+   and Constrictor exemptions are wrapped in `_MASTER_VERSION OR _C64_VERSION OR _APPLE_VERSION OR
+   _NES_VERSION` and `_6502SP_VERSION OR _C64_VERSION OR _APPLE_VERSION OR _MASTER_VERSION OR
+   _NES_VERSION`, so neither is assembled into the disc version. Thargoids and the Constrictor are
+   as vulnerable to an energy bomb here as anything else — Constrictor included, which is a
+   *departure* the disc version makes from the later ones.
 
 5. **Rebinding and a settings screen** — the brief mentions a gamepad and an authentic keyboard
    layout; the keyboard layout is in, rebinding is not.
 
-6. **Performance** has never been measured. The simulation runs at a fixed 50 Hz and the frame times
-   have looked comfortable in screenshots, but nothing has been profiled.
+6. **Performance.** A harness now exists: the game reports how long its frames actually took when
+   it exits after `--exit-after` frames, so a run can be measured rather than guessed at. It has not
+   produced a number yet, and the reason is worth recording: on this machine's display the game
+   never reaches even 200 drawn frames in 100 seconds, so whatever it is doing there is not
+   representative of a real session - most likely the virtual display never completes a swap. The
+   number has to be taken by running the game interactively, and the line to read is:
+
+       Drew <n> frames in <s>s: <ms> ms a frame, <fps> fps
+
+   Vertical sync caps this, so it is a floor on the achievable rate: matching the display's refresh
+   rate means the game is keeping up, and falling short means something is too slow to. Screenshot
+   renders have stayed comfortable, and the simulation is a fixed 50 Hz with up to ten catch-up
+   steps a frame, so the budget is 20 ms a frame with the simulation itself costing whatever a step
+   costs. Nothing has been profiled beyond that.
 
 ## What the session has taught, in one place
 
