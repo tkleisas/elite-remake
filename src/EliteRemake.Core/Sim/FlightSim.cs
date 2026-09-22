@@ -317,6 +317,18 @@ public sealed class FlightSim
     /// <summary>How many ships the energy bomb destroyed this frame.</summary>
     public int BombKillsThisFrame { get; private set; }
 
+    /// <summary>
+    /// Hitting the space station anywhere but its slot, which the original treats as fatal: the
+    /// station's surface is not something a Cobra can survive.
+    /// </summary>
+    public void ApplyStationCollision()
+    {
+        Player.Energy = 0;
+        Player.ForeShield = 0;
+        Player.AftShield = 0;
+        PlayerDied = true;
+    }
+
     /// <summary>How long the E.C.M. stays on for once fired.</summary>
     public int EcmFrames { get; private set; }
 

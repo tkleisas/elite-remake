@@ -1937,3 +1937,104 @@ public class EnergyBombTests
         Assert.Equal(1, sim.BombKillsThisFrame);
     }
 }
+
+/// <summary>
+/// Checks the docking tests: lined up with the slot we dock, anywhere else on the station we crash.
+/// </summary>
+public class DockingTests
+{
+    private static Ship Station()
+    {
+        var station = Ship.Create(Combat.SpaceStationType, "coriolis", "Coriolis space station", 0, 0, 0, 0, 3000);
+
+        // A station's nose vector points out of its slot. This one is at the origin with its slot
+        // facing along +z, towards a player who is behind it at negative z.
+        station.Orientation.SetUnity(Core.Maths.Orientation.Nosev, Core.Maths.Orientation.Z, 1.0);
+        return station;
+    }
+
+    [Fact]
+    public void FarAwayNothingHappens()
+    {
+        Ship station = Station();
+        var result = Docking.Check(
+            station,
+            (0, 0, -Docking.ContactRange - 100),
+            new System.Numerics.Vector3(0, 0, -1),
+            stationHostile: false);
+
+        Assert.Equal(DockingResult.TooFar, result);
+    }
+
+    [Fact]
+    public void LinedUpWithTheSlotWeDock()
+    {
+        Ship station = Station();
+
+        // Just in front of the slot, facing it
+        var result = Docking.Check(
+            station,
+            (0, 0, -100),
+            new System.Numerics.Vector3(0, 0, -1),
+            stationHostile: false);
+
+        Assert.Equal(DockingResult.Docking, result);
+    }
+
+    [Fact]
+    public void FacingAwayFromTheStationIsACrash()
+    {
+        Ship station = Station();
+
+        var result = Docking.Check(
+            station,
+            (0, 0, -100),
+            new System.Numerics.Vector3(0, 0, 1), // flying away from it
+            stationHostile: false);
+
+        Assert.Equal(DockingResult.Collision, result);
+    }
+
+    [Fact]
+    public void ApproachingTheStationFromBehindIsACrash()
+    {
+        Ship station = Station();
+
+        // Beside the station rather than in front of the slot
+        var result = Docking.Check(
+            station,
+            (200, 0, 0),
+            new System.Numerics.Vector3(-1, 0, 0),
+            stationHostile: false);
+
+        Assert.Equal(DockingResult.Collision, result);
+    }
+
+    [Fact]
+    public void AHostileStationWillNotLetUsIn()
+    {
+        Ship station = Station();
+
+        var result = Docking.Check(
+            station,
+            (0, 0, -100),
+            new System.Numerics.Vector3(0, 0, -1),
+            stationHostile: true);
+
+        Assert.Equal(DockingResult.Collision, result);
+    }
+
+    [Fact]
+    public void HittingTheStationIsFatal()
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"));
+        sim.Player.Energy = 255;
+        sim.Player.ForeShield = 255;
+
+        sim.ApplyStationCollision();
+
+        Assert.True(sim.PlayerDied);
+        Assert.Equal(0, sim.Player.Energy);
+        Assert.Equal(0, sim.Player.ForeShield);
+    }
+}

@@ -122,9 +122,15 @@ Primary target variant: **`versions/disc`, variant `sth` (Stairway to Hell)**, w
   Blue Danube is not part of disc parity — and the **energy bomb is now implemented**: TAB sets it
   off, it is a one-shot, it destroys every ship in the local bubble except the space station, and
   its victims count towards the kill tally, which is exactly what the original's main loop does.
-  Also still outstanding: **docking mechanics** — flying into the station's slot to dock, and the
-  docking computer doing it for us — which is a genuine disc-version feature and the largest
-  remaining gap. Done: the original's ten sound effects with
+  Also done: **docking checks** — the five geometric tests the original's ISDK applies before it
+  lets us in (the station must not be hostile, its slot must be facing us within about 26 degrees,
+  we must be facing the station, we must be inside the slot's 22 degree cone of approach, and the
+  slot must be roughly level), with a collision anywhere else on the station being fatal, as it is
+  in the original.
+
+  Still outstanding: the **docking computer** doing the docking for us. The equipment exists and can
+  be bought, but it does not yet fly us in; the original's docking computer takes over the controls
+  and steers through the slot, which is the last piece of the docking milestone. Done: the original's ten sound effects with
   their exact SFX bytes, rendered as square waves with the BBC's pitch divider and its four
   envelopes (a decaying note, an upward sweep, noise and a fast tremolo), and triggered by the same
   events the original uses — firing, being hit, a kill, a missile launch, hyperspace and the E.C.M.

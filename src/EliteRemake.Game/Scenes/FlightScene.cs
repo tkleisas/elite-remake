@@ -41,6 +41,51 @@ public sealed class FlightScene : IScene
     private bool _bombPressed;
 
     /// <summary>
+    /// Runs the original's docking checks: fly through the station's slot and we dock, hit the
+    /// station anywhere else and we crash.
+    /// </summary>
+    private void UpdateDocking()
+    {
+        if (Session is null || Session.Mode != GameMode.Flying || _dockingRequested)
+        {
+            return;
+        }
+
+        foreach (Ship ship in _sim.Bubble)
+        {
+            if (ship.Type != Combat.SpaceStationType)
+            {
+                continue;
+            }
+
+            (int x, int y, int z) = ship.GetPosition();
+            var playerNose = new System.Numerics.Vector3(
+                (float)_sim.Player.Orientation.GetUnity(Core.Maths.Orientation.Nosev, Core.Maths.Orientation.X),
+                (float)_sim.Player.Orientation.GetUnity(Core.Maths.Orientation.Nosev, Core.Maths.Orientation.Y),
+                (float)_sim.Player.Orientation.GetUnity(Core.Maths.Orientation.Nosev, Core.Maths.Orientation.Z));
+
+            // We approach the station, so the vector to it is the negative of its position
+            DockingResult result = Docking.Check(ship, (x, y, z), System.Numerics.Vector3.Normalize(playerNose), stationHostile: false);
+
+            if (result == DockingResult.Docking)
+            {
+                _dockingRequested = true;
+                Session.Dock();
+                Sounds?.Play(Core.Audio.SoundEffect.Beep);
+                return;
+            }
+
+            if (result == DockingResult.Collision)
+            {
+                // Hitting the station anywhere but the slot is fatal
+                Session.Flight.ApplyStationCollision();
+                Sounds?.Play(Core.Audio.SoundEffect.Explosion);
+                return;
+            }
+        }
+    }
+
+    /// <summary>
     /// Plays the sounds for whatever happened this frame, using the original's own triggers: a zap
     /// when we fire, a hit when we are struck, an explosion when something dies, a whoosh for
     /// hyperspace and a buzz for the E.C.M.
@@ -396,6 +441,7 @@ public sealed class FlightScene : IScene
         }
 
         UpdateSounds();
+        UpdateDocking();
 
         // Docking is a debug shortcut for now: flying into the station's slot comes with the
         // docking milestone
