@@ -266,3 +266,50 @@ tools/EliteDataExtractor/  asm/binary → data converter with verification
 tests/EliteRemake.Core.Tests/
 docs/                      roadmap, data pipeline, divergences
 ```
+
+## Open items, as of round 35
+
+Everything below is known to be unfinished or unverified. Nothing here is guessed at: each entry
+says what was checked and what was not.
+
+1. **The AI's close-range disengage.** An early note claimed the original has a rule where a ship
+   that is too close and centred breaks off. Searching TACTICS found only the *missile* check at
+   TA34 — a missile whose x_hi, y_hi and z_hi are all zero has hit us, and is marked killed — which
+   is a different thing. The ship-level rule is either in a part of TACTICS not yet read or was a
+   misreading when the note was made. It stays open until found or ruled out.
+
+2. **The docking computer** completes a docking when the station is dead ahead (frame 507 in the
+   harness) and overshoots from off to one side. With the station's rotation now the original's,
+   the fault is in which of DOCKIT's three branches is taken at that offset. The harness to answer
+   it is in place.
+
+3. **The station's rendering.** From dead ahead the Coriolis reads as a flat grey square with a
+   tilted square inside it. That may be exactly right — the Coriolis is a cube with a slot, and one
+   face is what you see head-on — but it has not been checked against the blueprint's geometry and
+   lighting, and it is the sort of thing that has been wrong before.
+
+4. **The energy bomb against Thargoids and the Constrictor.** The disc version has no exemption for
+   either, unlike the Master and later versions. That reading came from a grep rather than a careful
+   read of the surrounding branches, so it wants confirming.
+
+5. **Rebinding and a settings screen** — the brief mentions a gamepad and an authentic keyboard
+   layout; the keyboard layout is in, rebinding is not.
+
+6. **Performance** has never been measured. The simulation runs at a fixed 50 Hz and the frame times
+   have looked comfortable in screenshots, but nothing has been profiled.
+
+## What the session has taught, in one place
+
+Four bugs were found by the user looking at the game rather than by any audit: the missing 3D
+scanner, missing collisions with other ships, a station that never rotated, and the planet and sun
+being invisible. A fifth — the compass drawn as a large ring instead of a dot — survived a
+"dashboard audit" that checked which instruments existed rather than whether they looked right.
+
+Five invented numbers or algorithms have been replaced by the original's own: an invented PD
+controller for the docking computer, key presses where DOCKIT writes rotation counters, a constant
+station roll of 6, a bubble range of 32,768, and a compass shape and position. Each was found by
+reading the source *after* writing the invention, which is the wrong order, and which is why "use
+the original algorithms" is now rule 2 of the fidelity rules.
+
+The lesson worth keeping: look at the game after every change, and read the source before writing
+anything.
