@@ -151,6 +151,40 @@ Commodore 64 only, and the altitude indicator is Apple II only.
   collides instead of docking. Centring on the slot axis before closing is the next step, and the
   tests currently pin the settling and the glide slope rather than a docking that does not happen.
 
+  **The original's algorithm is DOCKIT, and this should be ported rather than approximated.** The
+  hand-written controller above works but it is an invention, and the project's own rule is that
+  maths is ported, not reinvented. DOCKIT lives in the enhanced library and is reached from the key
+  logger's manoeuvring code, which sets up a scratch ship looking along +z at our speed and calls
+  DOCKIT to work out the moves, then writes the answer into the key logger — so the docking computer
+  flies the ship through exactly the same path as the keyboard.
+
+  What DOCKIT does, and the thresholds it uses:
+
+  * `RAT = 2`, `RAT2 = 6` — the counters to set when turning, and the threshold below which pitch
+    and roll are not applied at all.
+  * `CNT2 = 29` — the angle beyond which a ship slows down to turn.
+  * Outside the station's safe zone, or too far for anything accurate, it falls back to GOPL and
+    simply heads towards the planet.
+  * Otherwise it measures the distance with TA2 and normalises the vector with TAS2, then tests the
+    approach with two dot products (TAS4 with the slot axis, TAS3 for the refinement). Pointing the
+    wrong way, or less than 35 on the first test, sends it to **PH1: fly to the ideal docking
+    position**, which DCS1 works out by stepping out along the slot from the station. Within 157
+    units and badly placed it turns away instead (PH2). Pointing the right way it **refines** (PH3),
+    rolling and pitching towards the station only while the station is within 12 units of the
+    crosshairs.
+
+  **The part this implementation gets wrong, and the reason its autopilot arrives off-axis: PH1
+  rolls to match the space station's own roll**, setting a positive undamped roll counter, and PH3
+  rolls towards the station. The Coriolis rotates, so the slot's orientation changes as you
+  approach, and the docking computer tracks it. A controller that aims at a point and ignores the
+  station's rotation — as the one here does — cannot line up with a rotating slot, which is exactly
+  the failure observed.
+
+  The routines to port are TA2, TAS2, TAS3, TAS4, TAS6, TA151, VCSU1, DCS1 and GOPL; several have
+  close relatives already in ShipMath and Tactics (Norm is TAS2, and the counter-setting in Tactics
+  is TA151's shape), so this is smaller than it looks. When it lands, the hand-written controller
+  should be deleted rather than left beside it.
+
   The original's docking computer, for reference: Its shape is right: like the
   original, which drives its docking computer through the key logger so that a person and the
   computer fly the ship with the same code, this one produces a FlightInput — the same thing the
