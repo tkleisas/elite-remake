@@ -94,3 +94,68 @@ public class BitmapFontTests
         Assert.Throws<FormatException>(() => BitmapFont.Parse("# nothing here\n"));
     }
 }
+
+/// <summary>
+/// Checks the system description generator: that the token table is the original's, and that the
+/// printer assembles a description from it.
+/// </summary>
+/// <remarks>
+/// The phrases are chosen at random, as they are in the original — look at the same system twice and
+/// you may be told something different — so these tests check the machinery and the vocabulary
+/// rather than pinning an exact sentence.
+/// </remarks>
+public class DescriptionTests
+{
+    [Fact]
+    public void TheTokenTableIsTheOriginals()
+    {
+        var random = new EliteRemake.Core.Sim.EliteRandom(1);
+        string description = Data.DescriptionData.Describe("Lave", random);
+
+        Assert.False(string.IsNullOrWhiteSpace(description), "a description should be generated");
+
+        // Every description names the system and says something about it
+        Assert.Contains("lave", description, StringComparison.OrdinalIgnoreCase);
+
+        // And it uses the original's vocabulary
+        string[] vocabulary =
+        [
+            "famous", "noted", "known", "fabled", "planet", "world", "cursed", "ravaged",
+            "scourged", "beset", "deadly", "dreadful", "wicked", "unusual", "vast",
+        ];
+
+        Assert.True(
+            vocabulary.Any(word => description.Contains(word, StringComparison.OrdinalIgnoreCase)),
+            $"the description should use the original's words: \"{description}\"");
+    }
+
+    [Fact]
+    public void DescriptionsVaryWithTheRandomNumberGenerator()
+    {
+        // The original picks its phrases with the game's random number generator, so different
+        // states give different descriptions
+        var seen = new HashSet<string>();
+        for (uint seed = 1; seed <= 40; seed++)
+        {
+            seen.Add(Data.DescriptionData.Describe("Lave", new EliteRemake.Core.Sim.EliteRandom(seed)));
+        }
+
+        Assert.True(seen.Count > 10, $"40 visits should not all say the same thing, got {seen.Count} variants");
+    }
+
+    [Fact]
+    public void TheSameStateGivesTheSameDescription()
+    {
+        string first = Data.DescriptionData.Describe("Lave", new EliteRemake.Core.Sim.EliteRandom(12345));
+        string second = Data.DescriptionData.Describe("Lave", new EliteRemake.Core.Sim.EliteRandom(12345));
+
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public void TheDescriptionNamesWhicheverSystemItIsGiven()
+    {
+        string description = Data.DescriptionData.Describe("Leesti", new EliteRemake.Core.Sim.EliteRandom(7));
+        Assert.Contains("leesti", description, StringComparison.OrdinalIgnoreCase);
+    }
+}

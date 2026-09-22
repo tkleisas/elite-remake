@@ -34,6 +34,15 @@ internal static class Program
 
         try
         {
+            if (options.Command == "tokens")
+            {
+                string onlyTokens = Path.Combine(options.OutputDirectory ?? "data", "descriptions.json");
+                Directory.CreateDirectory(Path.GetDirectoryName(onlyTokens) ?? "data");
+                File.WriteAllText(onlyTokens, EliteDataExtractor.Text.TokenExtractor.Extract(options.Source));
+                Console.WriteLine($"Wrote {onlyTokens} ({new FileInfo(onlyTokens).Length} bytes)");
+                return 0;
+            }
+
             ExtractionResult extraction = new ShipExtractor(options.Source, options.Log).Extract();
 
             string jsonPath = options.JsonPath;
@@ -42,6 +51,15 @@ internal static class Program
                 ShipJsonWriter.Write(extraction.Document, jsonPath);
                 Console.WriteLine($"Wrote {jsonPath} ({new FileInfo(jsonPath).Length} bytes)");
                 PrintSummary(extraction);
+            }
+
+            // The system descriptions come from the extended token table, which is a separate
+            // extraction from the ship blueprints but written by the same tool
+            if (options.Command is "tokens" or "all")
+            {
+                string tokenPath = Path.Combine(Path.GetDirectoryName(jsonPath) ?? ".", "descriptions.json");
+                File.WriteAllText(tokenPath, EliteDataExtractor.Text.TokenExtractor.Extract(options.Source));
+                Console.WriteLine($"Wrote {tokenPath} ({new FileInfo(tokenPath).Length} bytes)");
             }
 
             if (options.Command is "verify" or "all")
@@ -145,6 +163,7 @@ internal static class Program
                     case "all":
                     case "extract":
                     case "verify":
+                    case "tokens":
                         if (commandSeen)
                         {
                             Console.Error.WriteLine($"error: unexpected extra command '{argument}'");
