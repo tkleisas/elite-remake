@@ -399,3 +399,37 @@ be mistaken for disc fidelity later:
 Both come from the NES version's dashboard. Everything else in the dashboard — the instrument set
 and their arrangement, the scanner's projection and height sticks, the compass dot — is the disc
 version's own.
+
+## Docking computer: what PH3 actually does
+
+Reading PH3 closely, now that the trace has pointed at it:
+
+```
+.PH3
+ BPL PH32               \ (NPC ships take a different path)
+ LDA #2                 \ Set A = +2 or -2, giving it the sign in the C flag
+ STA INWK+29            \ the ship rolls towards the station
+ CMP #12                \ if the station is not in our sights
+ BCS PH22               \ stop manoeuvring
+ JSR RefineApproach     \ refine our approach using pitch
+ BCS PH22               \ stop if the target is not in our sights
+ LDA #2                 \ the ship pitches towards the station
+ STA INWK+30
+```
+
+Three things follow, and they change the picture from the last trace:
+
+1. **The counters of ±2 are right.** The original really does set a counter of two in PH3, so the
+   fixed counter here is not the fault after all — it is the original's own value. The earlier note
+   blaming it was wrong.
+2. **There is a ±12 sight limit.** The original stops manoeuvring when the station is more than 12
+   off the crosshairs, because it is not worth turning towards something that far out of the
+   window. That limit is missing here.
+3. **`RefineApproach` is a separate routine** that PH3 calls to work out the pitch, and its
+   definition has not been located: it is called from dockit.asm but is not in that file, and it is
+   not in the common library under that name. Finding it is the next step, and it is the piece that
+   decides the pitch, so it is probably where the real answer is.
+
+So the previous round's conclusion — that the fixed counter was the cause — was wrong, and this
+note corrects it. The next step is to find `RefineApproach`, likely in the Elite-A or 6502SP
+libraries or behind a different label, and read what it does with the vector to the station.
