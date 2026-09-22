@@ -117,7 +117,14 @@ Primary target variant: **`versions/disc`, variant `sth` (Stairway to Hell)**, w
   ship blueprint extraction, and it wants a round of its own: the right shape is to extend
   EliteDataExtractor to emit the token table and the description fragments as data, then port the
   printer and the seed-driven selection.
-- **M6 — Audio, polish, parity sweep.** In progress. Done: the original's ten sound effects with
+- **M6 — Audio, polish, parity sweep.** In progress. Two corrections to the earlier list: the
+  **docking music is not a disc-version feature** — `startbd` is called only in the C64 build, so the
+  Blue Danube is not part of disc parity — and the **energy bomb is now implemented**: TAB sets it
+  off, it is a one-shot, it destroys every ship in the local bubble except the space station, and
+  its victims count towards the kill tally, which is exactly what the original's main loop does.
+  Also still outstanding: **docking mechanics** — flying into the station's slot to dock, and the
+  docking computer doing it for us — which is a genuine disc-version feature and the largest
+  remaining gap. Done: the original's ten sound effects with
   their exact SFX bytes, rendered as square waves with the BBC's pitch divider and its four
   envelopes (a decaying note, an upward sweep, noise and a fast tremolo), and triggered by the same
   events the original uses — firing, being hit, a kill, a missile launch, hyperspace and the E.C.M.

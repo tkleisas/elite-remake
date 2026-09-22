@@ -38,6 +38,7 @@ public sealed class FlightScene : IScene
     private bool _missilePressed;
     private bool _ecmPressed;
     private bool _jumpPressed;
+    private bool _bombPressed;
 
     /// <summary>
     /// Plays the sounds for whatever happened this frame, using the original's own triggers: a zap
@@ -356,6 +357,20 @@ public sealed class FlightScene : IScene
                 _jumpPressed = false;
             }
 
+            // TAB sets off the energy bomb, as the original does
+            if (keys.IsKeyDown(Keys.Tab) && !_bombPressed)
+            {
+                _bombPressed = true;
+                if (Session.Flight.FireEnergyBomb())
+                {
+                    Sounds?.Play(Core.Audio.SoundEffect.Explosion);
+                }
+            }
+            else if (!keys.IsKeyDown(Keys.Tab))
+            {
+                _bombPressed = false;
+            }
+
             if (keys.IsKeyDown(Keys.E) && !_ecmPressed)
             {
                 _ecmPressed = true;
@@ -366,11 +381,17 @@ public sealed class FlightScene : IScene
                 _ecmPressed = false;
             }
 
-            // Destroying a ship pays its bounty and counts the kill
+            // Destroying a ship pays its bounty and counts the kill, and the energy bomb's
+            // victims count too
             if (_sim.DestroyedThisFrame is { } wreck)
             {
                 Session.RegisterKill(wreck);
                 _sim.DestroyedThisFrame = null;
+            }
+
+            for (int i = 1; i < _sim.BombKillsThisFrame; i++)
+            {
+                Session.Commander.RegisterKill(); // the rest of the bomb's victims
             }
         }
 

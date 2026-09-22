@@ -1885,3 +1885,55 @@ public class MissionTests
         Assert.Equal(2, session.Commander.MissionStatus);
     }
 }
+
+/// <summary>
+/// Checks the energy bomb, which the original fires with TAB: it destroys every ship in the local
+/// bubble except the space station, and is a one-shot.
+/// </summary>
+public class EnergyBombTests
+{
+    [Fact]
+    public void TheBombNeedsToBeFittedAndIsConsumed()
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = false,
+            Commander = Commander.CreateDefault(),
+        };
+
+        // Not fitted: nothing happens
+        Assert.False(sim.FireEnergyBomb());
+
+        sim.Commander!.EnergyBomb = true;
+        Assert.True(sim.FireEnergyBomb());
+        Assert.False(sim.Commander.EnergyBomb); // used up
+        Assert.True(sim.EnergyBombActive);
+
+        // And it cannot be set off twice at once
+        Assert.False(sim.FireEnergyBomb());
+    }
+
+    [Fact]
+    public void TheBombDestroysEveryShipButTheStation()
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = false,
+            Commander = Commander.CreateDefault(),
+        };
+
+        sim.Commander!.EnergyBomb = true;
+
+        var pirate = Ship.Create(17, "sidewinder", "Sidewinder", 0, 0, 0, 0, 2000);
+        var station = Ship.Create(Combat.SpaceStationType, "coriolis", "Coriolis space station", 0, 0, 0, 0, 3000);
+        sim.Spawn(pirate);
+        sim.Spawn(station);
+
+        Assert.True(sim.FireEnergyBomb());
+        sim.Step();
+
+        Assert.True(pirate.IsKilled, "the pirate should be destroyed");
+        Assert.False(station.IsKilled, "energy bombs are useless against space stations");
+        Assert.Equal(1, sim.BombKillsThisFrame);
+    }
+}

@@ -183,6 +183,10 @@ public sealed class FlightSim
         Combat.RechargeShields(Player);
         Combat.RechargeEnergy(Player);
 
+        // The energy bomb, if it is going off, kills everything in reach
+        BombKillsThisFrame = 0;
+        UpdateEnergyBomb();
+
         // Missiles home in, and the E.C.M. swats them down
         UpdateMissiles();
 
@@ -260,6 +264,58 @@ public sealed class FlightSim
 
     /// <summary>Set when the E.C.M. is active, which destroys missiles.</summary>
     public bool EcmActive { get; private set; }
+
+    /// <summary>Frames left on the energy bomb's effect, or 0 when it is not going off.</summary>
+    public int EnergyBombFrames { get; private set; }
+
+    /// <summary>True while an energy bomb is going off.</summary>
+    public bool EnergyBombActive => EnergyBombFrames > 0;
+
+    /// <summary>
+    /// Sets off the commander's energy bomb, which destroys every ship in the local bubble except
+    /// the space station. The original's BOMB flag then stays set for a few frames while the effect
+    /// is drawn, killing each ship as the main loop reaches it.
+    /// </summary>
+    public bool FireEnergyBomb()
+    {
+        if (Commander is not { EnergyBomb: true } || EnergyBombActive)
+        {
+            return false;
+        }
+
+        Commander.EnergyBomb = false; // it is a one-shot
+        EnergyBombFrames = Combat.EnergyBombFrames;
+        return true;
+    }
+
+    /// <summary>Kills everything the energy bomb can reach, as the original's main loop does.</summary>
+    private void UpdateEnergyBomb()
+    {
+        if (EnergyBombFrames <= 0)
+        {
+            return;
+        }
+
+        EnergyBombFrames--;
+
+        foreach (Ship ship in _bubble)
+        {
+            // Energy bombs are useless against space stations
+            if (ship.Type == Combat.SpaceStationType || ship.IsKilled || IsCelestial(ship.Type))
+            {
+                continue;
+            }
+
+            ship.IsKilled = true;
+            ship.IsExploding = true;
+            ship.Flags |= 0x40;
+            DestroyedThisFrame = ship;
+            BombKillsThisFrame++;
+        }
+    }
+
+    /// <summary>How many ships the energy bomb destroyed this frame.</summary>
+    public int BombKillsThisFrame { get; private set; }
 
     /// <summary>How long the E.C.M. stays on for once fired.</summary>
     public int EcmFrames { get; private set; }

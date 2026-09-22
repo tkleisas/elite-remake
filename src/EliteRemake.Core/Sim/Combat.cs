@@ -13,6 +13,13 @@ namespace EliteRemake.Core.Sim;
 /// </remarks>
 public static class Combat
 {
+    /// <summary>The space station's ship type, which an energy bomb cannot touch.</summary>
+    public const int SpaceStationType = 2;
+
+    /// <summary>How many frames the energy bomb's effect lasts.</summary>
+    public const int EnergyBombFrames = 8;
+
+
     /// <summary>The damage of a pulse laser (the original's POW).</summary>
     public const int PulseLaserPower = 15;
 
