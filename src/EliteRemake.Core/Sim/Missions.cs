@@ -39,6 +39,12 @@ public sealed class Missions
     /// <summary>The Constrictor's ship type.</summary>
     public const int ConstrictorType = 31;
 
+    /// <summary>
+    /// The Constrictor's system number within its galaxy, from the original's RUPLA table: Orarra,
+    /// system 193, which sits at (144, 33).
+    /// </summary>
+    public const int ConstrictorIndex = 193;
+
     /// <summary>The Thargoid ship type.</summary>
     public const int ThargoidType = 29;
 
@@ -87,11 +93,10 @@ public sealed class Missions
     /// from the galaxy number and the coordinates.
     /// </summary>
     /// <remarks>
-    /// The original hard-codes galaxy 2 at (144, 33), but no system in this implementation's
-    /// generated galaxies sits at exactly those coordinates — the nearest is (145, 29). Galaxy 1
-    /// matches the original's own names and data exactly, so the discrepancy is in the later
-    /// galaxies, and it is recorded in the roadmap as a bug to chase. Until it is fixed the target
-    /// is resolved to the nearest system, so the mission is playable rather than unreachable.
+    /// The original hard-codes galaxy 2 at (144, 33), and with the seeds twisted four times per
+    /// system — as its TT20 does — the system at those coordinates is Orarra, system 193, exactly
+    /// where the original's mission tables put it. The nearest-system fallback is kept only as a
+    /// safety net; ConstrictorTargetExists reports whether the original's coordinates are there.
     /// </remarks>
     public static bool IsConstrictorSystem(StarSystem system, int galaxyNumber) =>
         galaxyNumber == ConstrictorGalaxy && system.Seeds == ConstrictorTarget(system.Seeds).Seeds;

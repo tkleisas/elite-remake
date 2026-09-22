@@ -244,6 +244,13 @@ public static class Galaxy
         return ((byte)(product >> 8), (byte)product);
     }
 
+    /// <summary>
+    /// How many times the seeds are twisted to move from one system to the next. The original's TT20
+    /// twists them four times, which is easy to miss: twist them once and a galaxy still looks
+    /// plausible, but only every fourth system is one the original actually has.
+    /// </summary>
+    public const int TwistsPerSystem = 4;
+
     /// <summary>Generates all 256 systems of a galaxy, in order.</summary>
     public static StarSystem[] GenerateGalaxy(SystemSeeds galaxySeeds)
     {
@@ -252,10 +259,21 @@ public static class Galaxy
         for (int i = 0; i < SystemsPerGalaxy; i++)
         {
             systems[i] = Describe(seeds, i);
-            seeds = Twist(seeds);
+            seeds = NextSystem(seeds);
         }
 
         return systems;
+    }
+
+    /// <summary>TT20: the seeds of the next system, four twists on from this one.</summary>
+    public static SystemSeeds NextSystem(SystemSeeds seeds)
+    {
+        for (int i = 0; i < TwistsPerSystem; i++)
+        {
+            seeds = Twist(seeds);
+        }
+
+        return seeds;
     }
 
     /// <summary>Generates all 256 systems of the given galaxy number.</summary>
@@ -283,7 +301,7 @@ public static class Galaxy
                 bestIndex = index;
             }
 
-            seeds = Twist(seeds);
+            seeds = NextSystem(seeds);
         }
 
         return (Describe(bestSeeds, bestIndex), best);

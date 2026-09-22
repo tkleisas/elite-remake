@@ -1,3 +1,4 @@
+using EliteRemake.Core.Sim;
 using EliteRemake.Core.Universe;
 using Xunit;
 
@@ -272,5 +273,83 @@ public class GalaxyAnchorTests
             Assert.True(Math.Abs(nearest.X - 96) + Math.Abs(nearest.Y - 96) < 40,
                 $"the arrival system in galaxy {galaxy} should be near (96,96), not ({nearest.X},{nearest.Y})");
         }
+    }
+}
+
+/// <summary>
+/// Checks the galaxy against the original's own mission tables, which name systems by their number
+/// within the galaxy.
+/// </summary>
+/// <remarks>
+/// This is the strongest check available on the galaxy generation, because it pins both the names
+/// and the ordering. It is also the check that found the real bug: the original's TT20 twists the
+/// seeds four times to move from one system to the next, and twisting them once still produces a
+/// plausible-looking galaxy — right names, right coordinates — but only every fourth system is one
+/// the original actually has, and the rest are inventions. With four twists the tables line up
+/// exactly, all 23 entries plus Lave, and Orarra lands on (144, 33) where the original's THERE
+/// routine looks for it.
+/// </remarks>
+public class GalaxyIndexTests
+{
+    /// <summary>The systems the original's RUPLA table names, by galaxy and system number.</summary>
+    public static TheoryData<int, int, string> TrailSystems => new()
+    {
+        { 0, 211, "TEORGE" },
+        { 0, 150, "XEER" },
+        { 0, 36, "REESDICE" },
+        { 0, 28, "AREXE" },
+        { 0, 7, "LAVE" },
+        { 1, 253, "ERRIUS" },
+        { 1, 79, "INBIBE" },
+        { 1, 53, "AUSAR" },
+        { 1, 118, "USLERI" },
+        { 1, 32, "BEBEGE" },
+        { 1, 68, "CEARSO" },
+        { 1, 164, "DICELA" },
+        { 1, 220, "ERINGE" },
+        { 1, 106, "GEXEIN" },
+        { 1, 16, "ISARIN" },
+        { 1, 162, "LETIBEMA" },
+        { 1, 3, "MAISSO" },
+        { 1, 107, "ONEN" },
+        { 1, 26, "RAMAZA" },
+        { 1, 192, "SOSOLE" },
+        { 1, 184, "TIVERE" },
+        { 1, 5, "VERIAR" },
+        { 1, 193, "ORARRA" },
+        { 2, 101, "XEVEON" },
+    };
+
+    [Theory]
+    [MemberData(nameof(TrailSystems))]
+    public void SystemsMatchTheOriginalsNumbering(int galaxy, int index, string name)
+    {
+        StarSystem system = Galaxy.GenerateGalaxy(galaxy)[index];
+        Assert.Equal(name, system.Name);
+    }
+
+    [Fact]
+    public void TheConstrictorsSystemIsWhereTheOriginalLooksForIt()
+    {
+        // The original's THERE routine hard-codes galaxy 2 at (144, 33), and that is where the
+        // Constrictor waits: Orarra, system 193
+        StarSystem orarra = Galaxy.GenerateGalaxy(Missions.ConstrictorGalaxy)[Missions.ConstrictorIndex];
+        Assert.Equal(Missions.ConstrictorX, orarra.X);
+        Assert.Equal(Missions.ConstrictorY, orarra.Y);
+
+        // And the mission's own lookup finds it, so no fallback is needed
+        Assert.True(Missions.ConstrictorTargetExists(Galaxy.GalaxySeeds(Missions.ConstrictorGalaxy)));
+    }
+
+    [Fact]
+    public void AGalacticJumpArrivesAtOrorra()
+    {
+        // A jump always arrives at the system nearest (96, 96), which the original's documentation
+        // names as Ororra in the second galaxy
+        StarSystem arrival = Galaxy.GenerateGalaxy(1)
+            .OrderBy(s => Math.Abs(s.X - 96) + Math.Abs(s.Y - 96))
+            .First();
+
+        Assert.Equal("ORORRA", arrival.Name);
     }
 }
