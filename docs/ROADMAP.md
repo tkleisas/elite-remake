@@ -779,3 +779,43 @@ used to fly away for ever; it now flies to the station, and of six approaches te
 (including one starting 900 units off to the right) and four reach the station within 240 units and
 then collide with it — that is, they arrive but do not get lined up with the slot in time. Closing
 that last gap is the next piece of work, and the harness for it is four lines long.
+
+## The docking computer: what the counter magnitude really is
+
+Chasing the last of the off-axis failure turned up a principle that matters well beyond docking, and
+it is worth writing down before the next attempt at it.
+
+**A counter is a number of frames, not an angle.** The original's MVEIT part 8 calls MVS5 once when
+the counter is non-zero, and MVS5 turns the ship by a *fixed* 1/16 radian whatever the counter says.
+The counter is then decremented, so a counter of `m` turns the ship for `m` frames — a total of
+`3.58 * m` degrees. `SetCounters` currently reads the magnitude as the angle instead, which is right
+for the small counters DOCKIT uses (2, or 0x82) and increasingly too small for large ones: a counter
+of 127 should turn nearly three quarters of a circle and our model gives it a quarter. The station's
+own roll uses 255, so this is only reachable through the counters rather than through `SpinRoll`,
+but it is a real divergence and the fix is to apply MVS5 `m` times rather than to scale one turn.
+
+**Where the off-axis approach actually fails.** With the station 107 units off the slot axis:
+
+- The station's screen offset is `aim.X = 0.0356`, which is `rollA = 3` in the original's units.
+- The refine logic only acts when `rollA` or `pitchA` exceeds RAT2, which is **6**.
+- So the autopilot commands neither a roll nor a pitch, and the approach is left uncorrected.
+
+That is a genuine deadband in the original's design, and it is why docking dead ahead works (there is
+nothing to correct) and why offsets up to about 80 units now work (the refine logic does act on the
+way in). Past that the ship arrives with a lateral offset it never removes, and the docking check —
+which wants the ship within 120 units of the slot axis — refuses it. The measurements, taken by
+sweeping the offset:
+
+| start offset | result |
+| --- | --- |
+| 0-80 | docks (frame 367 to 1158) |
+| 107 | reaches the station, parks 107 units off the axis, collides |
+| 150 | docks |
+| 200, 300 | reach the station ~103 units off the axis, collide |
+
+So the failure is not a divergence any more, it is a limit: the autopilot flies to the station and
+then cannot close the last hundred units of lateral offset. The next thing to try is whether PH1 —
+which is meant to fly for the *ideal docking position* out along the slot — should still be active
+at that range. `IdealDockingSteps` puts that position 768 units out from the station centre, and the
+ship is inside it by then, so PH3 has taken over and PH3 has no way to correct a purely sideways
+offset without a yaw control, which the original does not have either.
