@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>EliteRemake.Game</RootNamespace>
+    <AssemblyName>EliteRemake</AssemblyName>
+    <ApplicationIcon />
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.5.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\EliteRemake.Core\EliteRemake.Core.csproj" />
+    <ProjectReference Include="..\EliteRemake.Data\EliteRemake.Data.csproj" />
+  </ItemGroup>
+</Project>

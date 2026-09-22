@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>EliteRemake.Data</RootNamespace>
+    <AssemblyName>EliteRemake.Data</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\EliteRemake.Core\EliteRemake.Core.csproj" />
+  </ItemGroup>
+</Project>

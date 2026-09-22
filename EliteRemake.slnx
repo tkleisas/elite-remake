@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/EliteRemake.Core/EliteRemake.Core.csproj" />
+    <Project Path="src/EliteRemake.Data/EliteRemake.Data.csproj" />
+    <Project Path="src/EliteRemake.Game/EliteRemake.Game.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/EliteRemake.Core.Tests/EliteRemake.Core.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/EliteDataExtractor/EliteDataExtractor.csproj" />
+  </Folder>
+</Solution>
