@@ -2274,3 +2274,70 @@ public class DockingComputerControlTests
         Assert.False(far.SlowDown);
     }
 }
+
+/// <summary>
+/// Checks collisions with other ships, which the original's main flight loop handles: we take 128
+/// damage, the ship we hit takes 64, and it becomes thoroughly annoyed.
+/// </summary>
+public class CollisionTests
+{
+    private static (FlightSim Sim, Ship Other) SetUp(int x, int y, int z)
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = false,
+            Commander = Commander.CreateDefault(),
+        };
+
+        sim.Player.Energy = 255;
+        sim.Player.ForeShield = 255;
+        sim.Player.AftShield = 255;
+
+        var other = Ship.Create(17, "sidewinder", "Sidewinder", 0, 0, 0, 0, 2000);
+        other.Energy = 70;
+        other.SetPosition(x, y, z);
+        sim.Spawn(other);
+        return (sim, other);
+    }
+
+    [Fact]
+    public void FlyingIntoAShipHurtsUsMoreThanIt()
+    {
+        var (sim, other) = SetUp(40, 0, 40);
+        sim.Step();
+
+        Assert.Same(other, sim.CollidedWith);
+
+        // The shields absorb 128, so they drop to 127 and none reaches the energy banks
+        Assert.Equal(255 - FlightSim.CollisionDamageToUs, sim.Player.ForeShield);
+        Assert.Equal(255, sim.Player.Energy);
+
+        // The other ship takes 64, which its 70 energy survives
+        Assert.Equal(70 - FlightSim.CollisionDamageToThem, other.Energy);
+
+        // And it is angry now
+        Assert.True(other.AiFlag >= 0x80, "the ship we collided with should be hostile");
+    }
+
+    [Fact]
+    public void AShipFarAwayIsNotACollision()
+    {
+        var (sim, _) = SetUp(0, 0, 3000);
+        sim.Step();
+
+        Assert.Null(sim.CollidedWith);
+        Assert.Equal(255, sim.Player.ForeShield);
+    }
+
+    [Fact]
+    public void AWeakShipIsDestroyedByTheCollision()
+    {
+        var (sim, other) = SetUp(20, 0, 20);
+        other.Energy = 10; // less than the 64 the collision does
+
+        sim.Step();
+
+        Assert.True(other.IsExploding, "a weak ship should be destroyed by the collision");
+        Assert.Same(other, sim.DestroyedThisFrame);
+    }
+}

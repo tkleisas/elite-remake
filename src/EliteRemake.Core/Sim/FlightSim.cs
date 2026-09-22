@@ -189,6 +189,9 @@ public sealed class FlightSim
         Combat.RechargeShields(Player);
         Combat.RechargeEnergy(Player);
 
+        // Flying into another ship hurts us badly and annoys it
+        UpdateCollisions();
+
         // The energy bomb, if it is going off, kills everything in reach
         BombKillsThisFrame = 0;
         UpdateEnergyBomb();
@@ -322,6 +325,73 @@ public sealed class FlightSim
 
     /// <summary>How many ships the energy bomb destroyed this frame.</summary>
     public int BombKillsThisFrame { get; private set; }
+
+    /// <summary>
+    /// The damage we take when we fly into another ship, and the damage we do to it. The original's
+    /// main flight loop applies 128 to us with OOPS and 64 to the ship we hit, and makes it angry.
+    /// </summary>
+    public const int CollisionDamageToUs = 128;
+
+    /// <summary>The damage a collision does to the ship we flew into.</summary>
+    public const int CollisionDamageToThem = 64;
+
+    /// <summary>Set when we collide with a ship this frame, for the game to report.</summary>
+    public Ship? CollidedWith { get; private set; }
+
+    /// <summary>
+    /// Checks for collisions with other ships. The original treats any ship we touch as a collision,
+    /// except the space station, which has its own docking checks: we take 128 damage, it takes 64,
+    /// and it becomes thoroughly annoyed with us.
+    /// </summary>
+    private void UpdateCollisions()
+    {
+        CollidedWith = null;
+
+        foreach (Ship ship in _bubble)
+        {
+            // The station has its own docking checks, and a missile reaching us is a detonation
+            // rather than a collision, which the missile code handles
+            if (ship.IsKilled ||
+                IsCelestial(ship.Type) ||
+                ship.Type == Combat.SpaceStationType ||
+                Missiles.IsMissile(ship.Type))
+            {
+                continue;
+            }
+
+            // The original only considers ships within 256 units on every axis, and further than
+            // 127 on none of them
+            (int x, int y, int z) = ship.GetPosition();
+            if ((x >> 8) != 0 || (y >> 8) != 0 || (z >> 8) != 0)
+            {
+                continue;
+            }
+
+            if (Math.Abs(x) > 127 || Math.Abs(y) > 127 || Math.Abs(z) > 127)
+            {
+                continue;
+            }
+
+            // A collision: we are hurt far more than the ship we ran into
+            CollidedWith = ship;
+            ship.AiFlag = 0xFF;
+
+            if (Combat.ApplyHit(ship, CollisionDamageToThem))
+            {
+                ship.IsExploding = true;
+                ship.Flags |= 0x40;
+                DestroyedThisFrame = ship;
+                DropsThisFrame = Debris.DestructionDrops(ship.Type, 0, Random);
+            }
+
+            if (Combat.TakeDamage(Player, CollisionDamageToUs, fromBehind: false))
+            {
+                PlayerDied = true;
+            }
+
+            break;
+        }
+    }
 
     /// <summary>
     /// Hitting the space station anywhere but its slot, which the original treats as fatal: the
