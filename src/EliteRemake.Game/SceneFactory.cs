@@ -93,6 +93,13 @@ public static class SceneFactory
                 ? laserBlueprint.Header.LaserPower
                 : 0;
 
+        // The original halves blueprint byte #19 to get the damage an enemy inflicts on us
+        sim.DamageProvider = ship =>
+            ShipCatalog.ByType(ship.Type) is { } attacker &&
+            EliteRemake.Data.Ships.ShipData.ById(attacker.Id) is { } attackerBlueprint
+                ? Math.Max(0, attackerBlueprint.Header.LaserMissileByte / 2)
+                : 0;
+
         sim.TargetableAreaProvider = ship =>
             ShipCatalog.ByType(ship.Type) is { } entry &&
             EliteRemake.Data.Ships.ShipData.ById(entry.Id) is { } blueprint

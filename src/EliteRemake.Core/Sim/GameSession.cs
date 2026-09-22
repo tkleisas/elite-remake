@@ -68,6 +68,51 @@ public sealed class GameSession
         Message = $"Docked at {System.Name} station.";
     }
 
+    /// <summary>True once the commander has been killed.</summary>
+    public bool GameOver { get; private set; }
+
+    /// <summary>
+    /// Handles the destruction of our ship. With an escape pod fitted the commander survives, loses
+    /// the cargo and wakes up in the station, as the original does; without one it is game over,
+    /// and the commander is rebuilt from scratch (until save and load arrive, this stands in for
+    /// reloading the last saved commander).
+    /// </summary>
+    public void HandlePlayerDeath()
+    {
+        if (Commander.EscapePod)
+        {
+            for (int item = 0; item < 17; item++)
+            {
+                Commander.RemoveCargo(item, Commander.GetCargo(item));
+            }
+
+            Commander.EscapePod = false;
+            Console.WriteLine("Escape pod launched: cargo lost, commander recovered at the station.");
+            Dock();
+            return;
+        }
+
+        GameOver = true;
+        Message = "GAME OVER - press ESC to leave, or N for a new commander";
+    }
+
+    /// <summary>Starts again with a fresh commander, as reloading a save does.</summary>
+    public void Restart()
+    {
+        GameOver = false;
+        Commander.Cash = 1000;
+        Commander.Fuel = 70;
+        Commander.Missiles = 3;
+        Commander.Kills = 0;
+        Commander.LegalStatus = 0;
+        Commander.SetLaser(LaserMount.Front, LaserType.Pulse);
+        Flight.Player.Energy = 150;
+        Flight.Player.ForeShield = 255;
+        Flight.Player.AftShield = 255;
+        Message = "New commander: 100 credits, full tank, pulse laser, three missiles.";
+        Launch();
+    }
+
     /// <summary>Launches from the station.</summary>
     public void Launch()
     {

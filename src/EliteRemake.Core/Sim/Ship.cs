@@ -145,6 +145,20 @@ public sealed class Ship
     public byte MaxEnergy { get; set; }
 
     /// <summary>
+    /// The forward shield (the original's FSH). For our ship only: 0 is empty, 255 is full.
+    /// </summary>
+    public byte ForeShield { get; set; } = 255;
+
+    /// <summary>The aft shield (the original's ASH).</summary>
+    public byte AftShield { get; set; } = 255;
+
+    /// <summary>
+    /// Whether an energy unit is fitted, which doubles the rate the energy banks recharge at (the
+    /// original's ENGY).
+    /// </summary>
+    public bool HasEnergyUnit { get; set; }
+
+    /// <summary>
     /// The blueprint's visibility distance: beyond this many multiples of 256 units (the original
     /// compares it against z_hi) the ship is drawn as a dot rather than a model.
     /// </summary>

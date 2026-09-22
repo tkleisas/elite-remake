@@ -61,6 +61,18 @@ public sealed class HudRenderer
         DrawRightPanel(spriteBatch, pixel, sim);
         DrawCompass(spriteBatch, pixel);
 
+        // The original flashes "ENERGY LOW" when the banks drop below 50
+        if (sim.Player.Energy < 50)
+        {
+            _text.DrawCentred(
+                spriteBatch,
+                "ENERGY LOW",
+                _view.Width / 2,
+                (int)(_view.Height * 0.62f),
+                Math.Max(2, TextScale),
+                Palette.Red);
+        }
+
         spriteBatch.End();
     }
 
@@ -110,8 +122,8 @@ public sealed class HudRenderer
         float spacing = _dashboard.Height * 0.135f;
 
         // Fore and aft shields, then fuel and the two temperatures, as on the original panel
-        DrawLabelledBar(spriteBatch, pixel, left, top, width, height, 1.0f, Palette.Cyan, "FS");
-        DrawLabelledBar(spriteBatch, pixel, left, top + spacing, width, height, 1.0f, Palette.Cyan, "AS");
+        DrawLabelledBar(spriteBatch, pixel, left, top, width, height, sim.Player.ForeShield / 255f, Palette.Cyan, "FS");
+        DrawLabelledBar(spriteBatch, pixel, left, top + spacing, width, height, sim.Player.AftShield / 255f, Palette.Cyan, "AS");
         DrawLabelledBar(spriteBatch, pixel, left, top + (spacing * 2), width, height, 0.7f, Palette.Yellow, "FU");
         DrawLabelledBar(spriteBatch, pixel, left, top + (spacing * 3), width, height, 0.25f, Palette.Red, "CT");
         DrawLabelledBar(spriteBatch, pixel, left, top + (spacing * 4), width, height, sim.LaserTemperature / 255f, Palette.Red, "LT");

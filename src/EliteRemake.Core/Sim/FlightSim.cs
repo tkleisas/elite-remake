@@ -51,7 +51,14 @@ public sealed class FlightSim
 
     /// <summary>Creates a flight simulation with our ship and an empty bubble.</summary>
     /// <param name="player">Our ship. Its position and orientation are not used in flight.</param>
-    public FlightSim(Ship player) => Player = player;
+    public FlightSim(Ship player)
+    {
+        Player = player;
+
+        // By default a ship's laser does its own power in damage, unless the game supplies the
+        // original's byte #19 based figure
+        DamageProvider = ship => LaserPowerOf(ship);
+    }
 
     /// <summary>Our ship.</summary>
     public Ship Player { get; }
@@ -148,17 +155,30 @@ public sealed class FlightSim
             Ship ship = _bubble[slot];
 
             // TACTICS runs before the ship is moved, as it does in the original
-            int before = Player.Energy;
-            if (Tactics.Apply(ship, Random, Player, LaserPowerOf(ship)))
+            int before = Player.Energy + Player.ForeShield + Player.AftShield;
+            if (Tactics.Apply(ship, Random, Player, LaserPowerOf(ship), DamageOf(ship)))
             {
-                DamageTakenThisFrame += before - Player.Energy;
+                DamageTakenThisFrame += before - (Player.Energy + Player.ForeShield + Player.AftShield);
+
+                if (Player.Energy == 0)
+                {
+                    PlayerDied = true;
+                }
             }
 
             Mveit(ship, slot);
         }
 
+        // Recharge the energy banks and, above half full, the shields, as the original does at
+        // the end of its flight loop
+        Combat.RechargeShields(Player);
+        Combat.RechargeEnergy(Player);
+
         MainLoopCounter++;
     }
+
+    /// <summary>True once our ship has been destroyed; the game clears it once it has reacted.</summary>
+    public bool PlayerDied { get; set; }
 
     /// <summary>
     /// Applies the speed keys. The original changes DELTA by one per frame, caps it at 40 and never
@@ -273,7 +293,15 @@ public sealed class FlightSim
     /// </summary>
     public Func<Ship, int> LaserPowerProvider { get; set; } = _ => 0;
 
+    /// <summary>
+    /// How much damage a ship's laser does to us, which the original takes from byte #19 of the
+    /// blueprint halved — that byte packs the laser power and missile count together.
+    /// </summary>
+    public Func<Ship, int> DamageProvider { get; set; } = _ => 0;
+
     private int LaserPowerOf(Ship ship) => LaserPowerProvider(ship);
+
+    private int DamageOf(Ship ship) => DamageProvider(ship);
 
     private int TargetableArea(Ship ship) => TargetableAreaProvider(ship);
 

@@ -64,9 +64,12 @@ Primary target variant: **`versions/disc`, variant `sth` (Stairway to Hell)**, w
   ships fight back: the TACTICS aggression test against the AI flag, steering towards or away from
   us with the original's RAT of 3 and RAT2 of 4, an aim and range test before opening fire, and
   damage to our ship. Implementing the AI also meant porting MVEIT part 8, the routine that turns a
-  ship about its own axes — without it the AI's steering had nothing to drive. Still to do: missiles,
-  E.C.M., shields absorbing damage before energy, energy recharge, death and escape pods, spawning,
-  bounty payouts, and the kill-to-rating wiring.
+  ship about its own axes — without it the AI's steering had nothing to drive. Also done: the
+  original's damage model, with the fore and aft shields absorbing hits before the energy banks
+  (OOPS), the shields recharging from the banks only above half charge (SHD), the banks recharging at
+  ENGY + 1 a frame, the energy-low warning, and death — resolved by an escape pod if one is fitted.
+  Still to do: missiles, E.C.M., energy bombs, spawning, bounty payouts, the kill-to-rating wiring,
+  and the full death sequence.
 - **M5 — Docked screens & missions.** In progress. Done: the commander data block with the
   original's default commander (100 credits, full tank, front pulse laser, three missiles, docked at
   Lave), the trade table and its price and availability formulas (GVL/TT151), a game session that

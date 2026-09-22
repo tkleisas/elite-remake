@@ -124,6 +124,14 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
 
         UpdateCameraToViewport();
 
+        // Being destroyed resolves to the station (with an escape pod) or to game over
+        if (_session.Flight.PlayerDied && _session.Mode == GameMode.Flying)
+        {
+            _session.Flight.PlayerDied = false;
+            _session.Flight.Player.Energy = 150;
+            _session.HandlePlayerDeath();
+        }
+
         // The session decides whether we are flying or docked; follow it
         IScene wanted = CreateSceneForMode();
         if (!ReferenceEquals(wanted, _scene))

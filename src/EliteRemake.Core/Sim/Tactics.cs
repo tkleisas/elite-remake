@@ -52,8 +52,13 @@ public static class Tactics
     /// <param name="ship">The ship whose turn it is.</param>
     /// <param name="random">The random number generator.</param>
     /// <param name="player">Our ship, so the AI can damage it.</param>
-    /// <param name="laserPower">The ship's laser power, from its blueprint.</param>
-    public static bool Apply(Ship ship, EliteRandom random, Ship player, int laserPower)
+    /// <param name="laserPower">The ship's laser power, from its blueprint; zero means no laser.</param>
+    /// <param name="damage">
+    /// The damage the ship inflicts when it hits, which the original takes from byte #19 of its
+    /// blueprint halved: that byte holds the laser power and missile count together, and halving it
+    /// is what the original actually does.
+    /// </param>
+    public static bool Apply(Ship ship, EliteRandom random, Ship player, int laserPower, int damage)
     {
         if (ship.IsExploding || ship.IsKilled || !IsUnderPilotControl(ship.Type))
         {
@@ -98,8 +103,9 @@ public static class Tactics
         // Fire if we are close, roughly ahead, and the ship has a laser
         if (laserPower > 0 && aimZ > AimCosine && distance < FireRange)
         {
-            ApplyDamageToPlayer(player, laserPower);
-            return true;
+            // The original reads the attacker's z_sign to decide which of our shields was hit
+            bool fromBehind = z < 0;
+            return Combat.TakeDamage(player, damage, fromBehind);
         }
 
         return false;
@@ -136,13 +142,4 @@ public static class Tactics
         return value.LengthSquared() > 0 ? System.Numerics.Vector3.Normalize(value) : new System.Numerics.Vector3(0, 0, 1);
     }
 
-    /// <summary>
-    /// Applies laser damage to our ship. Shields absorb the hit first once they are modelled; for
-    /// now the damage comes straight off our energy, as it does when our shields are down.
-    /// </summary>
-    private static void ApplyDamageToPlayer(Ship player, int laserPower)
-    {
-        int energy = player.Energy - laserPower;
-        player.Energy = (byte)Math.Clamp(energy, 0, 255);
-    }
 }

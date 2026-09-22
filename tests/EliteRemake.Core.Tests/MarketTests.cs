@@ -401,7 +401,10 @@ public class CombatTests
         Assert.Equal(15, sim.FiringLaserPower);
         Assert.Same(target, sim.LaserTarget);
         Assert.Equal(70 - 15, target.Energy);
-        Assert.Equal(149, sim.Player.Energy);
+
+        // Firing costs a unit of energy, but the energy banks recharge a unit a frame as well, so
+        // the two cancel out — which is exactly what the original does
+        Assert.Equal(150, sim.Player.Energy);
         // The shot adds 8 degrees and the frame's cooling takes one back off again
         Assert.Equal(Combat.HeatPerShot - Combat.CoolingPerFrame, sim.LaserTemperature);
         Assert.True(sim.LaserCooldown > 0, "a pulse laser should have to wait between shots");
@@ -538,7 +541,7 @@ public class TacticsTests
         enemy.SetPosition(0, 0, 1500);
         enemy.Orientation.SetUnity(Orientation.Nosev, Orientation.Z, -1.0);
 
-        int before = sim.Player.Energy;
+        int shieldsBefore = sim.Player.ForeShield + sim.Player.AftShield;
         bool hit = false;
         for (int i = 0; i < 50 && !hit; i++)
         {
@@ -547,7 +550,9 @@ public class TacticsTests
         }
 
         Assert.True(hit, "an enemy lined up on us at close range should open fire");
-        Assert.True(sim.Player.Energy < before, "and it should cost us energy");
+        Assert.True(
+            sim.Player.ForeShield + sim.Player.AftShield < shieldsBefore,
+            "and the damage should come off our shields first");
     }
 
     [Fact]
@@ -580,5 +585,117 @@ public class TacticsTests
             sim.Step();
             Assert.Equal(0, sim.DamageTakenThisFrame);
         }
+    }
+}
+
+/// <summary>
+/// Checks the damage model: shields absorbing hits before the energy banks, the recharge rules, and
+/// the point at which a hit is fatal.
+/// </summary>
+public class DamageTests
+{
+    private static Ship CreateShip()
+    {
+        var ship = new Ship(11, "cobra-mk-3", "Cobra Mk III");
+        ship.Energy = 150;
+        ship.ForeShield = 255;
+        ship.AftShield = 255;
+        return ship;
+    }
+
+    [Fact]
+    public void ShieldsAbsorbHitsBeforeTheEnergyBanks()
+    {
+        Ship ship = CreateShip();
+
+        // A hit from the front comes off the fore shield and nothing else
+        Assert.False(Combat.TakeDamage(ship, 20, fromBehind: false));
+        Assert.Equal(235, ship.ForeShield);
+        Assert.Equal(255, ship.AftShield);
+        Assert.Equal(150, ship.Energy);
+
+        // And a hit from behind comes off the aft shield
+        Assert.False(Combat.TakeDamage(ship, 20, fromBehind: true));
+        Assert.Equal(235, ship.ForeShield);
+        Assert.Equal(235, ship.AftShield);
+        Assert.Equal(150, ship.Energy);
+    }
+
+    [Fact]
+    public void DamageBeyondTheShieldReachesTheEnergyBanks()
+    {
+        Ship ship = CreateShip();
+        ship.ForeShield = 10;
+
+        // 10 points finish the shield and the remaining 15 come off the energy
+        Assert.False(Combat.TakeDamage(ship, 25, fromBehind: false));
+        Assert.Equal(0, ship.ForeShield);
+        Assert.Equal(135, ship.Energy);
+    }
+
+    [Fact]
+    public void AHitThatEmptiesTheEnergyBanksIsFatal()
+    {
+        Ship ship = CreateShip();
+        ship.ForeShield = 0;
+        ship.AftShield = 0;
+        ship.Energy = 30;
+
+        // Exactly enough to finish us off
+        Assert.True(Combat.TakeDamage(ship, 30, fromBehind: false));
+        Assert.Equal(0, ship.Energy);
+
+        // And anything beyond that as well
+        Ship second = CreateShip();
+        second.ForeShield = 5;
+        second.Energy = 10;
+        Assert.True(Combat.TakeDamage(second, 40, fromBehind: false));
+    }
+
+    [Fact]
+    public void EnergyRechargesAFrameAndDoublesWithAnEnergyUnit()
+    {
+        Ship ship = CreateShip();
+        ship.Energy = 100;
+
+        Combat.RechargeEnergy(ship);
+        Assert.Equal(101, ship.Energy);
+
+        ship.HasEnergyUnit = true;
+        Combat.RechargeEnergy(ship);
+        Assert.Equal(103, ship.Energy);
+
+        // And it stops at the maximum
+        ship.Energy = 255;
+        Combat.RechargeEnergy(ship);
+        Assert.Equal(255, ship.Energy);
+    }
+
+    [Fact]
+    public void ShieldsOnlyRechargeFromBanksAboveHalfFull()
+    {
+        Ship ship = CreateShip();
+        ship.ForeShield = 200;
+        ship.AftShield = 200;
+        ship.Energy = 100; // below half, so no shield charging
+
+        Combat.RechargeShields(ship);
+        Assert.Equal(200, ship.ForeShield);
+        Assert.Equal(200, ship.AftShield);
+        Assert.Equal(100, ship.Energy);
+
+        // Above half full, the banks pay a point for each shield
+        ship.Energy = 200;
+        Combat.RechargeShields(ship);
+        Assert.Equal(201, ship.ForeShield);
+        Assert.Equal(201, ship.AftShield);
+        Assert.Equal(198, ship.Energy);
+
+        // A full shield costs nothing
+        ship.ForeShield = 255;
+        ship.AftShield = 255;
+        ship.Energy = 200;
+        Combat.RechargeShields(ship);
+        Assert.Equal(200, ship.Energy);
     }
 }

@@ -99,6 +99,103 @@ public static class Combat
     }
 
     /// <summary>
+    /// OOPS: takes damage on our ship, with the shields absorbing it before the energy banks.
+    /// </summary>
+    /// <remarks>
+    /// The original decides which shield was hit from the attacker's z_sign: an attacker behind us
+    /// has a negative z, so its fire lands on the aft shield. If the shield cannot absorb the whole
+    /// hit, it drops to zero and the remainder comes off the energy banks — and if the energy banks
+    /// cannot absorb that, we die.
+    /// </remarks>
+    /// <param name="ship">Our ship.</param>
+    /// <param name="damage">The damage to take.</param>
+    /// <param name="fromBehind">True if the attacker is behind us.</param>
+    /// <returns>True if the damage destroyed us.</returns>
+    public static bool TakeDamage(Ship ship, int damage, bool fromBehind)
+    {
+        if (damage <= 0)
+        {
+            return false;
+        }
+
+        int shield = fromBehind ? ship.AftShield : ship.ForeShield;
+        if (shield >= damage)
+        {
+            if (fromBehind)
+            {
+                ship.AftShield = (byte)(shield - damage);
+            }
+            else
+            {
+                ship.ForeShield = (byte)(shield - damage);
+            }
+
+            return false;
+        }
+
+        // The shields are overwhelmed, so they drop to zero and the rest hits the energy banks
+        int overflow = damage - shield;
+        if (fromBehind)
+        {
+            ship.AftShield = 0;
+        }
+        else
+        {
+            ship.ForeShield = 0;
+        }
+
+        if (ship.Energy > overflow)
+        {
+            ship.Energy = (byte)(ship.Energy - overflow);
+            return false;
+        }
+
+        // Our energy levels are either zero or negative, so we have died
+        ship.Energy = 0;
+        return true;
+    }
+
+    /// <summary>
+    /// Recharges the shields from the energy banks, as the original's SHD routine does: each shield
+    /// gains a point and the energy banks pay for it, but only once the banks are above half full.
+    /// </summary>
+    public static void RechargeShields(Ship ship)
+    {
+        if ((ship.Energy & 0x80) == 0)
+        {
+            return; // the original only charges the shields above 50% energy
+        }
+
+        if (ship.AftShield < 255)
+        {
+            ship.AftShield++;
+            if (ship.Energy > 0)
+            {
+                ship.Energy--;
+            }
+        }
+
+        if (ship.ForeShield < 255)
+        {
+            ship.ForeShield++;
+            if (ship.Energy > 0)
+            {
+                ship.Energy--;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Recharges the energy banks. The original adds ENGY + 1 a frame, so an energy unit doubles
+    /// the rate.
+    /// </summary>
+    public static void RechargeEnergy(Ship ship)
+    {
+        int rate = ship.HasEnergyUnit ? 2 : 1;
+        ship.Energy = (byte)Math.Min(255, ship.Energy + rate);
+    }
+
+    /// <summary>
     /// Applies a laser hit to a ship, returning true if the hit destroyed it.
     /// </summary>
     public static bool ApplyHit(Ship target, int power)
