@@ -40,10 +40,13 @@ Primary target variant: **`versions/disc`, variant `sth` (Stairway to Hell)**, w
   **byte-for-byte** against the original's own binaries: 17 ship sets (`D.MOA`–`D.MOP` plus the
   docked hangar block inside `T.CODE`), 527 XX21 slots, 204 blueprints, 0 mismatches. Text tokens,
   galaxy seeds, market and equipment tables come next.
-- **M2 — Core maths & universe.** Fixed-point maths, galaxy generation (`TT54`/`TT111`/`cpl`),
-  system data (`TT25`), economy & prices, token-based text printing. Verified against canonical
-  values (galaxy 0: *Tibedied* is system 0, seeds `&5A4A/&0248/&B753`; **Lave** is at (20, 173)
-  and is "most famous for its vast rain forests and the Laveian tree grub").
+- **M2 — Core maths & universe.** In progress. Done: fixed-point maths ✅; the procedural galaxy ✅
+  (`TT54` twist, `cpl` name generation from the two-letter tokens, `TT24` system data, `TT111`
+  closest-system search, `GHY` galactic jumps), verified against the original's own universe —
+  **TIBEDIED** is system 0 of galaxy 0 from seeds `&5A4A/&0248/&B753`, and **LAVE** comes out at
+  exactly (20, 173) as a Rich Agricultural dictatorship with a radius of 4116 km. Still to do: the
+  system description generator (`TT25`, "most famous for its vast rain forests..."), market and
+  equipment tables (`QQ23`), and the token-based text printer.
 - **M3 — Flight & rendering.** In progress. Done: solid-face 3D renderer with painter's-algorithm
   depth sorting and the original's visibility rules; view camera matching the original's projection;
   ported flight maths (`MVS4`/`MVS5`/`TIDY`/`MVEIT` parts 1/3/5/6/7); flight controls with keyboard
