@@ -93,6 +93,11 @@ public sealed class MarketScene : IScene
             _session.Screen = DockedScreen.DataOnSystem;
         }
 
+        if (IsNewPress(keys, Keys.F8))
+        {
+            _session.Screen = DockedScreen.Status;
+        }
+
         if (IsNewPress(keys, Keys.Escape))
         {
             _session.Launch();
@@ -170,7 +175,7 @@ public sealed class MarketScene : IScene
         y += cellHeight;
         _text.Draw(spriteBatch, _session.Message, left, y, scale, Palette.Cyan);
         y += cellHeight;
-        _text.Draw(spriteBatch, "1-0 SELECT  B BUY  S SELL  E EQUIPMENT  F1/F2 CHARTS  F3 DATA  ESC LAUNCH", left, y, scale, new Color(120, 128, 140));
+        _text.Draw(spriteBatch, "1-0 SELECT  B BUY  S SELL  E EQUIPMENT  F1/F2 CHARTS  F3 DATA  F8 STATUS  ESC LAUNCH", left, y, scale, new Color(120, 128, 140));
 
         spriteBatch.End();
     }

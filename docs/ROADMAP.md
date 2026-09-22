@@ -94,8 +94,17 @@ Primary target variant: **`versions/disc`, variant `sth` (Stairway to Hell)**, w
   will reach, and the long-range chart of the whole galaxy, both with the crosshairs moved by the
   cursor keys and the selected system's data underneath, and H to jump — and Data on System, which
   shows the selected system's distance, economy, government, tech level, population, productivity,
-  radius and coordinates, all from its seeds. Still to do: the shipyard, the system *description*
-  generator, save/load, missions, and the galactic hyperdrive.
+  radius and coordinates, all from its seeds; the commander's status and inventory; and the galactic
+  hyperdrive, which is consumed on use and rotates the galaxy seeds one bit to the left, so eight
+  jumps bring you back to where you started.
+
+  **There is no shipyard in the disc version.** An earlier entry in this roadmap listed one, but
+  checking the original's docked screens shows they are Buy Cargo (f1), Sell Cargo (f2), Equip Ship,
+  the Long-range Chart (f4), the Short-range Chart (f5), Data on System (f6), Market Prices (f7),
+  Status and Inventory (f9) — the shipyard is an Elite-A feature, so full disc parity does not need
+  one. That entry has been removed.
+
+  Still to do: the system *description* generator, save/load, and the missions.
 
   A note on the description generator: the phrases ("most famous for its vast rain forests…") live
   in the original's extended token table, TKN1, which runs to over six thousand lines of source, and

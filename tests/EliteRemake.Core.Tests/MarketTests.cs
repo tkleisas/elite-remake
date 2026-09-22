@@ -1570,3 +1570,57 @@ public class AudioTests
         return crossings;
     }
 }
+
+/// <summary>
+/// Checks the galactic hyperdrive: it needs the drive fitted, it is consumed, and it moves us to
+/// the next galaxy with the same system number.
+/// </summary>
+public class GalacticHyperdriveTests
+{
+    private static GameSession CreateSession()
+    {
+        var player = new Ship(11, "cobra-mk-3", "Cobra Mk III");
+        return new GameSession(Commander.CreateDefault(), new FlightSim(player));
+    }
+
+    [Fact]
+    public void TheDriveIsConsumedAndMovesUsToTheNextGalaxy()
+    {
+        GameSession session = CreateSession();
+        string systemName = session.System.Name;
+        int index = session.System.Index;
+
+        // Without the drive nothing happens
+        Assert.False(session.UseGalacticHyperdrive());
+        Assert.Contains("No galactic hyperdrive", session.Message);
+        Assert.Equal(0, session.Commander.GalaxyNumber);
+
+        session.Commander.GalacticHyperdrive = true;
+        Assert.True(session.UseGalacticHyperdrive());
+
+        Assert.Equal(1, session.Commander.GalaxyNumber);
+        Assert.False(session.Commander.GalacticHyperdrive);
+
+        // We arrive at the same system number in the new galaxy, with a different name
+        Assert.Equal(index, session.System.Index);
+        Assert.Equal(session.System.Name, session.Commander.CurrentSystem.Name);
+        Assert.Equal(session.System.Name, session.SelectedSystem.Name);
+        Assert.NotEqual(systemName, session.System.Name);
+    }
+
+    [Fact]
+    public void EightJumpsComeBackToTheFirstGalaxy()
+    {
+        GameSession session = CreateSession();
+        string first = session.System.Name;
+
+        for (int i = 0; i < Galaxy.GalaxyCount; i++)
+        {
+            session.Commander.GalacticHyperdrive = true;
+            Assert.True(session.UseGalacticHyperdrive());
+        }
+
+        Assert.Equal(0, session.Commander.GalaxyNumber);
+        Assert.Equal(first, session.System.Name);
+    }
+}

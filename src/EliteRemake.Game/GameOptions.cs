@@ -140,6 +140,7 @@ public sealed class GameOptions
                         "short" or "shortchart" => DockedScreen.ShortRangeChart,
                         "long" or "longchart" => DockedScreen.LongRangeChart,
                         "data" or "dataonsystem" => DockedScreen.DataOnSystem,
+                        "status" or "inventory" => DockedScreen.Status,
                         _ => DockedScreen.Market,
                     };
                     break;

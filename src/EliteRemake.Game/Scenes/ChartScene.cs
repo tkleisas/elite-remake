@@ -140,6 +140,11 @@ public sealed class ChartScene : IScene
             _session.Screen = DockedScreen.DataOnSystem;
         }
 
+        if (IsNewPress(keys, Keys.F8))
+        {
+            _session.Screen = DockedScreen.Status;
+        }
+
         if (IsNewPress(keys, Keys.Escape))
         {
             _session.Screen = DockedScreen.Market;
@@ -295,7 +300,7 @@ public sealed class ChartScene : IScene
         line += cellHeight;
         _text.Draw(
             spriteBatch,
-            "CURSORS MOVE   S SHORT   L LONG   F3 DATA   H HYPERSPACE   ESC BACK",
+            "CURSORS MOVE   S SHORT   L LONG   F3 DATA   F8 STATUS   H HYPERSPACE   ESC BACK",
             left + cellWidth,
             line,
             scale,

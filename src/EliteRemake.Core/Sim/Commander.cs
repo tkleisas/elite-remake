@@ -181,6 +181,9 @@ public sealed class Commander
         _ => "Elite",
     };
 
+    /// <summary>True when the commander is anything other than clean.</summary>
+    public bool IsWanted => LegalStatus > 0;
+
     /// <summary>The legal status as the original's word for it.</summary>
     public string LegalStatusName => LegalStatus switch
     {

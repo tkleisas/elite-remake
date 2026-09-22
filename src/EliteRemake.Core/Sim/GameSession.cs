@@ -19,6 +19,9 @@ public enum DockedScreen
 
     /// <summary>Data on System.</summary>
     DataOnSystem,
+
+    /// <summary>The commander's status and inventory.</summary>
+    Status,
 }
 
 /// <summary>Where the player is: flying, or docked at the station.</summary>
@@ -168,6 +171,42 @@ public sealed class GameSession
 
     /// <summary>Formats tenths of a light year the way the original prints them.</summary>
     public static string FormatTenths(int tenths) => $"{tenths / 10}.{Math.Abs(tenths % 10)}";
+
+    /// <summary>
+    /// Uses the galactic hyperdrive, which the original fires with CTRL-H: the drive is consumed
+    /// and the galaxy seeds are rotated one bit to the left, so we arrive in the next galaxy with
+    /// everything except the drive intact.
+    /// </summary>
+    public bool UseGalacticHyperdrive()
+    {
+        if (!Commander.GalacticHyperdrive)
+        {
+            Message = "No galactic hyperdrive fitted.";
+            return false;
+        }
+
+        if (HyperspaceCountdown > 0)
+        {
+            return false;
+        }
+
+        Commander.GalacticHyperdrive = false;
+        Commander.GalaxyNumber = (Commander.GalaxyNumber + 1) % Galaxy.GalaxyCount;
+
+        // Rotating the galaxy seeds moves us to the same system number in the next galaxy, which is
+        // what the original's GHY routine does
+        SystemSeeds seeds = Galaxy.NextGalaxy(System.Seeds);
+        System = Galaxy.Describe(seeds, System.Index);
+        Commander.CurrentSystem = System;
+        SelectedSystem = System;
+
+        Market = Universe.Market.Build(System, _random.Next());
+        Message = $"Galactic hyperspace: arrived in galaxy {Commander.GalaxyNumber + 1}, {System.Name} system.";
+        return true;
+    }
+
+    /// <summary>True when the commander is wanted, which the status screen shows.</summary>
+    public bool IsWanted => Commander.LegalStatus > 0;
 
     /// <summary>Docks at the station, refreshing the market as the original does.</summary>
     public void Dock()
