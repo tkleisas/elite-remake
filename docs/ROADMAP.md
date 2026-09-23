@@ -1498,3 +1498,38 @@ after the equipment prices, the galactic hyperdrive's system number, and the eig
 The pattern in those four is worth noting: each was written from the code as it stood rather than from
 the source, which is exactly what a test is supposed to prevent. Tests written *after* reading the
 source catch things; tests written *from* the implementation only pin it.
+
+## Selling restocked the market, which the disc version never does
+
+Continuing the audit into trading, with the test suite's own habit in mind.
+
+**The original's availability table has one writer.** Every reference to `AVL` in the entire source
+library, checked rather than remembered:
+
+| instruction | where | what it does |
+| --- | --- | --- |
+| `STA AVL,Y` | `tt219` | subtracts what you buy |
+| `STA AVL+16` | `var` | zeroes the alien items on the way past |
+| `LDA AVL,Y` | `tt219`, `tt151` | reads it for the buy limit and the price |
+
+The only code anywhere that *adds* to availability is in `nes/main/subroutine/buyandsellcargo.asm`,
+the NES version's own sell path. The **BBC disc never adds to it**, so what you sell is gone: it does
+not come back on the market for you or anyone else to buy, and the cash is the whole of what you get
+for it.
+
+Ours added it back. That is not just a small divergence — it lets a commander buy a system's stock
+out, sell it back, and repeat, and it means a market's availability drifts upwards the more you
+trade in it. Both are things the original's trading does not do.
+
+**And a fifth test was asserting it.** `SellingReturnsCreditsAndRestocksTheMarket` did exactly what
+its name says, and passed, because the code did too. It is now
+`SellingReturnsCreditsAndDoesNotRestockTheMarket`, and it also pins what the availability is *after*
+buying, which nothing had checked.
+
+**The tally, and what it means.** Five tests this session have been found encoding a fault rather
+than catching one: the equipment prices, the galactic hyperdrive's system number, the eight-jump
+round trip, docking's market rebuild, and now selling's restock. Every one was written from the code
+as it stood. The tests that have caught things — the counter directions, the mis-jump threshold, the
+alien items rule — were all written *after* reading the source, and several of them were written to
+pin a measurement rather than an implementation. The distinction is not diligence, it is order:
+read the source, then write the test.

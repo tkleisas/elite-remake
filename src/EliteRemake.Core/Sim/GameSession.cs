@@ -601,8 +601,12 @@ public sealed class GameSession
             return 0;
         }
 
+        // Selling does not add to the market's availability. The disc version's only write to the
+        // availability table is the subtraction when buying — the only code anywhere in the library
+        // that adds to it is the NES version, which has a sell path of its own — so what you sell
+        // does not come back on the market for you or anyone else to buy. The cash is the whole of
+        // what you get for it.
         int sold = Commander.Sell(item, entry.Price, Math.Min(amount, held));
-        Market[item] = entry with { Availability = Math.Min(63, entry.Availability + sold) };
         Message = $"Sold {sold} {entry.Item.Unit} of {entry.Item.Name.ToLowerInvariant()} " +
                   $"for {MarketFormat(sold * entry.Price)}.";
         return sold;

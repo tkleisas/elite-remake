@@ -308,8 +308,22 @@ public class GameSessionTests
         Assert.Equal(cash, session.Commander.Cash);
     }
 
+    /// <summary>
+    /// Selling pays credits and does not restock the market.
+    /// </summary>
+    /// <remarks>
+    /// This test used to assert the opposite — that selling put the goods back on the market — and
+    /// the code did it. The disc version's only write to the availability table is the subtraction
+    /// when buying; the only code anywhere in the library that adds to it is the NES version, which
+    /// has a sell path of its own, so on the disc what you sell is gone and the cash is the whole of
+    /// what you get for it.
+    ///
+    /// What the availability *is* after buying matters too: it is the market's stock, and selling
+    /// into it would let a commander buy a system out and then put it all back at the same price,
+    /// which the original does not allow.
+    /// </remarks>
     [Fact]
-    public void SellingReturnsCreditsAndRestocksTheMarket()
+    public void SellingReturnsCreditsAndDoesNotRestockTheMarket()
     {
         GameSession session = CreateSession();
         session.Dock();
@@ -319,11 +333,15 @@ public class GameSessionTests
         int cashAfterBuying = session.Commander.Cash;
         int availableAfterBuying = session.Market[0].Availability;
 
+        Assert.Equal(food.Availability - 5, availableAfterBuying);
+
         int sold = session.Sell(0, 5);
         Assert.Equal(5, sold);
         Assert.Equal(0, session.Commander.GetCargo(0));
         Assert.Equal(cashAfterBuying + (5 * food.Price), session.Commander.Cash);
-        Assert.Equal(availableAfterBuying + 5, session.Market[0].Availability);
+
+        // The market's stock is what buying left, not what it was before
+        Assert.Equal(availableAfterBuying, session.Market[0].Availability);
     }
 
     [Fact]
