@@ -3631,3 +3631,31 @@ something being aimed at. So the practical effect is nil — but the honest stat
 *approximately* rigid rather than rigid, and that the approximation is worse when both axes turn at once.
 Any future work on this should start from "roll and pitch together compound", which is now measured
 rather than guessed at.
+
+## A second hypothesis tested and rejected: the update order is not the fault
+
+The planet's combined roll-and-pitch drift was traced to the routine updating each component from the
+*already-updated* values of the others, rather than from the originals. That reads like the obvious
+cause, and the obvious fix is to compute all three from the inputs.
+
+**It was tested and it is much worse.** Computing all three from the original values took the drift from
+**4.60% to 62.49%** — a factor of thirteen in the wrong direction.
+
+**Why the reading was wrong**, and the reason is in the routine itself: `k2` is a *derived* quantity,
+`y - x·alpha/256`, and both `z` and `y` are computed from it. `x` is then computed from the new `y`. So
+the chain is not an accident of ordering that a tidy-up would fix — it is three successive applications
+of the rotation, and computing `x` from the *old* `y` breaks the chain that makes the small-rotation
+approximation work. The original's order is doing something; it is not merely incidental.
+
+**Two hypotheses tested and rejected in two rounds**, both recorded so they are not tried again, and
+both rejected by a measurement that took a minute. That is the process working: the last four rounds
+have produced one real fix, one real bound, and two dead ends — and the dead ends cost a measurement each
+rather than a round of reasoning each, which is the change that matters.
+
+**Where the rotation now stands, in one place.** The rigid path is kept as a departure from the original
+because the original's two-byte method drifts more; the departure's own precision is 0.00% for roll
+alone, 0.79% for pitch alone, and 4.60% over twelve hundred frames with both at maximum, directionally,
+on a planet twelve thousand units out of a quarter of a million. In play the counters are transient and
+the planet is a backdrop, so the visible effect is nil — and the honest description of the code is that
+its rotation is **approximately** rigid, worse when both axes turn at once, with the original's ordering
+load-bearing rather than incidental.
