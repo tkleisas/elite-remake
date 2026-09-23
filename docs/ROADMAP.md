@@ -2607,3 +2607,29 @@ traversal fault, I looked at the output, saw something that *looked* unfinished,
 plausible next step rather than checking it — and the plausible next step was wrong. A note that
 promises work which does not exist is a cost to whoever reads it next, and it is avoidable by reading
 the four lines of source that settle it, which is exactly what the round after it did.
+
+## Every description and every hint, rendered and checked
+
+The traversal fault was found by looking at output rather than at code, so both text paths were swept
+the same way.
+
+**Descriptions: 1024 systems across four galaxies** — 0 empty, 0 unstable on a re-read. Fifty-one come
+in under thirty characters, which is the shortest being *"Sori is a tedious world."*: these are the
+original's own terse descriptions, not truncation, and the threshold was only ever a way of finding
+candidates to look at.
+
+**Hints: every hint of the first three galaxies** — 25 hints, **20 distinct renderings**, 0 unstable.
+The interesting number is the twenty: the tables hold 25 hints but five of them are the random-element
+phrases, so seeing twenty distinct outputs is what confirms the random element is varying rather than
+collapsing to one phrase.
+
+**And one false positive of my own detector.** It flagged four hints as truncated because the text ends
+in " TO" — but the text is `TRY ERRIUS`, where token 110 is the word "TRY" and the " TO" my check
+matched comes from the *body*. The heuristic looked for a trailing preposition and found one inside a
+word. It is the tenth diagnostic of mine to be wrong, and the cheapest kind: it cost one look, because
+the flagged strings were printed alongside the verdict rather than only counted.
+
+**That is the habit worth keeping**: a check that reports *what* it flagged, not only *how many*, is
+self-correcting. The counter alone would have read "4 truncated" and sent the next round hunting a
+fault that does not exist — which is precisely what happened last round, when a plausible-looking
+conclusion went into the roadmap unchecked.
