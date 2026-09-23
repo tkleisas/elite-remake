@@ -2321,3 +2321,42 @@ docking slot from the other direction: last time I measured the outline and miss
 middle; this time I measured one axis of the camera and missed a whole hemisphere. Both were fixed by
 asking what the measurement *cannot* see. It is the only reliable move I have found, and it is now
 recorded here in those terms rather than as a resolution to be careful.
+
+## Two different visibility scales, and I nearly destroyed a correct one
+
+Following last round's scale error, I went looking for its siblings and found the byte beside it in
+the same method:
+
+```
+ LDY #13                \ Fetch byte #13 from the ship's blueprint, which gives
+ LDA (XX0),Y            \ the ship's visibility distance, beyond which we show
+ CMP XX1+7              \ If z_hi <= the visibility distance, skip to LL17 to
+ BCS LL17               \ draw the ship fully, rather than as a dot
+```
+
+and, a few lines away in the per-face path:
+
+```
+ AND #%00011111         \ Extract bits 0-4 to give the visibility distance
+ CMP XX4
+```
+
+I read the second, concluded the ship-level comparison was missing its `& 0x1F`, and changed it —
+masking the Coriolis's 120 down to 24, which would have made a station that should stay a model out to
+`z_hi` 120 collapse to a dot five times too early. **The "fix" was worse than the thing it was fixing.**
+
+**They are two different scales, and the source says so.** A *face* wears its visibility in bits 0-4 of
+its own byte, which is why the mask is there. A *ship's* visibility distance is the whole of byte #13 —
+the blueprint comments confirm it, giving the Anaconda 50 on this build against 36 elsewhere, and 50
+cannot survive a 0x1F mask, so the raw byte is the intended threshold. Ours was already right; the
+change is reverted and the reasoning left in a comment so the next reader does not repeat it.
+
+**That is the seventh probe of mine to be wrong before the code was**, and this one is the most
+instructive of the seven, because the evidence was genuinely ambiguous: the same phrase, "visibility
+distance", in two places, a mask in one and not the other. What settled it was not the code but the
+*comments* — the Anaconda's 50 — which is now the fourth distinct source of truth this session, after
+the instructions, the guards around them, and the prose.
+
+The rule I am taking from it: **when two things share a name, find a value that can only belong to one
+of them before changing either.** The Anaconda's 50 could only belong to the unmasked scale; a single
+number answered a question that two similar code paths could not.

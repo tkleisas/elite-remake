@@ -148,6 +148,12 @@ public sealed class MeshRenderer : IDisposable
         int zHigh = (zInt >> 8) & 0xFF;
         int visibility = Math.Min(31, zHigh >> 3);
 
+        // Beyond its visibility distance a ship is drawn as a dot rather than as a model. This
+        // comparison uses the blueprint's byte raw — "fetch byte #13 ... which gives the ship's
+        // visibility distance ... if z_hi <= the visibility distance, draw the ship fully, rather
+        // than as a dot" — so the Coriolis's 120 is the real threshold and it stays a model out to
+        // z_hi 120. The AND #%00011111 beside it in the source belongs to the per-*face* visibility
+        // on the other drawing path, and applying it here would cull every ship far too early.
         if ((zInt / 256) > visibilityDistance)
         {
             DrawDot(camera, position, colour);
