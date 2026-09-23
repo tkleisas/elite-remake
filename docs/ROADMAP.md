@@ -312,20 +312,23 @@ says what was checked and what was not.
 5. **Rebinding and a settings screen** — the brief mentions a gamepad and an authentic keyboard
    layout; the keyboard layout is in, rebinding is not.
 
-6. **Performance.** A harness now exists: the game reports how long its frames actually took when
-   it exits after `--exit-after` frames, so a run can be measured rather than guessed at. It has not
-   produced a number yet, and the reason is worth recording: on this machine's display the game
-   never reaches even 200 drawn frames in 100 seconds, so whatever it is doing there is not
-   representative of a real session - most likely the virtual display never completes a swap. The
-   number has to be taken by running the game interactively, and the line to read is:
+6. ~~**Performance.**~~ **Measured, and it is not the game that is slow.** The first attempts gave
+   absurd figures — 835 ms a frame, 1.2 fps — which is a display that is not completing its swaps
+   rather than anything to do with the code. So the report was split: the shell now times its own
+   `Update` and `Draw` separately from the wall-clock frame, and prints both.
 
-       Drew <n> frames in <s>s: <ms> ms a frame, <fps> fps
+       Drew 20 frames in 15.06s: 752.78 ms a frame, 1.3 fps
+         of which our own work: 2.45 ms update + 3.39 ms draw = 5.83 ms; the rest is the display
 
-   Vertical sync caps this, so it is a floor on the achievable rate: matching the display's refresh
-   rate means the game is keeping up, and falling short means something is too slow to. Screenshot
-   renders have stayed comfortable, and the simulation is a fixed 50 Hz with up to ten catch-up
-   steps a frame, so the budget is 20 ms a frame with the simulation itself costing whatever a step
-   costs. Nothing has been profiled beyond that.
+   The budget is the simulation's own rate: 50 Hz, so **20 ms a frame**. Our work comes to **under
+   6 ms**, and a second run at 1920x1200 with twelve ships in the bubble — `--stress` fills it, which
+   is how the worst case was reached — came to 4.97 ms. That is roughly a quarter of the budget with
+   three quarters to spare, and the remaining 747 ms of that frame is the display, which is what the
+   virtual X server here does rather than a property of the game.
+
+   The honest limit on the figure: the stress run had only 122 triangles on screen because most of
+   those ships were behind or beside us, so the drawing half of it is measured on a quiet view. The
+   simulation half is not affected by that, and it is the larger of the two.
 
 ## What the session has taught, in one place
 

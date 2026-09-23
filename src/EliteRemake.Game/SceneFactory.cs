@@ -169,6 +169,29 @@ public static class SceneFactory
             sim.Spawn(ApplyBlueprint(Ship.Create(12, "python", "Python", -0.3f, -0.05f, -2500, 400, 7000)));
         }
 
+        // --stress fills the bubble with ships, so the frame cost can be measured at its worst
+        // rather than on a quiet system
+        if (options.StressShips > 0)
+        {
+            var random = new EliteRemake.Core.Sim.EliteRandom(1);
+            for (int i = 0; i < options.StressShips; i++)
+            {
+                int type = 16 + (i % 8);
+                if (ShipCatalog.ByType(type) is { } entry)
+                {
+                    var ship = EliteRemake.Core.Sim.Ship.Create(
+                        type, entry.Id, entry.Name,
+                        (i - (options.StressShips / 2f)) * 0.05f,
+                        ((i % 5) - 2) * 0.04f,
+                        -1200 + ((i % 7) * 400),
+                        ((i % 5) - 2) * 300,
+                        2000 + ((i % 9) * 900));
+
+                    sim.Spawn(ApplyBlueprint(ship));
+                }
+            }
+        }
+
         // --jump begins a jump at once, so the hyperspace tunnel can be seen without flying to the
         // charts and picking a destination first
         if (options.StartHyperspace)

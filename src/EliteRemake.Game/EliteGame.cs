@@ -201,17 +201,23 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
             Console.WriteLine(_scene.StatusLine);
         }
 
+        var updateClock = System.Diagnostics.Stopwatch.StartNew();
         if (!_options.Paused)
         {
             _scene.Update((float)gameTime.ElapsedGameTime.TotalSeconds);
         }
+
+        _updateTicks += updateClock.ElapsedTicks;
 
         base.Update(gameTime);
     }
 
     protected override void Draw(GameTime gameTime)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         _scene.Draw(_spriteBatch, _pixel, GraphicsDevice);
+        _drawTicks += sw.ElapsedTicks;
+
         base.Draw(gameTime);
 
         _frame++;
@@ -257,6 +263,8 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
     private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
 
     private int _framesDrawn;
+    private long _updateTicks;
+    private long _drawTicks;
 
     /// <summary>
     /// Prints how long the frames actually took. The display's vertical sync caps this, so the
@@ -274,9 +282,14 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
 
         double perFrame = seconds * 1000 / _framesDrawn;
         double fps = _framesDrawn / seconds;
+        double updateMs = _updateTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency / _framesDrawn;
+        double drawMs = _drawTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency / _framesDrawn;
         Console.WriteLine(
             $"Drew {_framesDrawn} frames in {seconds:0.00}s: {perFrame:0.00} ms a frame, {fps:0.0} fps " +
             $"(simulation steps run at {Scenes.FlightScene.FrameRate:0} Hz, up to 10 a frame)");
+        Console.WriteLine(
+            $"  of which our own work: {updateMs:0.00} ms update + {drawMs:0.00} ms draw = " +
+            $"{updateMs + drawMs:0.00} ms; the rest is the display");
     }
 
     /// <summary>

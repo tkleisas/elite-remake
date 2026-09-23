@@ -65,6 +65,9 @@ public sealed class GameOptions
     /// </summary>
     public bool StartHyperspace { get; private set; }
 
+    /// <summary>If non-zero, fill the bubble with this many ships, to measure the frame cost.</summary>
+    public int StressShips { get; private set; }
+
     /// <summary>If set, start docked at the station rather than in flight.</summary>
     public bool StartDocked { get; private set; }
 
@@ -164,6 +167,9 @@ public sealed class GameOptions
                     break;
                 case "--jump":
                     options.StartHyperspace = true;
+                    break;
+                case "--stress":
+                    options.StressShips = int.Parse(Next() ?? "12");
                     break;
                 case "--help":
                 case "-h":
