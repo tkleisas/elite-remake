@@ -2720,3 +2720,32 @@ and the fault was entirely in the gap between them.
 **That is the general shape of the three faults in this family** — the escape pod's fuel, the
 Anaconda's callback, the hostile bit. Each half was right. A test written against either half passes;
 only one that exercises the seam finds them.
+
+## Being refused by the station was fatal
+
+Applying last round's audit to the change I made in round 90 — the rule that shooting an innocent
+turns the station hostile — turned up two faults in the same seam, and the second is worse than a
+no-op.
+
+**The caller hardcoded the answer.** `FlightScene` passed `stationHostile: false` as a constant, so the
+check could never fire whatever the station's flags said. The rule was written and never consulted,
+which is the fourth of this family.
+
+**And the refusal shared a result with a collision.** `Docking.Check` returned `DockingResult.Collision`
+for a hostile station, and the caller treats a collision as **fatal** — so a commander who had annoyed
+a station was destroyed on the approach rather than turned away. The check fired correctly and the
+caller read it as having flown into the hull.
+
+Both are now fixed: the caller passes `ship.AiFlag >= 0x80`, and `DockingResult` has a `Hostile` value
+of its own, which the scene handles by refusing the docking request and saying so. That is what the
+original does — the station simply does not open the slot.
+
+**The test that covered it was asserting the bug.** `AHostileStationWillNotLetUsIn` expected
+`Collision`, which is what the code did. It now expects `Hostile` and asserts the two are different,
+which is the part that matters: the fault was never that a hostile station was mishandled, it was that
+being refused and being killed were the same value.
+
+**Four faults in this family now**, and the pattern is precise enough to be worth stating as a rule for
+the remaining work: **a boolean or an enum shared between two different outcomes is a seam, and the
+seam is where the faults are.** Whether the value is read at all, and whether the value means one thing
+or two, are the two questions to ask of any flag that crosses a boundary.

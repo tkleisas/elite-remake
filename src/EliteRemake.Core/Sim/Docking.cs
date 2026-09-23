@@ -14,6 +14,17 @@ public enum DockingResult
 
     /// <summary>We are close enough to hit the station, but not through the slot.</summary>
     Collision,
+
+    /// <summary>
+    /// The station has been annoyed and will not let us in.
+    /// </summary>
+    /// <remarks>
+    /// This is its own result rather than a collision, because the two are not the same event: a
+    /// collision is fatal, and a refusal is not. They shared a value until now, which made shooting an
+    /// innocent at the station fatal on the approach — the check fired, and the caller read it as
+    /// having flown into the hull.
+    /// </remarks>
+    Hostile,
 }
 
 /// <summary>
@@ -90,7 +101,7 @@ public static class Docking
         // 1. A hostile station will not let us in
         if (stationHostile)
         {
-            return DockingResult.Collision;
+            return DockingResult.Hostile;
         }
 
         Vector3 slot = Unit(station.Orientation, Orientation.Nosev);

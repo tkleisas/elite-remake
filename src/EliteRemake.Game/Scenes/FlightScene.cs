@@ -63,16 +63,29 @@ public sealed class FlightScene : IScene
 
             // The universe turns around us rather than the other way round, so we always face along
             // +z in the world's terms
+            // A station we have annoyed will not let us in, which is what ANGRY and AN2 are for: the
+            // flag is parsed here rather than passed as a constant, because passing `false` meant the
+            // hostile-station check could never fire and shooting an innocent cost nothing.
             DockingResult result = Docking.Check(
                 ship,
                 (x, y, z),
                 new System.Numerics.Vector3(0, 0, 1),
-                stationHostile: false);
+                stationHostile: ship.AiFlag >= 0x80);
 
             if (result == DockingResult.Docking)
             {
                 _dockingRequested = true;
                 Session.Dock();
+                Sounds?.Play(Core.Audio.SoundEffect.Beep);
+                return;
+            }
+
+            if (result == DockingResult.Hostile)
+            {
+                // The station has been annoyed and is refusing us. This is not fatal: the original
+                // simply will not open the slot, so we fly on and can try again once our record has
+                // improved enough for it to forget.
+                Session.Message = $"{ship.Name} will not let us dock.";
                 Sounds?.Play(Core.Audio.SoundEffect.Beep);
                 return;
             }

@@ -2531,7 +2531,10 @@ public class DockingTests
             new System.Numerics.Vector3(0, 0, -1),
             stationHostile: true);
 
-        Assert.Equal(DockingResult.Collision, result);
+        // A refusal is not a collision. They shared a result until now, which made being turned away
+        // fatal: the check fired correctly and the caller read it as having flown into the hull.
+        Assert.Equal(DockingResult.Hostile, result);
+        Assert.NotEqual(DockingResult.Collision, result);
     }
 
     [Fact]
