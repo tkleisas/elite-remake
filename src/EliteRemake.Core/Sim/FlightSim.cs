@@ -302,6 +302,66 @@ public sealed class FlightSim
     }
 
     /// <summary>
+    /// The station's aggression when it turns hostile: the original's AN2 gives it a speed of 10 and
+    /// an AI flag that is hostile with the highest aggression.
+    /// </summary>
+    public const byte HostileStationAiFlag = 0xF8;
+
+    /// <summary>The speed the original gives a station that has turned hostile.</summary>
+    public const byte HostileStationSpeed = 10;
+
+    /// <summary>The acceleration the original's ANGRY gives a ship it has just been shot at.</summary>
+    public const byte AngryAcceleration = 2;
+
+    /// <summary>
+    /// Makes a ship angry, as the original's ANGRY does when we shoot it.
+    /// </summary>
+    /// <remarks>
+    /// Two things happen. The ship's AI is switched on if it was off, and its acceleration is raised,
+    /// so that a trader we have just shot at stops being a bystander. And if the ship is an
+    /// <em>innocent</em> — bit 5 of its NEWB flags — the space station is made hostile too:
+    ///
+    /// <code>
+    /// LDY #36 / LDA (INF),Y / AND #%00100000   \ the ship's NEWB flags
+    /// BEQ P%+5 / JSR AN2                       \ an innocent means the station turns on us
+    /// </code>
+    ///
+    /// That is the enhanced versions' rule and the disc's, and it is what stops shooting at traders
+    /// being free: the station you are trying to dock at takes an interest.
+    /// </remarks>
+    public void MakeAngry(Ship ship)
+    {
+        if (ship.IsInnocent)
+        {
+            MakeStationHostile();
+        }
+
+        if (ship.AiFlag != 0)
+        {
+            // Bit 7 is AI enabled, so a ship with an AI flag but bit 7 clear starts acting
+            ship.AiFlag |= 0x80;
+        }
+
+        // And whatever it was doing, it accelerates now: the original sets byte #28 to 2
+        ship.Acceleration = AngryAcceleration;
+    }
+
+    /// <summary>Makes the space station hostile, as the original's AN2 does.</summary>
+    private void MakeStationHostile()
+    {
+        foreach (Ship ship in _bubble)
+        {
+            if (ship.Type != Combat.SpaceStationType || ship.IsKilled)
+            {
+                continue;
+            }
+
+            ship.AiFlag = HostileStationAiFlag;
+            ship.Speed = HostileStationSpeed;
+        }
+    }
+
+    /// <summary>
     /// Spawns a ship of a given type ahead of us, as the original's GTHG does for the Thargoids that
     /// wait in witchspace.
     /// </summary>
@@ -1059,6 +1119,8 @@ public sealed class FlightSim
             LaserTemperature = Math.Min(255, LaserTemperature + Combat.HeatPerShot);
             LaserCooldown = Combat.FireInterval(laser);
 
+
+
             // Deplete our energy, as firing does in the original
             if (Player.Energy > 0)
             {
@@ -1071,7 +1133,22 @@ public sealed class FlightSim
                 if (Combat.IsInCrosshairs(ship, TargetableArea(ship)))
                 {
                     LaserTarget = ship;
-                    if (Combat.ApplyHit(ship, power))
+
+                    // The damage this shot does, which is the laser's power except against the
+                    // Constrictor. On the disc only a military laser can harm the super-ship, and
+                    // then only for a quarter of the damage: "only military lasers can harm the
+                    // Constrictor in mission 1, and then they only inflict a quarter of the damage
+                    // that military lasers inflict on normal ships". The test is on the laser and
+                    // not on the target's shields, so a pulse or beam laser does nothing to it.
+                    int damage = Combat.DamageAgainst(laser, power, ship);
+
+                    // A ship that survives being shot at is made angry, which switches its AI on
+                    // and, if it was an innocent, turns the station against us
+                    if (!Combat.ApplyHit(ship, damage))
+                    {
+                        MakeAngry(ship);
+                    }
+                    else
                     {
                         // The hit destroyed it, so start its explosion and report the kill
                         ship.IsExploding = true;

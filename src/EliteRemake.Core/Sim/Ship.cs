@@ -126,6 +126,15 @@ public sealed class Ship
         set => _data[ShipDataBlock.Speed] = value;
     }
 
+    /// <summary>
+    /// The ship's acceleration (INWK+28), which the original's ANGRY raises when we shoot it.
+    /// </summary>
+    public byte Acceleration
+    {
+        get => _data[ShipDataBlock.Acceleration];
+        set => _data[ShipDataBlock.Acceleration] = value;
+    }
+
     /// <summary>The ship's flags (INWK+31).</summary>
     /// <summary>
     /// The roll the space station was created with. The original gives a station a random clockwise

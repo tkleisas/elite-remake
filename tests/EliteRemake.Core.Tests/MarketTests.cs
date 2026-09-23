@@ -404,6 +404,37 @@ public class CombatTests
         return (sim, target);
     }
 
+    /// <summary>
+    /// Only a military laser harms the Constrictor, and then for a quarter of the damage.
+    /// </summary>
+    /// <remarks>
+    /// The disc's rule, from the branch marked "only military lasers can harm the Constrictor in
+    /// mission 1, and then they only inflict a quarter of the damage that military lasers inflict on
+    /// normal ships". The test is on the laser rather than the target's shields, so a pulse or beam
+    /// laser does nothing at all to it — which is what makes the mission's target genuinely harder
+    /// rather than merely tough.
+    /// </remarks>
+    [Fact]
+    public void OnlyAMilitaryLaserCanHarmTheConstrictor()
+    {
+        var constrictor = new Ship(31, "constrictor", "Constrictor");
+
+        Assert.Equal(0, Combat.DamageAgainst(LaserType.Pulse, Combat.PulseLaserPower, constrictor));
+        Assert.Equal(0, Combat.DamageAgainst(LaserType.Beam, Combat.BeamLaserPower, constrictor));
+
+        // A military laser does a quarter of its 23, which is 5
+        Assert.Equal(Combat.MilitaryLaserPower / 4, Combat.DamageAgainst(LaserType.Military, Combat.MilitaryLaserPower, constrictor));
+        Assert.Equal(5, Combat.DamageAgainst(LaserType.Military, Combat.MilitaryLaserPower, constrictor));
+
+        // Every other ship takes the laser's full power, whatever is fitted
+        foreach (int type in new[] { 11, 17, 29 })
+        {
+            var other = new Ship(type, "x", "x");
+            Assert.Equal(Combat.PulseLaserPower, Combat.DamageAgainst(LaserType.Pulse, Combat.PulseLaserPower, other));
+            Assert.Equal(Combat.MilitaryLaserPower, Combat.DamageAgainst(LaserType.Military, Combat.MilitaryLaserPower, other));
+        }
+    }
+
     [Fact]
     public void LaserPowerMatchesTheOriginalsValues()
     {

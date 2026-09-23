@@ -203,6 +203,40 @@ public static class Combat
     }
 
     /// <summary>
+    /// The ship type of the Constrictor, which the disc protects from everything but a military
+    /// laser.
+    /// </summary>
+    public const int ConstrictorType = 31;
+
+    /// <summary>
+    /// The damage a laser shot does to a particular ship.
+    /// </summary>
+    /// <remarks>
+    /// This is the laser's power for every ship but one. On the disc, the Constrictor can only be
+    /// harmed by a military laser, and then for a quarter of the damage:
+    ///
+    /// <code>
+    /// CPY #CON / BNE BURN           \ only the Constrictor is special
+    /// LDA LAS / CMP #(Armlas AND 127) / BNE MA8   \ only a military laser
+    /// LSR LAS / LSR LAS             \ a quarter of the damage
+    /// </code>
+    ///
+    /// The other versions except the disc take the same branch, so this is not disc-only; what is
+    /// disc-only is the <c>CPY #CON</c> above it, which is why the rule is written here per target.
+    /// A pulse or beam laser therefore does nothing at all to the Constrictor, which makes the
+    /// mission's target genuinely harder rather than merely tough.
+    /// </remarks>
+    public static int DamageAgainst(LaserType laser, int power, Ship target)
+    {
+        if (target.Type != ConstrictorType)
+        {
+            return power;
+        }
+
+        return laser == LaserType.Military ? power / 4 : 0;
+    }
+
+    /// <summary>
     /// Applies a laser hit to a ship, returning true if the hit destroyed it.
     /// </summary>
     public static bool ApplyHit(Ship target, int power)

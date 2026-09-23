@@ -1960,3 +1960,36 @@ against the source, and it is right.
 **Three faults in a row have now been version-guard faults.** The pattern is strong enough to state
 as a rule for the rest of this port: when a value or an instruction looks wrong, read the `IF` above
 it before changing anything, because on this build the guard is evidence and the instruction is not.
+
+## Only a military laser harms the Constrictor, and shooting an innocent turns the station on us
+
+Applying the "read the guard" rule wholesale — listing every `IF _DISC_FLIGHT` branch — turned up two
+missing rules in the laser code, and one worth recording as already right.
+
+**The Constrictor is protected.** The disc's branch says it outright: *"only military lasers can harm
+the Constrictor in mission 1, and then they only inflict a quarter of the damage that military lasers
+inflict on normal ships"*. A pulse or beam laser does **nothing at all** to it. Ours took full damage
+from any laser, which made the mission's target an ordinary fight rather than the one the original
+designed, and made the military laser pointless for the only enemy it exists for.
+
+**Shooting an innocent makes the station hostile.** The original's `ANGRY` tests bit 5 of the ship's
+NEWB flags and calls `AN2` when it is set:
+
+```
+LDY #36 / LDA (INF),Y / AND #%00100000   \ the ship's NEWB flags
+BEQ P%+5 / JSR AN2                       \ an innocent means the station turns on us
+```
+
+We had no such rule at all, so shooting traders was **free** — the station went on happily letting us
+dock afterwards. It now turns hostile, takes a speed of 10 and an AI flag of `%11111000`, and a
+hostile station refuses to let us in. `ANGRY` also switches the ship's own AI on and raises its
+acceleration to 2, so a trader that survives a shot stops being a bystander.
+
+This is the rule the `E%` flags were extracted for: it is bit 5 that decides it, so the flags now do
+two jobs — the legal status and the station's temper.
+
+**Checked and already right:** the Constrictor's AI flag is `%11111001`, matching ours byte for byte.
+The Cougar rule in the same branch is dead code for this build, since the disc has no Cougar.
+
+**The tally is fifteen**, and this round is the first where the version-guard rule found something
+rather than explaining something.

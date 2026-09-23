@@ -130,6 +130,52 @@ public class GameLoopTests
     }
 
     /// <summary>
+    /// Shooting an innocent turns the space station against us.
+    /// </summary>
+    /// <remarks>
+    /// The original's ANGRY tests bit 5 of the ship's NEWB flags and, when it is set, calls AN2 to
+    /// make the station hostile. That is what stops shooting at traders being free: the station we
+    /// are trying to dock at takes an interest, and a hostile station will not let us in.
+    /// </remarks>
+    [Fact]
+    public void ShootingAnInnocentTurnsTheStationHostile()
+    {
+        GameSession session = NewSession();
+
+        // A station and an innocent trader, as the game spawns them
+        var station = Ship.Create(2, "coriolis", "Coriolis", 0, 0, 0, 2000, 0);
+        var trader = Ship.Create(12, "python", "Python", 0, 0, 0, 1500, 0);
+        trader.NewbFlags = Ship.NewbInnocent;
+
+        Assert.True(session.Flight.Spawn(station));
+        Assert.True(session.Flight.Spawn(trader));
+        Assert.False(station.AiFlag >= 0x80, "the station starts peaceful");
+
+        session.Flight.MakeAngry(trader);
+
+        Assert.True(station.AiFlag >= 0x80, "the station should turn hostile");
+        Assert.Equal(FlightSim.HostileStationAiFlag, station.AiFlag);
+        Assert.Equal(FlightSim.HostileStationSpeed, station.Speed);
+
+        // The station's AI flag is what Docking.Check reads as "hostile", so this is what stops
+        // us docking
+        Assert.True(station.AiFlag >= 0x80);
+
+        // Shooting a pirate, which has no innocent bit, leaves the station alone
+        GameSession other = NewSession();
+        var otherStation = Ship.Create(2, "coriolis", "Coriolis", 0, 0, 0, 2000, 0);
+        var pirate = Ship.Create(19, "krait", "Krait", 0, 0, 0, 1500, 0);
+        pirate.NewbFlags = 0x8C;
+
+        Assert.True(other.Flight.Spawn(otherStation));
+        Assert.True(other.Flight.Spawn(pirate));
+
+        other.Flight.MakeAngry(pirate);
+
+        Assert.False(otherStation.AiFlag >= 0x80, "the station should not care about a pirate");
+    }
+
+    /// <summary>
     /// A saved commander's missions come back with him.
     /// </summary>
     /// <remarks>
