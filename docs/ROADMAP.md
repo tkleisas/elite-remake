@@ -3572,3 +3572,28 @@ of the planet.
 alarming, suspect the measurement first. Every genuinely alarming number in this project has been the
 instrument, and every real fault has been found by a number that was merely *wrong* rather than
 dramatic.
+
+## A hypothesis tested and dropped: the planet's drift is not a truncation bias
+
+The planet's 4.6% wander looked like it should come from the rotation dividing by 256 with truncation —
+C#'s `/` rounds toward zero, where the original's shift rounds toward minus infinity for a negative
+product, and that asymmetry could bias every step in one direction.
+
+**It was tested and it is not the cause.** Replacing the four divisions with a rounded divide — symmetric,
+so no bias either way — moved the wander from **4.60% to 4.61%**. Unchanged.
+
+That is a useful negative result for two reasons. It rules out the most obvious explanation, and it
+rules it out in one run rather than in a round of reasoning about which way a shift rounds. The
+remaining candidates are the structure of the rotation itself: the three component updates use
+already-updated values, so the composition is not exactly a rotation of the original vector, and the
+error that introduces grows with the magnitude of the coordinates — which is consistent with a station
+drifting a third of a percent and a planet drifting nearly five.
+
+**The change is reverted**, the test bound stays where the measurement put it, and the hypothesis is
+recorded as tested-and-rejected so that it is not tried again. A rejected hypothesis that is written
+down is worth as much as a confirmed one, and this project has more of the former than the latter.
+
+**What is still worth trying, and is cheap**: whether the drift depends on the *number of steps* or on
+the *magnitude of the coordinates*. Rotating a planet by half the step size for twice as many frames
+would separate the two, and that distinguishes "the composition accumulates error" from "large numbers
+are handled badly" — which are different faults with different fixes.
