@@ -629,6 +629,32 @@ public class TacticsTests
     }
 
     [Fact]
+    public void APeacefulShipFlyingAwayDoesNotShootUsInTheBack()
+    {
+        // The steering vector for a peaceful ship is flipped so that it turns away from us, and the
+        // laser check used to be made on that same flipped vector: a trader pointing away from us
+        // therefore scored a perfect hit and fired as it left. Every peaceful ship in the sky shot
+        // at us, which drained the energy banks while sitting still next to the station with not a
+        // hostile ship in sight. The original works its dot product before the flip, and only ever
+        // reaches its laser checks for a ship that is attacking.
+        var (sim, trader) = CreateSim(aiFlag: 0x00);
+        trader.NewbFlags = 0;
+
+        // Ahead of us and pointing further away, so the flipped vector aims it straight at us
+        trader.SetPosition(0, 0, 5000);
+        trader.Orientation.SetUnity(Orientation.Nosev, Orientation.Z, 1.0);
+
+        sim.Player.Energy = 150;
+        for (int i = 0; i < 60; i++)
+        {
+            sim.Step();
+        }
+
+        Assert.True(sim.Player.Energy >= 150,
+            $"a peaceful ship should not have hit us, but energy fell to {sim.Player.Energy}");
+    }
+
+    [Fact]
     public void AnEnemySteersTowardsUs()
     {
         var (sim, enemy) = CreateSim();
@@ -1172,7 +1198,7 @@ public class DebrisTests
 
         Commander commander = Commander.CreateDefault();
         commander.FuelScoops = true;
-        sim.ScoopCommander = commander;
+        sim.Commander = commander;
         // A cargo canister's contents come from the original's own random path rather than from its
         // blueprint — its scoop nibble is zero — so the game layer supplies the commodity. The
         // provider gives a hold index, not the blueprint's one-based market item.
@@ -2972,6 +2998,174 @@ public class AltitudeCheckTests
         var (sim, _) = SetUp(2000, 0, 2000);
 
         // The check runs on iteration 10 of every 32, so give it a block to come round
+        for (int i = 0; i < 32 && !sim.PlayerDied; i++)
+        {
+            sim.Step();
+        }
+
+        Assert.True(sim.HitABody, "we should have flown into the planet");
+        Assert.True(sim.PlayerDied);
+    }
+
+    [Fact]
+    public void TheSunIsNotCrashedIntoButCookedBy()
+    {
+        // The sun has its own slot and its own check, so flying into it is a death by heat rather
+        // than a crash into the ground, and it has to be the heat that gets us: the impact radius
+        // would be reached first and the cabin temperature would never have the chance to climb
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = false,
+            Commander = Commander.CreateDefault(),
+        };
+
+        var sun = Ship.Create(ShipTypes.Sun, "sun", "Sun", 0, 0, 0, 0, 3000);
+        sun.SetPosition(2000, 0, 2000);
+        sim.Spawn(sun);
+
+        for (int i = 0; i < 32 && !sim.PlayerDied; i++)
+        {
+            sim.Step();
+        }
+
+        Assert.True(sim.CookedByTheSun, "the sun should have cooked us, not been flown into");
+        Assert.False(sim.HitABody);
+        Assert.True(sim.PlayerDied);
+    }
+
+    [Fact]
+    public void DeepSpaceIsAsCoolAsTheCabinGets()
+    {
+        var (sim, _) = SetUp(0, 0, 262144);
+
+        for (int i = 0; i < 64; i++)
+        {
+            sim.Step();
+        }
+
+        Assert.Equal(FlightSim.DeepSpaceCabinTemperature, sim.CabinTemperature);
+        Assert.False(sim.PlayerDied);
+    }
+
+    [Fact]
+    public void SkyIsSafeWhileTheStationIsInTheBubble()
+    {
+        // The original's SSPR: the station and the sun share a ship slot, so the sun's check is
+        // skipped while a station is present and the cabin stays at its deep space reading
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = false,
+            Commander = Commander.CreateDefault(),
+        };
+
+        var sun = Ship.Create(ShipTypes.Sun, "sun", "Sun", 0, 0, 0, 0, 3000);
+        sun.SetPosition(2000, 0, 2000);
+        sim.Spawn(sun);
+        sim.Spawn(Ship.Create(ShipTypes.Coriolis, "coriolis", "Coriolis space station", 0, 0, 0, 0, 3000));
+
+        for (int i = 0; i < 64; i++)
+        {
+            sim.Step();
+        }
+
+        Assert.Equal(FlightSim.DeepSpaceCabinTemperature, sim.CabinTemperature);
+        Assert.False(sim.PlayerDied);
+    }
+
+    [Fact]
+    public void ScoopingTheSunIsHowTheTankGetsFilled()
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = false,
+            Commander = Commander.CreateDefault(),
+        };
+
+        Commander commander = sim.Commander!;
+        commander.FuelScoops = true;
+        commander.Fuel = 50;
+
+        // Close enough to be scooping but not close enough to be cooked: at 25600 units the high
+        // byte of the position squares to 10000, which the original's byte-at-a-time sum reduces to
+        // 39, and the cabin temperature is 285 - 39 = 246. Scooping starts at 224 and the sun kills
+        // below 30, so this is in the band where the tank fills
+        var sun = Ship.Create(ShipTypes.Sun, "sun", "Sun", 0, 0, 0, 0, 3000);
+        sun.SetPosition(25600, 0, 0);
+        sim.Spawn(sun);
+
+        for (int i = 0; i < 64; i++)
+        {
+            sim.Step(new FlightInput(SpeedUp: i < 40));
+        }
+
+        Assert.False(sim.PlayerDied);
+        Assert.True(sim.CabinTemperature >= FlightSim.ScoopingCabinTemperature,
+            $"the cabin should be hot enough to scoop, but was {sim.CabinTemperature}");
+        Assert.True(commander.Fuel > 50, "the tank should have been topped up");
+    }
+
+    [Fact]
+    public void ScoopingTheSunNeedsFuelScoops()
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = false,
+            Commander = Commander.CreateDefault(),
+        };
+
+        Commander commander = sim.Commander!;
+        commander.FuelScoops = false;
+        commander.Fuel = 50;
+
+        var sun = Ship.Create(ShipTypes.Sun, "sun", "Sun", 0, 0, 0, 0, 3000);
+        sun.SetPosition(25600, 0, 0);
+        sim.Spawn(sun);
+
+        for (int i = 0; i < 64; i++)
+        {
+            sim.Step(new FlightInput(SpeedUp: i < 40));
+        }
+
+        Assert.False(sim.PlayerDied);
+        Assert.Equal(50, commander.Fuel);
+    }
+
+    [Fact]
+    public void TheTankNeverGoesAboveFull()
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = false,
+            Commander = Commander.CreateDefault(),
+        };
+
+        Commander commander = sim.Commander!;
+        commander.FuelScoops = true;
+        commander.Fuel = 60;
+
+        var sun = Ship.Create(ShipTypes.Sun, "sun", "Sun", 0, 0, 0, 0, 3000);
+        sun.SetPosition(25600, 0, 0);
+        sim.Spawn(sun);
+
+        for (int i = 0; i < 96; i++)
+        {
+            sim.Step(new FlightInput(SpeedUp: i < 40));
+        }
+
+        Assert.False(sim.PlayerDied);
+        Assert.Equal(Universe.Outfitting.MaxFuel, commander.Fuel);
+    }
+
+    [Fact]
+    public void FlyingIntoThePlanetFromTheNegativeSideIsAlsoFatal()
+    {
+        // A body a couple of thousand units away on the negative side of an axis used to be skipped
+        // entirely: the coordinate is signed, so shifting it right by 16 gave -1 and the top byte
+        // came out as 127, which reads as "as far away as it is possible to be". The planet can be
+        // approached from any direction, so this is a crash the original would have had and we did
+        // not.
+        var (sim, _) = SetUp(-2000, 0, -2000);
+
         for (int i = 0; i < 32 && !sim.PlayerDied; i++)
         {
             sim.Step();

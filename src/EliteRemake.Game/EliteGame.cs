@@ -255,15 +255,25 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
         {
             SaveScreenshot(path);
             _screenshotWritten = true;
+            ReportFinalState();
             Exit();
         }
 
         if (_options.ExitAfterFrames is { } exitAfter && _frame >= exitAfter)
         {
             ReportFrameRate();
+            ReportFinalState();
             Exit();
         }
     }
+
+    /// <summary>
+    /// Prints the scene's state as the run ends. The scene also prints its status line when it
+    /// changes, which is early on, so without this a headless run says nothing about how it finished:
+    /// a screenshot of frame 60 comes with a status line from frame 2, and reading that as the final
+    /// state has been wrong more than once.
+    /// </summary>
+    private void ReportFinalState() => Console.WriteLine($"Final: {_scene.StatusLine}");
 
     /// <summary>When the first frame was drawn, and how many have been, for the frame-rate report.</summary>
     private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();

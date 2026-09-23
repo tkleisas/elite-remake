@@ -64,6 +64,12 @@ public sealed class HudRenderer
     /// <summary>How many missile indicators are lit, which the commander's loadout will drive.</summary>
     public int MissilesArmed { get; set; } = 3;
 
+    /// <summary>
+    /// The commander's fuel in tenths of a light year, for the fuel bar. It is pushed in by the
+    /// scene because only the commander knows it, and it is not the simulation's to hold.
+    /// </summary>
+    public int Fuel { get; set; } = EliteRemake.Core.Universe.Outfitting.MaxFuel;
+
     /// <summary>True when a missile is locked onto a target, which lights the leftmost indicator.</summary>
     public bool Locked { get; set; }
 
@@ -79,8 +85,9 @@ public sealed class HudRenderer
         DrawScanner(spriteBatch, pixel, sim);
         DrawCompass(spriteBatch, pixel, sim);
 
-        // The original flashes "ENERGY LOW" when the banks drop below 50
-        if (sim.Player.Energy < 50)
+        // The original flashes "ENERGY LOW" when the banks are at 50 or below: LDA #50, CMP ENERGY,
+        // BCC - so it is an inclusive test, not a strict one
+        if (sim.Player.Energy <= 50)
         {
             _text.DrawCentred(
                 spriteBatch,
@@ -289,8 +296,8 @@ public sealed class HudRenderer
         // Fore and aft shields, then fuel and the two temperatures, as on the original panel
         DrawLabelledBar(spriteBatch, pixel, left, top, width, height, sim.Player.ForeShield / 255f, Palette.Cyan, "FS");
         DrawLabelledBar(spriteBatch, pixel, left, top + spacing, width, height, sim.Player.AftShield / 255f, Palette.Cyan, "AS");
-        DrawLabelledBar(spriteBatch, pixel, left, top + (spacing * 2), width, height, 0.7f, Palette.Yellow, "FU");
-        DrawLabelledBar(spriteBatch, pixel, left, top + (spacing * 3), width, height, 0.25f, Palette.Red, "CT");
+        DrawLabelledBar(spriteBatch, pixel, left, top + (spacing * 2), width, height, Fuel / (float)EliteRemake.Core.Universe.Outfitting.MaxFuel, Palette.Yellow, "FU");
+        DrawLabelledBar(spriteBatch, pixel, left, top + (spacing * 3), width, height, sim.CabinTemperature / 255f, Palette.Red, "CT");
         DrawLabelledBar(spriteBatch, pixel, left, top + (spacing * 4), width, height, sim.LaserTemperature / 255f, Palette.Red, "LT");
 
         // Missile indicators: four boxes that fill in as missiles are armed

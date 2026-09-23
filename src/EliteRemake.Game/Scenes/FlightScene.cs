@@ -280,6 +280,12 @@ public sealed class FlightScene : IScene
                 $"Flight: speed {_sim.Speed}, roll rate {_sim.RollRate}, pitch rate {_sim.PitchRate}, " +
                 $"{_sim.Bubble.Count} object(s) in the bubble, drawn triangles {_renderer.LastTriangleCount}");
 
+            // The gauges the dashboard shows, so a headless run can be checked without reading pixels
+            text.Append(
+                $", energy {_sim.Player.Energy}/{_sim.Player.MaxEnergy}, " +
+                $"cabin {_sim.CabinTemperature}, laser {_sim.LaserTemperature}, " +
+                $"fuel {Session?.Commander.Fuel ?? 0}, sim step {_sim.MainLoopCounter}, took {_sim.DamageTakenThisFrame} damage");
+
             foreach (Ship ship in _sim.Bubble)
             {
                 (int x, int y, int z) = ship.GetPosition();
@@ -293,7 +299,9 @@ public sealed class FlightScene : IScene
                 double radius = z > 0 ? Camera.FocalLength * SystemArrival.BodyRadius / z : 0;
                 text.Append(
                     $"\n  {kind} type {ship.Type} '{ship.Name}' at ({x}, {y}, {z}) distance {distance:0} " +
-                    $"screen radius {(IsCelestial(ship.Type) ? radius : 0):0.0}");
+                    $"screen radius {(IsCelestial(ship.Type) ? radius : 0):0.0} " +
+                    $"ai 0x{ship.AiFlag:X2}{(ship.IsHostile ? " hostile" : string.Empty)} " +
+                    $"newb 0x{ship.NewbFlags:X2} speed {ship.Speed}");
             }
 
             return text.ToString();
@@ -661,6 +669,7 @@ public sealed class FlightScene : IScene
         spriteBatch.End();
 
         _hud.MissilesArmed = Session?.Commander.Missiles ?? 0;
+        _hud.Fuel = Session?.Commander.Fuel ?? EliteRemake.Core.Universe.Outfitting.MaxFuel;
         _hud.Locked = _sim.MissileLock is not null;
         _hud.Draw(spriteBatch, pixel, Camera, _sim);
     }

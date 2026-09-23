@@ -208,21 +208,19 @@ public static class Tactics
             return false;
         }
 
-        // The direction from the ship to us, expressed in the ship's own frame
-        var toUs = new System.Numerics.Vector3((float)-x, (float)-y, (float)-z) / (float)distance;
+        // The direction from the ship to us. This is the vector the original works its dot
+        // products from, and it is kept unflipped for the laser check below.
+        var towardsUs = new System.Numerics.Vector3((float)-x, (float)-y, (float)-z) / (float)distance;
         System.Numerics.Vector3 nose = Unit(ship.Orientation, Orientation.Nosev);
         System.Numerics.Vector3 roof = Unit(ship.Orientation, Orientation.Roofv);
         System.Numerics.Vector3 side = Unit(ship.Orientation, Orientation.Sidev);
 
-        if (!attack)
-        {
-            // Peaceful ships turn away rather than towards us
-            toUs = -toUs;
-        }
+        // Steering: peaceful ships turn away rather than towards us
+        System.Numerics.Vector3 steer = attack ? towardsUs : -towardsUs;
 
-        float aimX = System.Numerics.Vector3.Dot(toUs, side);
-        float aimY = System.Numerics.Vector3.Dot(toUs, roof);
-        float aimZ = System.Numerics.Vector3.Dot(toUs, nose);
+        float aimX = System.Numerics.Vector3.Dot(steer, side);
+        float aimY = System.Numerics.Vector3.Dot(steer, roof);
+        float aimZ = System.Numerics.Vector3.Dot(towardsUs, nose);
 
         // Roll towards the target if it is off to one side, pitch if it is above or below. The
         // counters are sign-magnitude bytes, and the original gives them the opposite sign to the
@@ -239,8 +237,16 @@ public static class Tactics
         ship.Data[ShipDataBlock.RollCounter] = roll;
         ship.Data[ShipDataBlock.PitchCounter] = pitch;
 
-        // Fire if we are close, roughly ahead, and the ship has a laser
-        if (laserPower > 0 && aimZ > AimCosine && distance < FireRange)
+        // Fire if the ship is attacking, close, roughly ahead and has a laser.
+        //
+        // The attack test is the one that matters: a peaceful ship never fires, and the original
+        // never even reaches its laser checks for one, because a ship that is not hostile is sent
+        // off towards the planet instead. Without it every trader that happened to be flying away
+        // from us counted as aiming at us — the aim was worked out from the steering vector, which
+        // is flipped for peaceful ships, so a ship pointing away from us scored a perfect hit and
+        // shot us in the back as it left. This is why sitting still next to the station drained the
+        // energy banks and lit the dashboard's ENERGY LOW warning with not a hostile ship in sight.
+        if (attack && laserPower > 0 && aimZ > AimCosine && distance < FireRange)
         {
             // The original reads the attacker's z_sign to decide which of our shields was hit
             bool fromBehind = z < 0;

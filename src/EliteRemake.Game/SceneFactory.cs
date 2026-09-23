@@ -141,7 +141,6 @@ public static class SceneFactory
         // system number in a shorter galaxy. It happens to land on Orarra either way, which is
         // exactly the sort of accident worth removing.
         sim.GalaxySeeds = EliteRemake.Core.Universe.Galaxy.GalaxySeeds(session.Commander.GalaxyNumber);
-        sim.ScoopCommander = session.Commander;
 
         // What scooping a ship yields. The blueprint's high nibble plus one is the market item, and
         // the original uses that number directly to index its zero-based QQ20 hold slots — so

@@ -253,6 +253,7 @@ public sealed class FlightSim
         // Flying into a planet or a sun is the end of us
         HitABody = false;
         UpdateAltitudeChecks();
+        UpdateSunHeatAndScooping();
 
         // The energy bomb, if it is going off, kills everything in reach
         BombKillsThisFrame = 0;
@@ -315,7 +316,6 @@ public sealed class FlightSim
     public (int Item, int Amount)? ScoopedThisFrame { get; private set; }
 
     /// <summary>The commander, so scooping knows what is fitted and where cargo goes.</summary>
-    public Commander? ScoopCommander { get; set; }
 
     /// <summary>How a canister's contents are decided, from the blueprints.</summary>
     /// <summary>
@@ -541,10 +541,17 @@ public sealed class FlightSim
 
     /// <summary>
     /// The altitude check the original runs every 32 iterations of its main loop: if we are close
-    /// enough to a planet or sun for the top byte of its position to be zero, the squares of the
-    /// high bytes of the position say how far above its surface we are, and if they come to no more
-    /// than the planet's radius then we have flown into it.
+    /// enough to a planet for the top byte of its position to be zero, the squares of the high bytes
+    /// of the position say how far above its surface we are, and if they come to no more than the
+    /// planet's radius then we have flown into it.
     /// </summary>
+    /// <remarks>
+    /// This is the original's planet check, which is the first ship slot and runs on iteration 10 of
+    /// every 32. The sun is deliberately not checked here: it has its own slot, its own iteration and
+    /// its own death, by heat rather than by impact, in <see cref="UpdateSunHeatAndScooping"/>. Leaving
+    /// the sun in this loop killed us at the impact radius instead, which is further out than the heat
+    /// death, so the cabin temperature never had the chance to rise.
+    /// </remarks>
     private void UpdateAltitudeChecks()
     {
         // The original runs this on iteration 10 of every 32
@@ -555,18 +562,14 @@ public sealed class FlightSim
 
         foreach (Ship body in _bubble)
         {
-            if (!IsCelestial(body.Type))
+            if (!IsPlanet(body.Type))
             {
                 continue;
             }
 
             (int x, int y, int z) = body.GetPosition();
 
-            // The original ORs the top bytes of the three coordinates together: if any of them is
-            // non-zero we are more than 65535 away and there is nothing to check. Note this is the
-            // *top* byte, which carries the high bits of the coordinate rather than a sign.
-            int topByte = ((x >> 16) | (y >> 16) | (z >> 16)) & 0x7F;
-            if (topByte != 0)
+            if (TopByteCap(x, y, z) != 0)
             {
                 continue;
             }
@@ -589,6 +592,178 @@ public sealed class FlightSim
             }
         }
     }
+
+    /// <summary>The cabin temperature in deep space, one notch up the dashboard's bar.</summary>
+    public const int DeepSpaceCabinTemperature = 30;
+
+    /// <summary>The cabin temperature at which the sun starts topping up the fuel tank.</summary>
+    public const int ScoopingCabinTemperature = 224;
+
+    /// <summary>The cabin temperature of a ship that is close enough to the sun to be cooked.</summary>
+    public const int FatalCabinTemperature = 255;
+
+    /// <summary>
+    /// How hot the cabin is, which the dashboard shows as the CT bar. It is 30 in deep space and
+    /// climbs as we approach the sun.
+    /// </summary>
+    public int CabinTemperature { get; private set; } = DeepSpaceCabinTemperature;
+
+    /// <summary>Set when the sun has cooked us this frame.</summary>
+    public bool CookedByTheSun { get; private set; }
+
+    /// <summary>
+    /// The original's sun check, which runs on iteration 20 of every 32: the sun heats the cabin,
+    /// and once it is hot enough the fuel scoops start topping up the tank, and if it gets hotter
+    /// still the cabin temperature goes off the scale and we die.
+    /// </summary>
+    /// <remarks>
+    /// The temperature comes from the same Pythagoras as the planet altitude check but inverted, so
+    /// a large distance gives a low reading: the sum of the squares of the high bytes of the sun's
+    /// position is subtracted from 285, which makes the bar climb as the sun fills the view. The
+    /// original only runs this when no space station is in the bubble, because the station and the
+    /// sun are never both near us, and the station occupies the same ship slot as the sun.
+    /// </remarks>
+    private void UpdateSunHeatAndScooping()
+    {
+        CookedByTheSun = false;
+
+        // The original runs this on iteration 20 of every 32
+        if ((MainLoopCounter & 31) != 20)
+        {
+            return;
+        }
+
+        Ship? sun = null;
+        foreach (Ship body in _bubble)
+        {
+            if (body.Type == ShipTypes.Sun)
+            {
+                sun = body;
+                break;
+            }
+        }
+
+        if (sun is null)
+        {
+            return;
+        }
+
+        // The space station and the sun share a ship slot in the original, so the sun's check is
+        // skipped while a station is in the bubble
+        if (StationIsPresent)
+        {
+            CabinTemperature = DeepSpaceCabinTemperature;
+            return;
+        }
+
+        (int x, int y, int z) = sun.GetPosition();
+
+        // MAS2: the OR of the top bytes. If any of them is non-zero we are more than 65535 away
+        // and are merely in deep space, which is as cool as the cabin gets
+        if (TopByteCap(x, y, z) != 0)
+        {
+            CabinTemperature = DeepSpaceCabinTemperature;
+            return;
+        }
+
+        // MAS3: the high bytes of the three coordinates, squared, added a byte at a time. The
+        // original adds only the high byte of each square and gives up with &FF if the sum
+        // overflows, which is how it tells "near the sun" from "not near enough"
+        int xHi = Math.Abs(x) >> 8 & 0xFF;
+        int yHi = Math.Abs(y) >> 8 & 0xFF;
+        int zHi = Math.Abs(z) >> 8 & 0xFF;
+        int sum = ((xHi * xHi) >> 8) + ((yHi * yHi) >> 8);
+        if (sum > 0xFF)
+        {
+            // A fair way from the sun, and the original's comment for this reads "ouch, hot, hot,
+            // hot" of the opposite case: an overflowing sum means a long way out
+            CabinTemperature = DeepSpaceCabinTemperature + 1;
+            return;
+        }
+
+        sum += (zHi * zHi) >> 8;
+        if (sum > 0xFF)
+        {
+            CabinTemperature = DeepSpaceCabinTemperature + 1;
+            return;
+        }
+
+        // The summed squares are inverted and offset to give the temperature, which is 30 far out
+        // and climbs towards 255 as the sun's disc fills the view. If the inversion carries then
+        // the sun is too close to survive
+        int temperature = 285 - sum;
+        if (temperature > 255)
+        {
+            CabinTemperature = temperature - 256;
+            CookedByTheSun = true;
+            PlayerDied = true;
+            Player.Energy = 0;
+            return;
+        }
+
+        CabinTemperature = temperature;
+
+        // The cabin has to be this hot before the scoops can reach the sun's material
+        if (temperature < ScoopingCabinTemperature)
+        {
+            return;
+        }
+
+        ScoopFuelFromTheSun();
+    }
+
+    /// <summary>
+    /// Tops the tank up while we are close enough to the sun and have scoops fitted: the original
+    /// takes our speed divided by eight, so the faster we skim the more we collect, and caps the
+    /// tank at a full 7.0 light years.
+    /// </summary>
+    private void ScoopFuelFromTheSun()
+    {
+        if (Commander is not { FuelScoops: true } commander)
+        {
+            return;
+        }
+
+        int scooped = Speed >> 3;
+        commander.Fuel = Math.Min(Outfitting.MaxFuel, commander.Fuel + scooped);
+    }
+
+    /// <summary>True while a space station is in the local bubble, which is the original's SSPR.</summary>
+    private bool StationIsPresent
+    {
+        get
+        {
+            foreach (Ship ship in _bubble)
+            {
+                if (ship.Type == Combat.SpaceStationType)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+
+    /// <summary>True for the two planet types, which are the bodies that can be crashed into.</summary>
+    private static bool IsPlanet(int shipType) =>
+        shipType is SystemArrival.PlanetTypeA or SystemArrival.PlanetTypeB;
+
+    /// <summary>
+    /// The original's MAS2: the OR of the top bytes of the three coordinates, which is a cap on how
+    /// far away a body can be. Anything but zero means it is more than 65535 away in some axis, and
+    /// both the planet altitude check and the sun's heat check start by skipping in that case.
+    /// </summary>
+    /// <remarks>
+    /// The magnitudes have to be taken before the shift. A coordinate is signed, and C# shifts a
+    /// negative int arithmetically, so a body a thousand units away on the negative side of an axis
+    /// shifts to &minus;1 and reports itself as 127 units of top byte — that is, as far away as it is
+    /// possible to be. Testing for zero then never passes, and the body we are flying straight at is
+    /// never checked. The original has no such trap because it ORs the raw bytes, whose top bit is the
+    /// sign and is masked off afterwards.
+    /// </remarks>
+    private static int TopByteCap(int x, int y, int z) =>
+        ((Math.Abs(x) >> 16) | (Math.Abs(y) >> 16) | (Math.Abs(z) >> 16)) & 0x7F;
 
     /// <summary>
     /// The damage we take when we fly into another ship, and the damage we do to it. The original's
@@ -814,7 +989,7 @@ public sealed class FlightSim
     /// </summary>
     private void UpdateScooping()
     {
-        if (ScoopCommander is null)
+        if (Commander is null)
         {
             return;
         }
@@ -838,7 +1013,7 @@ public sealed class FlightSim
                 continue;
             }
 
-            (int Item, int Amount)? scooped = Debris.TryScoop(ship, ScoopCommander, ScoopItemProvider(ship));
+            (int Item, int Amount)? scooped = Debris.TryScoop(ship, Commander, ScoopItemProvider(ship));
             if (scooped is not null)
             {
                 ScoopedThisFrame = scooped;
@@ -1386,9 +1561,6 @@ public static class ShipTypes
 {
     /// <summary>The sun, which the original gives the type number 129.</summary>
     public const int Sun = 129;
-
-    /// <summary>The planet.</summary>
-    public const int Planet = -1;
 
     /// <summary>The Coriolis space station.</summary>
     public const int Coriolis = 2;

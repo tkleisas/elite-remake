@@ -3811,3 +3811,76 @@ station lands where it was asked for.
 **Also fixed: the help text lied.** `--station-distance` was documented as defaulting to 6000, and its
 parse fallback said 6000, but the option's own default is 3000 — so the documented default was not the
 default. Both now say 3000.
+
+## The sun cooks the cabin, and every peaceful ship was shooting us
+
+Two faults, both found by asking a question the tests could not: *why does the dashboard say
+ENERGY LOW two seconds after launching, with nothing hostile in the sky?*
+
+### The cabin temperature did not exist
+
+The dashboard's CT bar was drawn at a **constant** `0.25`, and the fuel bar at a constant `0.7`. Neither
+had ever been connected to anything. The original's CT bar is the cabin temperature: deep space is 30,
+the sun heats it, and above **224** the fuel scoops start topping the tank up. Its fuel bar is the
+commander's tank, which empties every time a hyperspace jump is paid for — so the gauge that tells you
+whether you can afford the next jump never moved.
+
+Both now come from real state, and the sun's heat is a faithful port of iteration 20 of the original's
+32-iteration flight loop: the OR of the top bytes of the sun's position decides whether we are close
+enough to care, the high bytes squared and summed a byte at a time give the temperature as
+`285 - sum`, an overflow means deep space, a sum below 30 means the cabin is off the scale and we die,
+and at 224 or more the scoops take our speed divided by eight, capped at a full tank.
+
+**The planet check had a bug that the sun's check inherited.** The original ORs the three *sign* bytes,
+whose top bit is the sign and which it masks off afterwards. Ours shifted the signed coordinate right by
+16 — and C# shifts a negative int arithmetically, so a body a thousand units away on the negative side
+of an axis shifted to &minus;1 and reported itself as 127, which reads as "as far away as it is possible
+to be". **Flying into the planet from the negative side was never fatal.** Both checks now share one
+helper that takes the magnitudes first, and there is a test that fails without it.
+
+The sun was also in the planet's crash loop, which was wrong twice over: the original checks the planet
+on iteration 10 and the sun on iteration 20, and the impact radius is reached *before* the heat radius,
+so the sun would have killed us as a crash and the cabin temperature could never have risen at all.
+
+### Peaceful ships were firing at us
+
+The energy drain was not the sun. TACTICS steers a peaceful ship *away* by flipping the vector to us,
+and our laser check was then made on that same flipped vector: **a trader pointing away from us scored a
+perfect hit.** Every trader, Python and asteroid in the sky that happened to be leaving shot us in the
+back, and sitting still next to the station drained 150 energy to 5 in twenty frames.
+
+The original computes its dot product before the flip — and never reaches the laser checks at all for a
+ship that is not attacking, because a non-hostile ship is sent off towards the planet instead. Firing is
+now gated on the attack decision and judged on the true aim.
+
+**The evidence was a flag that measures the wrong thing**: `DamageTakenThisFrame` is reset every frame
+and only set when a hit takes the energy to zero, so reading it as "no damage has been taken" was wrong
+and sent the search after the sun instead of the AI. Three guesses at the cause were made and discarded
+before the measurement that settled it — printing every ship's AI flag in the status line, which showed
+six ships and **not one hostile**.
+
+While in there: the ENERGY LOW warning is the original's `LDA #50 / CMP ENERGY / BCC`, an *inclusive*
+test, so `<= 50` and not `< 50`.
+
+### The station's safe zone is still missing
+
+The original has a no-fire zone around the station, and our port has none of it. `SSPR` — "a space
+station is in our bubble", which is literally the ship-slot count for the station — is tested in three
+places: spawning is suppressed near the station, a pirate or bounty hunter inside the zone has its
+aggression cleared ("even pirates aren't crazy enough to breach the station's no-fire zone"), and the
+sun's heat check is skipped because the station and the sun share a ship slot. Only the third is
+implemented, as `StationIsPresent`. The pirate half is a small and well-understood change — bit 3 of the
+NEWB flags marks a pirate, and the zone clears bits 1-6 of its AI flag — and it is now the next thing to
+port. The spawn suppression is murkier: the original's guard skips the speed assignment and then
+"potentially spawns something else", so it needs reading properly rather than guessing at.
+
+### Also
+
+- The simulation held **two** references to the commander, `Commander` and `ScoopCommander`. The session
+  sets one on construction and on load, the scene set the other, and only one of them was updated by a
+  load. There is now one.
+- `ShipTypes.Planet` was `-1` and unreferenced; the real planet types are 128 and 130. A constant that is
+  both wrong and unused is a trap for the next reader, so it is gone.
+- Headless runs now print the scene's status line **as they end**. The status line was printed at frame 2,
+  which is *before* anything has happened, and reading it as the final state has been wrong more than
+  once — including twice in this round.
