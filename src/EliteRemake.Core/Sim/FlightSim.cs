@@ -116,8 +116,17 @@ public sealed class FlightSim
     /// </summary>
     public Ship? DestroyedThisFrame { get; set; }
 
-    /// <summary>Which mount is firing; the front view is all the remake has so far.</summary>
-    public LaserMount ActiveMount { get; set; } = LaserMount.Front;
+    /// <summary>
+    /// Which space view we are looking through, which is the original's VIEW, and so which laser
+    /// fires and which way round the crosshair test is done.
+    /// </summary>
+    public SpaceView View { get; set; } = SpaceView.Front;
+
+    /// <summary>
+    /// Which mount is firing, which follows the view: the original reads <c>LASER,X</c> with X set to
+    /// VIEW, so the laser fitted to the window we are looking through is the one that fires.
+    /// </summary>
+    public LaserMount ActiveMount => Plut.Mount(View);
 
     /// <summary>
     /// The commander whose lasers we fire. The original keeps the laser loadout in the commander
@@ -1897,10 +1906,13 @@ public sealed class FlightSim
                 Player.Energy--;
             }
 
-            // Find the first ship in the crosshairs, which is the one we hit
+            // Find the first ship in the crosshairs, which is the one we hit. The test is on the
+            // flipped position, because the original flips each ship to the current view before it
+            // calls HITCH: firing the rear laser hits what is behind us, and the crosshairs mean the
+            // middle of the window we are looking through.
             foreach (Ship ship in _bubble)
             {
-                if (Combat.IsInCrosshairs(ship, TargetableArea(ship)))
+                if (Combat.IsInCrosshairs(ship, TargetableArea(ship), View))
                 {
                     LaserTarget = ship;
 

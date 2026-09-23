@@ -34,6 +34,13 @@ public sealed class Starfield
     private readonly Star[] _stars = new Star[StarCount];
     private readonly Random _random;
 
+    /// <summary>
+    /// The view the field is drawn for, so that the dust streams the right way through the window we
+    /// are looking through: towards us in the front view, away behind us, and sideways past the side
+    /// windows.
+    /// </summary>
+    public EliteRemake.Core.Sim.SpaceView View { get; set; } = EliteRemake.Core.Sim.SpaceView.Front;
+
     public Starfield(int seed = 0x5A4A)
     {
         _random = new Random(seed);
@@ -53,16 +60,45 @@ public sealed class Starfield
         }
     }
 
+    /// <summary>
+    /// Reflects the field in the screen diagonal, which is the original's FLIP: LOOK1 calls it every
+    /// time we change view, and it is "a quick way of making the stardust field in the new view feel
+    /// different without having to generate a whole new field" — look carefully as you change view
+    /// and you can see that the new field is the old one reflected in the line from bottom left to
+    /// top right.
+    /// </summary>
+    public void Flip()
+    {
+        for (int i = 0; i < StarCount; i++)
+        {
+            (_stars[i].X, _stars[i].Y) = (_stars[i].Y, _stars[i].X);
+        }
+    }
+
     /// <summary>Moves the stars towards us by the distance travelled this frame.</summary>
     /// <param name="distanceTravelled">How far we have moved this frame.</param>
     /// <param name="rollAngle">Our roll angle, as the original's ALPHA: a signed value.</param>
     /// <param name="pitchAngle">Our pitch angle, as the original's BETA: a signed value.</param>
     public void Update(float distanceTravelled, int rollAngle = 0, int pitchAngle = 0)
     {
+        // The dust is standing still and we are the ones moving, so it streams along the reverse of
+        // our own velocity seen through this window: towards us in the front view and away from us
+        // in the rear, sideways past the side windows.
+        (float sx, float sy, float sz) = EliteRemake.Core.Sim.Plut.StreamDirection(View);
+        float travel = distanceTravelled;
+
         for (int i = 0; i < StarCount; i++)
         {
-            _stars[i].Z -= distanceTravelled;
-            if (_stars[i].Z < 1f)
+            _stars[i].X += sx * travel;
+            _stars[i].Y += sy * travel;
+            _stars[i].Z += sz * travel;
+
+            // A particle that has reached us comes back as a new one at the far end. How far away it
+            // is is measured against the stream, so the test and the new position move with the view:
+            // the dust arrives from +z in the front view and from -z in the rear, where it is the
+            // rear window we are watching it through.
+            float depth = -((_stars[i].X * sx) + (_stars[i].Y * sy) + (_stars[i].Z * sz));
+            if (depth < 1f)
             {
                 _stars[i] = NewStar(anyDepth: false);
             }
@@ -105,18 +141,36 @@ public sealed class Starfield
             }
 
             // Stars fade in from the gloom as they get closer, as the original's do when they
-            // reach a certain distance
-            float brightness = MathHelper.Clamp(1f - (star.Z / SpawnDepth), 0.15f, 0.85f);
+            // reach a certain distance. "Closer" is measured along the streaming axis, which is x
+            // rather than z in the side views.
+            (float sx, float sy, float sz) = EliteRemake.Core.Sim.Plut.StreamDirection(View);
+            float depth = -((star.X * sx) + (star.Y * sy) + (star.Z * sz));
+            float brightness = MathHelper.Clamp(1f - (depth / SpawnDepth), 0.15f, 0.85f);
             var colour = new Color(brightness, brightness, brightness);
-            int size = star.Z < 600 ? 2 : 1;
+            int size = depth < 600 ? 2 : 1;
             spriteBatch.Draw(pixel, new Rectangle((int)screen.X, (int)screen.Y, size, size), colour);
         }
     }
 
-    private Star NewStar(bool anyDepth) => new(
-        (float)((_random.NextDouble() * 2) - 1) * SpawnDepth * 0.5f,
-        (float)((_random.NextDouble() * 2) - 1) * SpawnDepth * 0.5f,
-        anyDepth ? (float)(_random.NextDouble() * SpawnDepth) + 1f : SpawnDepth);
+    /// <summary>A new particle at the far end of this view's stream, spread across the window.</summary>
+    /// <param name="anyDepth">True to scatter it along the stream as well, for a fresh field.</param>
+    private Star NewStar(bool anyDepth)
+    {
+        // The far end of the stream is the opposite of the direction the dust travels
+        (float sx, float sy, float sz) = EliteRemake.Core.Sim.Plut.StreamDirection(View);
+        float spread = SpawnDepth * 0.5f;
+        float reach = anyDepth
+            ? (float)(_random.NextDouble() * SpawnDepth) + 1f
+            : SpawnDepth;
+
+        return new Star(
+            (-sx * reach) + ((sx == 0 ? Spread() : 0) * spread),
+            (-sy * reach) + ((sy == 0 ? Spread() : 0) * spread),
+            (-sz * reach) + ((sz == 0 ? Spread() : 0) * spread));
+    }
+
+    /// <summary>A random offset from -1 to 1 across the window.</summary>
+    private float Spread() => (float)((_random.NextDouble() * 2) - 1);
 
     private struct Star(float x, float y, float z)
     {

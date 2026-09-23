@@ -22,6 +22,9 @@ public sealed class EquipmentScene : IScene
     private const int Columns = 32;
     private const int FuelBlock = 10;
 
+    /// <summary>The column the prices start in, past the longest item name the shop has.</summary>
+    private const int PriceColumn = 24;
+
     private readonly GameSession _session;
     private readonly TextRenderer _text;
     private KeyboardState _previousKeys;
@@ -35,8 +38,25 @@ public sealed class EquipmentScene : IScene
 
     public ViewCamera Camera { get; }
 
+    /// <summary>
+    /// Opens the shop with the view question already asked, which is how the command line's
+    /// <c>--buy</c> can show the prompt without a keyboard to answer it with.
+    /// </summary>
+    public void AskWhichView(int item)
+    {
+        Selected = item;
+        AwaitingViewFor = item;
+    }
+
     /// <summary>The item the player has selected, or -1 for none.</summary>
     public int Selected { get; private set; } = -1;
+
+    /// <summary>
+    /// The laser item waiting for a view to be chosen, or -1. The original asks this question with
+    /// its qv routine — "Print a menu listing the four space views, with a View ? prompt" — as soon
+    /// as a laser is bought, and fits it to the view whose number is answered.
+    /// </summary>
+    public int AwaitingViewFor { get; private set; } = -1;
 
     public string StatusLine =>
         $"Equipment: {_session.System.Name} (tech level {_session.System.TechLevel}) stocks " +
@@ -47,6 +67,33 @@ public sealed class EquipmentScene : IScene
         _ = elapsedSeconds;
 
         KeyboardState keys = Keyboard.GetState();
+
+        // A laser has been bought and we are waiting for the view to fit it to, so this is the qv
+        // prompt: 0 to 3 answer it, and nothing else on the screen responds until it is answered.
+        if (AwaitingViewFor >= 0)
+        {
+            for (int view = 0; view < 4; view++)
+            {
+                if (IsNewPress(keys, Keys.D0 + view))
+                {
+                    _session.BuyEquipment(AwaitingViewFor, 0, (LaserMount)view);
+                    AwaitingViewFor = -1;
+                    _previousKeys = keys;
+                    return;
+                }
+            }
+
+            // The original's gnum waits for a valid digit and has no way out of the prompt. Escape
+            // abandons the purchase rather than trapping the player in it, which is an addition.
+            if (IsNewPress(keys, Keys.Escape))
+            {
+                AwaitingViewFor = -1;
+                _session.Message = "Purchase abandoned.";
+            }
+
+            _previousKeys = keys;
+            return;
+        }
 
         for (int i = 0; i < 10; i++)
         {
@@ -68,7 +115,16 @@ public sealed class EquipmentScene : IScene
 
         if (Selected >= 0 && IsNewPress(keys, Keys.B))
         {
-            _session.BuyEquipment(Selected);
+            // A laser needs a view to fit it to before it can be bought
+            if (Outfitting.IsLaserItem(Selected))
+            {
+                AwaitingViewFor = Selected;
+                _session.Message = "Which view?";
+            }
+            else
+            {
+                _session.BuyEquipment(Selected);
+            }
         }
 
         if (IsNewPress(keys, Keys.M))
@@ -152,8 +208,11 @@ public sealed class EquipmentScene : IScene
             Palette.White);
 
         int y = top + (cellHeight * 2);
+        // The price column starts past the longest name in the table, which is "Extra Military
+        // Lasers": at column 18 the two ran into each other, and the dash that marks an item we
+        // already own had nowhere to go at all.
         _text.Draw(spriteBatch, "ITEM", left + cellWidth, y, scale, normal);
-        _text.Draw(spriteBatch, "PRICE", left + (cellWidth * 20), y, scale, normal);
+        _text.Draw(spriteBatch, "PRICE", left + (cellWidth * PriceColumn), y, scale, normal);
         y += cellHeight;
 
         int stocked = Outfitting.ItemsStocked(_session.System);
@@ -171,8 +230,8 @@ public sealed class EquipmentScene : IScene
 
             _text.Draw(spriteBatch, marker, left, y, scale, colour);
             _text.Draw(spriteBatch, item.Name, left + (cellWidth * 2), y, scale, colour);
-            _text.Draw(spriteBatch, Pad(price, 8), left + (cellWidth * 18), y, scale, colour);
-            _text.Draw(spriteBatch, owned, left + (cellWidth * 27), y, scale, colour);
+            _text.Draw(spriteBatch, Pad(price, 8), left + (cellWidth * PriceColumn), y, scale, colour);
+            _text.Draw(spriteBatch, owned, left + (cellWidth * (PriceColumn + 8)), y, scale, colour);
             y += cellHeight;
         }
 
@@ -189,7 +248,29 @@ public sealed class EquipmentScene : IScene
         y += cellHeight;
         _text.Draw(spriteBatch, _session.Message, left, y, scale, Palette.Cyan);
         y += cellHeight;
-        _text.DrawHintLine(spriteBatch, "1-9 SELECT  B BUY  F FUEL  M MARKET  F7 MARKET  F8 STATUS  ESC LAUNCH", left, y, scale, (int)Camera.ViewportWidth - left - 8, dim);
+        _text.DrawHintLine(spriteBatch, "1-9 SELECT  B BUY  F FUEL  M MARKET  F8 STATUS  ESC LAUNCH", left, y, scale, (int)Camera.ViewportWidth - left - 8, dim);
+
+        // The view menu, which the original prints at row 16, column 12 — under the list on its
+        // twenty-four row screen. Ours has room below the hints, so it goes there rather than over
+        // the prices.
+        if (AwaitingViewFor >= 0)
+        {
+            int menuY = y + (cellHeight * 2);
+            int menuX = left + (cellWidth * 12);
+            for (int view = 0; view < 4; view++)
+            {
+                _text.Draw(
+                    spriteBatch,
+                    $"{view} {Outfitting.ViewName((LaserMount)view)}",
+                    menuX,
+                    menuY,
+                    scale,
+                    view == 0 ? highlight : normal);
+                menuY += cellHeight;
+            }
+
+            _text.Draw(spriteBatch, "VIEW ?", menuX, menuY + cellHeight, scale, Palette.Cyan);
+        }
 
         spriteBatch.End();
     }

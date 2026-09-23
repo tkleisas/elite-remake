@@ -716,14 +716,18 @@ public sealed class GameSession
     {
         Mode = GameMode.Flying;
         Message = string.Empty;
+
+        // We launch looking out of the front window, which is TT110: it reaches LOOK1 with X = 0
+        // whether it is launching us or bringing us out of a hyperspace jump.
+        Flight.View = SpaceView.Front;
     }
 
     /// <summary>
     /// Buys an equipment item from the station's shop, applying its effect to the commander.
     /// </summary>
-    public string? BuyEquipment(int item, int lightYears = 0)
+    public string? BuyEquipment(int item, int lightYears = 0, LaserMount? mount = null)
     {
-        string? result = Universe.Outfitting.Buy(Commander, System, item, lightYears);
+        string? result = Universe.Outfitting.Buy(Commander, System, item, lightYears, mount);
         Message = result ?? string.Empty;
 
         // A few items change how our ship behaves in flight

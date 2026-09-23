@@ -50,6 +50,7 @@ public static class Combat
         LaserType.Pulse => PulseLaserPower,
         LaserType.Beam => BeamLaserPower,
         LaserType.Military => MilitaryLaserPower,
+        LaserType.Mining => MiningLaserPower,
         _ => 0,
     };
 
@@ -67,7 +68,11 @@ public static class Combat
     /// </remarks>
     public static int FireInterval(LaserType type) => type switch
     {
+        // A pulse laser's power is 15, which masks to 10 ticks — five shots a second. A mining
+        // laser's 50 masks to 50, so it fires once a second, which is the slow, deliberate tool the
+        // original makes it.
         LaserType.Pulse => LaserRawByte(LaserType.Pulse) & 0b11111010,
+        LaserType.Mining => LaserRawByte(LaserType.Mining) & 0b11111010,
         _ => 0,
     };
 
@@ -86,6 +91,7 @@ public static class Combat
         LaserType.Pulse => PulseLaserPower,
         LaserType.Beam => 128 + BeamLaserPower,
         LaserType.Military => 128 + MilitaryLaserPower,
+        LaserType.Mining => MiningLaserPower,
         _ => 0,
     };
 
@@ -94,9 +100,18 @@ public static class Combat
     /// us, to be a ship rather than the planet or sun, not to be exploding, to be within 256 units
     /// of the centre line, and to fall inside the targetable area from its blueprint.
     /// </summary>
-    public static bool IsInCrosshairs(Ship ship, int targetableArea)
+    /// <param name="targetableArea">The area from the ship's blueprint.</param>
+    /// <param name="view">
+    /// The view we are looking through. The original flips each ship to the current view before it
+    /// calls HITCH, so "in front of us" means in front of the window we are looking through: the
+    /// rear laser hits what is behind the ship.
+    /// </param>
+    public static bool IsInCrosshairs(Ship ship, int targetableArea, SpaceView view = SpaceView.Front)
     {
-        if (ship.GetCoordinate(ShipDataBlock.Z) <= 0)
+        (int x, int y, int z) = ship.GetPosition();
+        (x, y, z) = Plut.Position(view, x, y, z);
+
+        if (z <= 0)
         {
             return false; // behind us
         }
@@ -111,8 +126,6 @@ public static class Combat
             return false;
         }
 
-        int x = ship.GetCoordinate(ShipDataBlock.X);
-        int y = ship.GetCoordinate(ShipDataBlock.Y);
         if (Math.Abs(x) >= 256 || Math.Abs(y) >= 256)
         {
             return false; // too far off the centre line

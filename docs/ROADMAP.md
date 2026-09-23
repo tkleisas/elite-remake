@@ -4465,3 +4465,82 @@ changing the test.** The station test looked like an RNG wobble — a trader's p
 way the ship flies — and it was also pointing at a control law that drove every AI ship in the game
 round its target rather than onto it. Pinning the RNG first and asking why the ship was circling would
 have found it a round earlier.
+
+## The four space views
+
+**The remake could only look forward.** The original's flight loop shows four space views — front,
+rear, left and right — and its own keys for them are red keys **f0 to f3**. Ours had one view and no
+keys at all, which is why nothing in the game had ever needed the other three laser mounts the
+equipment shop was already selling.
+
+**PLUT flips axes rather than rotating anything**, and the flipped universe is never stored: it is
+applied to a ship's INWK workspace on its turn around the flight loop, and only two things read it —
+the crosshair test in HITCH, which decides both the laser hit and the missile lock, and the drawing.
+So this is a transform at the point of use, and the stored universe stays the front view:
+
+| View | The original's flip | Position |
+|---|---|---|
+| Front | none | (x, y, z) |
+| Rear | flip the sign of x and z | (−x, y, −z) |
+| Left | swap x and z, flip the sign of the new z | (z, y, −x) |
+| Right | swap x and z, flip the sign of the new x | (−z, y, x) |
+
+All four are **rotations and not mirrors**, which the tests pin: they preserve lengths, and the left
+and right views undo each other. The three orientation vectors go through the same rule as the
+position, so a ship is seen from the window rather than always from the front.
+
+**The laser mount is the view.** The original reads `LASER,X` with X set to VIEW, so looking out of
+the back fires the rear laser and the crosshairs mean the middle of the window you are looking
+through. Firing backwards, locking a missile onto something behind us and mining a rock we have
+flown past all fall out of that one line of arithmetic rather than being special cases.
+
+**The stardust has a view of its own.** It streams along the reverse of our velocity as seen through
+the window — towards us in front, away behind, sideways past the sides — and LOOK1 reflects the whole
+field in the screen diagonal every time the view changes, which the original's own comment calls "a
+quick way of making the stardust field in the new view feel different without having to generate a
+whole new field". Both are in, and a hyperspace arrival or a launch resets us to the front view with
+a new field, which is TT110 reaching LOOK1 with X = 0.
+
+**Verified by looking out of the back window**: with the station 4220 units behind us the rear view
+shows the Coriolis station dead centre and the sun off to the left, which is the first time the sun
+has been visible in this remake at all — it is always behind us when we arrive. The four views draw
+different amounts of geometry from the same sky (134 triangles in front, 0 behind, 74 to the left, 29
+to the right in one measured scene), and `--view front|rear|left|right` is now in the development CLI.
+
+## The mining laser did not exist, and the shop fitted lasers to the wrong mount
+
+**Item 13 of the equipment table was a lie.** "Extra Mining Lasers" fitted a *pulse* laser, on the
+stated grounds that a mining laser fits the front mount — and there was no `LaserType.Mining` at all,
+so the one laser whose whole purpose is breaking rocks into scoopable splinters could not be bought.
+The disc version's flight source defines it plainly: `POW = 15`, `Mlas = 50`, `Armlas = INT(128.5 +
+1.5*POW)`, and the equipment shop's own item 13 fits `#Mlas`. There is now a `LaserType.Mining` with
+the power of 50, the raw byte of 50, and LASCT's masked 50 ticks between shots — one shot a second
+rather than a pulse laser's five.
+
+**The four laser items used to pick the mount themselves**, walking the four and filling the first
+one that was empty or worse. The original asks: buying a laser calls `qv`, which prints
+
+```
+0 Front
+1 Rear
+2 Left
+3 Right
+View ?
+```
+
+and fits the laser to the view whose number is answered. The shop now asks the same question, and it
+also **refunds the laser being replaced** at its own list price, which is the disc version's `refund`
+routine. That routine is worth reading: the first release of disc Elite refunded a price fetched from
+outside its price table — it was called with a laser *power* where it expected an item *number* — and
+you could buy the same laser over and over for infinite money. The fix is nine NOPs in the middle of
+the routine, and the refund is what we reproduce.
+
+**The status screen showed one laser** where the original walks all four views and prints the view's
+name — tokens 96 to 99, "FRONT" to "RIGHT" — followed by that laser's own name, skipping the views
+with nothing fitted. Now it does too, and the mining laser has a name of its own to print.
+
+**The method rule this round earned, again: ask what the other cases are for.** The three spare
+mounts had been *modelled* since the shops were written — the commander has four lasers, the
+equipment table sells four laser items, the status screen had a `LaserName` that returned "PULSE" for
+everything — and none of it could be reached, because there was only one view. Two faults fell out of
+following that thread: a laser that was not a laser, and a shop that chose the mount for you.

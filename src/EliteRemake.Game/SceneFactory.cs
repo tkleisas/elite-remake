@@ -110,6 +110,36 @@ public static class SceneFactory
             session.Screen = options.StartScreen;
         }
 
+        // --buy: the equipment shop's own rules, from the command line. A laser needs a view, which
+        // is the original's "View ?" prompt answered in advance.
+        if (options.BuyItem is { } purchase)
+        {
+            string[] parts = purchase.Split(',', 2);
+            int item = int.Parse(parts[0]);
+            LaserMount? mount = parts.Length > 1
+                ? parts[1].ToLowerInvariant() switch
+                {
+                    "rear" => LaserMount.Rear,
+                    "left" => LaserMount.Left,
+                    "right" => LaserMount.Right,
+                    _ => LaserMount.Front,
+                }
+                : null;
+
+            if (mount is null && EliteRemake.Core.Universe.Outfitting.IsLaserItem(item))
+            {
+                // Leave the question open for the equipment screen to show
+                session.Screen = DockedScreen.Equipment;
+                options.BuyLaserItem = item;
+            }
+            else
+            {
+                string? result = session.BuyEquipment(item, 0, mount);
+                Console.WriteLine($"Buy {purchase}: {result ?? "no effect"} " +
+                                  $"({EliteRemake.Core.Universe.Outfitting.Format(session.Commander.Cash)} credits)");
+            }
+        }
+
         return session;
     }
 
@@ -206,6 +236,15 @@ public static class SceneFactory
             }
         };
         scene.ArriveInSystem(session.System, options.StationDistance);
+
+        // --view: start looking through one of the other three windows
+        scene.SetView(options.StartView switch
+        {
+            "rear" => EliteRemake.Core.Sim.SpaceView.Rear,
+            "left" => EliteRemake.Core.Sim.SpaceView.Left,
+            "right" => EliteRemake.Core.Sim.SpaceView.Right,
+            _ => EliteRemake.Core.Sim.SpaceView.Front,
+        });
         session.BountyProvider = ship =>
             ShipCatalog.ByType(ship.Type) is { } bountyShip &&
             EliteRemake.Data.Ships.ShipData.ById(bountyShip.Id) is { } bountyBlueprint

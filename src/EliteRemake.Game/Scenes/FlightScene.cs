@@ -227,18 +227,52 @@ public sealed class FlightScene : IScene
         Sounds?.Play(Core.Audio.SoundEffect.Hyperspace);
     }
 
-    /// <summary>The ship in our crosshairs, which a missile can lock onto.</summary>
+    /// <summary>
+    /// The ship in our crosshairs, which a missile can lock onto: the middle of the window we are
+    /// looking through, so a missile can be locked onto something behind us from the rear view.
+    /// </summary>
     private Ship? FindTargetInCrosshairs()
     {
         foreach (Ship ship in _sim.Bubble)
         {
-            if (Combat.IsInCrosshairs(ship, _sim.TargetableAreaOf(ship)))
+            if (Combat.IsInCrosshairs(ship, _sim.TargetableAreaOf(ship), _sim.View))
             {
                 return ship;
             }
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Which space view a key press asks for, or null if none of the four is being pressed. The
+    /// original's keys are red keys f0 to f3, which are F1 to F4 on a PC keyboard.
+    /// </summary>
+    private SpaceView? ViewKeyPressed(KeyboardState keys)
+    {
+        if (keys.IsKeyDown(Settings.ViewFrontKey)) return SpaceView.Front;
+        if (keys.IsKeyDown(Settings.ViewRearKey)) return SpaceView.Rear;
+        if (keys.IsKeyDown(Settings.ViewLeftKey)) return SpaceView.Left;
+        if (keys.IsKeyDown(Settings.ViewRightKey)) return SpaceView.Right;
+        return null;
+    }
+
+    /// <summary>
+    /// Changes the view, as LOOK1 does: the screen is cleared, the stardust is reflected in the
+    /// screen diagonal, and the crosshairs are redrawn. Ours has no screen to clear — the view is a
+    /// transform applied as things are drawn — so what is left to do is the reflection and telling
+    /// the dust which way to stream.
+    /// </summary>
+    public void SetView(SpaceView view)
+    {
+        if (_sim.View == view)
+        {
+            return;
+        }
+
+        _sim.View = view;
+        _starfield.View = view;
+        _starfield.Flip();
     }
 
     public FlightScene(GraphicsDevice device, ViewCamera camera, FlightSim sim, HudRenderer hud)
@@ -307,7 +341,7 @@ public sealed class FlightScene : IScene
             text.Append(
                 $", energy {_sim.Player.Energy}/{_sim.Player.MaxEnergy}, " +
                 $"cabin {_sim.CabinTemperature}, laser {_sim.LaserTemperature}, " +
-                $"autopilot {(DockingComputerEngaged ? "on" : "off")}, " +
+                $"autopilot {(DockingComputerEngaged ? "on" : "off")}, view {_sim.View}, " +
                 $"fuel {Session?.Commander.Fuel ?? 0}, sim step {_sim.MainLoopCounter}, took {_sim.DamageTakenThisFrame} damage, died {_sim.PlayerDied}" +
                 (Session is null ? string.Empty : $", game over {Session.GameOver}, \"{Session.Message}\""));
 
@@ -355,6 +389,13 @@ public sealed class FlightScene : IScene
             stationDistance,
             SystemArrival.StationRollCounter,
             Session?.ArrivalStatusCarry ?? 0);
+
+        // Arriving puts us back in the front view with a new stardust field, which is TT110: it
+        // reaches LOOK1 with X = 0 for the front view, which clears the screen, reflects the dust
+        // in the screen diagonal and sets up a new field. Jumping to a new system while looking out
+        // of the back window otherwise leaves us there, with the dust streaming the wrong way.
+        SetView(SpaceView.Front);
+        _starfield.Reset();
 
         _system = system;
 
@@ -453,6 +494,12 @@ public sealed class FlightScene : IScene
             _wasAt[ship] = new System.Numerics.Vector3(x, y, z);
         }
     }
+
+    /// <summary>A ship's orientation as seen through the current view.</summary>
+    private ShipOrientation Viewed(ShipOrientation orientation) => new(
+        Plut.Direction(_sim.View, orientation.Nose),
+        Plut.Direction(_sim.View, orientation.Roof),
+        Plut.Direction(_sim.View, orientation.Side));
 
     /// <summary>
     /// Where to draw a ship: between where it was and where it is, by however much of an iteration
@@ -730,6 +777,13 @@ public sealed class FlightScene : IScene
                 _ecmPressed = false;
             }
 
+            // The four space views, on the original's own keys: f0 to f3 on a BBC Micro, which are
+            // F1 to F4 here because a PC keyboard has no f0
+            if (ViewKeyPressed(keys) is { } wanted)
+            {
+                SetView(wanted);
+            }
+
             // U unarms the missile, which the original answers with a long, low beep whether or not
             // it was aimed at anything
             if (keys.IsKeyDown(Settings.UnarmMissileKey) && !_unarmPressed)
@@ -924,7 +978,8 @@ public sealed class FlightScene : IScene
                 continue;
             }
 
-            (int bx, int by, int bz) = body.GetPosition();
+            (int x, int y, int z) = body.GetPosition();
+            (int bx, int by, int bz) = Plut.Position(_sim.View, x, y, z);
             _celestial.Draw(
                 spriteBatch,
                 Camera,
@@ -948,7 +1003,11 @@ public sealed class FlightScene : IScene
                 continue;
             }
 
-            System.Numerics.Vector3 where = WhereItIsNow(ship);
+            // The ship is drawn through the current view, which is the axis flip the original
+            // applies to a ship's INWK workspace before it draws it: the same rule turns its position
+            // and its three orientation vectors, so the model is seen from the window we are looking
+            // through rather than always from the front.
+            System.Numerics.Vector3 where = Plut.Direction(_sim.View, WhereItIsNow(ship));
             if (where.Z <= 0)
             {
                 continue; // behind us
@@ -957,7 +1016,7 @@ public sealed class FlightScene : IScene
             _renderer.DrawShip(
                 mesh,
                 where,
-                ShipOrientation.FromEliteOrientation(ship.Orientation),
+                Viewed(ShipOrientation.FromEliteOrientation(ship.Orientation)),
                 Camera,
                 ColourFor(ship),
                 ship.VisibilityDistance,
@@ -1043,7 +1102,7 @@ public sealed class FlightScene : IScene
                 continue;
             }
 
-            (int x, int y, int z) = ship.GetPosition();
+            (int x, int y, int z) = Plut.Position(_sim.View, ship.GetPosition().X, ship.GetPosition().Y, ship.GetPosition().Z);
             if (z <= 0)
             {
                 continue;

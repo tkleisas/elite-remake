@@ -105,6 +105,22 @@ public sealed class GameOptions
     /// <summary>If set, the commander starts with every piece of equipment.</summary>
     public bool FullyEquipped { get; private set; }
 
+    /// <summary>Which space view to start in, for looking at the other three from the command line.</summary>
+    public string StartView { get; private set; } = "front";
+
+    /// <summary>
+    /// An equipment item to buy as the game starts, as "item" or "item,view" — for example "13,rear"
+    /// for a mining laser on the rear mount. It exists so the shop's own rules, the view prompt
+    /// included, can be exercised from the command line.
+    /// </summary>
+    public string? BuyItem { get; private set; }
+
+    /// <summary>
+    /// A laser item whose view question should be left open, so the shop's prompt can be looked at
+    /// rather than answered. Set from <see cref="BuyItem"/> when it names no view.
+    /// </summary>
+    public int BuyLaserItem { get; set; } = -1;
+
     public static GameOptions Parse(string[] args)
     {
         var options = new GameOptions();
@@ -217,6 +233,15 @@ public sealed class GameOptions
                     options.StressShips = int.Parse(Next() ?? "12");
                     options.ShowTitle = false;
                     break;
+                case "--view":
+                    options.StartView = (Next() ?? "front").ToLowerInvariant();
+                    options.ShowTitle = false;
+                    break;
+                case "--buy":
+                    options.BuyItem = Next();
+                    options.ShowTitle = false;
+                    options.StartDocked = true;
+                    break;
                 case "--in-system-jump":
                     options.InSystemJumps = int.Parse(Next() ?? "1");
                     options.ShowTitle = false;
@@ -288,6 +313,7 @@ public sealed class GameOptions
               --sim-rate <hz>         main loop iterations a second (default 12.5, the disc's own)
               --jump                  begin a hyperspace jump at once, to see the tunnel
               --in-system-jump <n>    make n in-system jumps as the flight scene starts
+              --buy <item>[,<view>]   buy an equipment item, e.g. 13,rear, and report the result
               --dock [screen]         start docked, at the market or the equipment shop
               --laser <type>          fit a pulse, beam, military or none laser to the front
               --fully-equipped        start with every piece of equipment

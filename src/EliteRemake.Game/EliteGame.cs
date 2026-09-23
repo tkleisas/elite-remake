@@ -107,6 +107,18 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
             return _viewerScene ??= SceneFactory.CreateViewer(_options, GraphicsDevice, Camera);
         }
 
+        // --buy with a laser and no view wanted to see the shop's "Which view?" prompt rather than
+        // answer it, so the equipment screen opens with the question already on it
+        if (_options.BuyLaserItem >= 0 &&
+            _session.Mode == GameMode.Docked &&
+            _session.Screen == DockedScreen.Equipment)
+        {
+            _equipmentScene ??= new EquipmentScene(Camera, _session, _text);
+            _equipmentScene.AskWhichView(_options.BuyLaserItem);
+            _options.BuyLaserItem = -1;
+            return _equipmentScene;
+        }
+
         if (_session.Mode == GameMode.Title)
         {
             if (_titleScene is null)

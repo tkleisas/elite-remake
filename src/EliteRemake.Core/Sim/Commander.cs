@@ -32,6 +32,14 @@ public enum LaserType
 
     /// <summary>A military laser, the most powerful.</summary>
     Military = 3,
+
+    /// <summary>
+    /// A mining laser, which is not an upgrade but a different tool: it is weaker than a beam laser
+    /// against ships, but it is the only thing that breaks a rock into scoopable splinters. The
+    /// original gives it a power of 50 against the pulse laser's 15, which is why it has a value of
+    /// its own here rather than being an odd sort of pulse laser.
+    /// </summary>
+    Mining = 4,
 }
 
 /// <summary>

@@ -60,6 +60,30 @@ public sealed class Settings
     [JsonPropertyName("escapePod")]
     public string EscapePod { get; set; } = nameof(Keys.Escape);
 
+    /// <summary>
+    /// The four space views, on the original's own keys shifted by one.
+    /// </summary>
+    /// <remarks>
+    /// The disc version shows the front view on red key f0, the rear on f1, the left on f2 and the
+    /// right on f3 — the BBC Micro's function keys start at f0, and a PC keyboard's do not, so the
+    /// four land on F1 to F4 here. It is the one place the remake's keys are not the original's own,
+    /// and it cannot be otherwise: there is no f0 to press.
+    /// </remarks>
+    [JsonPropertyName("viewFront")]
+    public string ViewFront { get; set; } = nameof(Keys.F1);
+
+    /// <summary>The rear view, on the original's f1.</summary>
+    [JsonPropertyName("viewRear")]
+    public string ViewRear { get; set; } = nameof(Keys.F2);
+
+    /// <summary>The left view, on the original's f2.</summary>
+    [JsonPropertyName("viewLeft")]
+    public string ViewLeft { get; set; } = nameof(Keys.F3);
+
+    /// <summary>The right view, on the original's f3.</summary>
+    [JsonPropertyName("viewRight")]
+    public string ViewRight { get; set; } = nameof(Keys.F4);
+
     /// <summary>Hyperspace. The original uses "H" from the charts; there is no flight key for it.</summary>
     [JsonPropertyName("hyperspace")]
     public string Hyperspace { get; set; } = nameof(Keys.H);
@@ -109,6 +133,10 @@ public sealed class Settings
         ("IN-SYSTEM JUMP", () => InSystemJump, v => InSystemJump = v),
         ("UNARM MISSILE", () => UnarmMissile, v => UnarmMissile = v),
         ("ESCAPE POD", () => EscapePod, v => EscapePod = v),
+        ("VIEW FRONT", () => ViewFront, v => ViewFront = v),
+        ("VIEW REAR", () => ViewRear, v => ViewRear = v),
+        ("VIEW LEFT", () => ViewLeft, v => ViewLeft = v),
+        ("VIEW RIGHT", () => ViewRight, v => ViewRight = v),
         ("HYPERSPACE", () => Hyperspace, v => Hyperspace = v),
         ("DOCKING COMPUTER", () => DockingComputer, v => DockingComputer = v),
         ("ROLL LEFT", () => RollLeft, v => RollLeft = v),
@@ -158,6 +186,10 @@ public sealed class Settings
     public Keys EcmKey => Key(Ecm, Keys.E);
     public Keys EnergyBombKey => Key(EnergyBomb, Keys.Tab);
     public Keys HyperspaceKey => Key(Hyperspace, Keys.H);
+    public Keys ViewFrontKey => Key(ViewFront, Keys.F1);
+    public Keys ViewRearKey => Key(ViewRear, Keys.F2);
+    public Keys ViewLeftKey => Key(ViewLeft, Keys.F3);
+    public Keys ViewRightKey => Key(ViewRight, Keys.F4);
     public Keys DockingComputerKey => Key(DockingComputer, Keys.C);
     public Keys InSystemJumpKey => Key(InSystemJump, Keys.J);
     public Keys UnarmMissileKey => Key(UnarmMissile, Keys.U);

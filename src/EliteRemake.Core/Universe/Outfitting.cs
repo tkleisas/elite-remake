@@ -106,11 +106,26 @@ public static class Outfitting
     /// <param name="system">The system they are docked in.</param>
     /// <param name="item">The item number.</param>
     /// <param name="lightYears">How much fuel to buy, for the fuel item.</param>
-    public static string? Buy(Commander commander, StarSystem system, int item, int lightYears = 0)
+    /// <param name="mount">
+    /// Which view to fit a laser to. The original asks which of the four when a laser is bought —
+    /// "Print a menu listing the four space views, with a View ? prompt" — and refunds the laser it
+    /// replaces, so this is required for the four laser items and ignored for everything else.
+    /// </param>
+    public static string? Buy(
+        Commander commander,
+        StarSystem system,
+        int item,
+        int lightYears = 0,
+        LaserMount? mount = null)
     {
         if (!IsStocked(system, item))
         {
             return "This system does not stock that.";
+        }
+
+        if (IsLaserItem(item))
+        {
+            return BuyLaser(commander, item, mount);
         }
 
         EquipmentItem entry = Items[item];
@@ -154,6 +169,93 @@ public static class Outfitting
         return $"Bought {entry.Name} for {Format(entry.Price)}.";
     }
 
+    /// <summary>The four equipment items that fit a laser rather than a gadget.</summary>
+    public static bool IsLaserItem(int item) => item is 4 or 5 or 12 or 13;
+
+    /// <summary>The laser an equipment item fits: the original's POW, POW+128, Armlas and Mlas.</summary>
+    public static LaserType LaserOf(int item) => item switch
+    {
+        4 => LaserType.Pulse,
+        5 => LaserType.Beam,
+        12 => LaserType.Military,
+        13 => LaserType.Mining,
+        _ => LaserType.None,
+    };
+
+    /// <summary>The equipment item that sells a laser, which is what a refund is priced from.</summary>
+    public static int LaserItemOf(LaserType laser) => laser switch
+    {
+        LaserType.Pulse => 4,
+        LaserType.Beam => 5,
+        LaserType.Military => 12,
+        LaserType.Mining => 13,
+        _ => -1,
+    };
+
+    /// <summary>The names the original gives the four views, from its own "FRONT" to "RIGHT".</summary>
+    public static string ViewName(LaserMount mount) => mount switch
+    {
+        LaserMount.Rear => "REAR",
+        LaserMount.Left => "LEFT",
+        LaserMount.Right => "RIGHT",
+        _ => "FRONT",
+    };
+
+    /// <summary>The original's names for the lasers, as its status screen prints them.</summary>
+    public static string LaserName(LaserType laser) => laser switch
+    {
+        LaserType.Beam => "BEAM",
+        LaserType.Military => "MILITARY",
+        LaserType.Mining => "MINING",
+        LaserType.Pulse => "PULSE",
+        _ => "NONE",
+    };
+
+    /// <summary>
+    /// Fits a laser to one of the four views, as the original's laser items do.
+    /// </summary>
+    /// <remarks>
+    /// The full price is paid and then the laser being replaced is refunded at its own list price,
+    /// which is what the disc version's refund routine does: it looks the old laser's power up in
+    /// PRXS and adds that price back to our cash. The first release of disc Elite got this wrong
+    /// badly enough to be an infinite-money bug — it refunded a price fetched from outside the table,
+    /// because it was called with a laser power where it expected an item number — and the fix is
+    /// nine NOPs in the middle of the routine. This is the fixed behaviour.
+    /// </remarks>
+    private static string? BuyLaser(Commander commander, int item, LaserMount? mount)
+    {
+        if (mount is not { } view)
+        {
+            return "Which view?";
+        }
+
+        EquipmentItem entry = Items[item];
+
+        if (commander.Cash < entry.Price)
+        {
+            return "Not enough credits.";
+        }
+
+        LaserType wanted = LaserOf(item);
+        LaserType replaced = commander.GetLaser(view);
+
+        commander.Cash -= entry.Price;
+
+        int refund = 0;
+        if (replaced != LaserType.None)
+        {
+            refund = Items[LaserItemOf(replaced)].Price;
+            commander.Cash += refund;
+        }
+
+        commander.SetLaser(view, wanted);
+
+        string fitted = $"Fitted a {LaserName(wanted)} laser to the {ViewName(view)} view.";
+        return refund > 0
+            ? $"{fitted} {Format(refund)} refunded for the {LaserName(replaced)} laser it replaced."
+            : fitted;
+    }
+
     /// <summary>True if the commander already has this item, where only one makes sense.</summary>
     private static string? AlreadyFitted(Commander commander, int item) => item switch
     {
@@ -186,12 +288,6 @@ public static class Outfitting
             case 3:
                 commander.Ecm = true;
                 break;
-            case 4:
-                FitLaser(commander, LaserType.Pulse);
-                break;
-            case 5:
-                FitLaser(commander, LaserType.Beam);
-                break;
             case 6:
                 commander.FuelScoops = true;
                 break;
@@ -210,29 +306,8 @@ public static class Outfitting
             case 11:
                 commander.GalacticHyperdrive = true;
                 break;
-            case 12:
-                FitLaser(commander, LaserType.Military);
-                break;
-            case 13:
-                FitLaser(commander, LaserType.Pulse); // a mining laser fits the front mount
-                break;
-        }
-    }
-
-    /// <summary>
-    /// Fits a laser to the first empty mount, which is what the original's "extra laser" items do:
-    /// they upgrade the front laser or fill the rear, left and right mounts in turn.
-    /// </summary>
-    private static void FitLaser(Commander commander, LaserType type)
-    {
-        foreach (LaserMount mount in new[] { LaserMount.Front, LaserMount.Rear, LaserMount.Left, LaserMount.Right })
-        {
-            LaserType fitted = commander.GetLaser(mount);
-            if (fitted == LaserType.None || (int)fitted < (int)type)
-            {
-                commander.SetLaser(mount, type);
-                return;
-            }
+            // The four laser items (4, 5, 12 and 13) never reach here: Buy sends them to BuyLaser,
+            // which needs to know which view to fit them to and refunds the laser they replace.
         }
     }
 

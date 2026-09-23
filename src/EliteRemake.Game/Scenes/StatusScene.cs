@@ -22,6 +22,9 @@ public sealed class StatusScene : IScene
 {
     private const int Columns = 32;
 
+    /// <summary>The column the values start in, past the longest label the screen has.</summary>
+    private const int ValueColumn = 21;
+
     private readonly GameSession _session;
     private readonly TextRenderer _text;
     private readonly FlightScene? _flight;
@@ -138,7 +141,20 @@ public sealed class StatusScene : IScene
         y += cellHeight;
         Line("MISSILES", commander.Missiles.ToString(), normal);
         Line("CARGO BAY", $"{commander.CargoCapacity} T", normal);
-        Line("LASER", $"{LaserName(LaserMount.Front)} (FRONT)", normal);
+
+        // A line for each view that has a laser fitted, which is what the original's status screen
+        // does: it walks the four views and prints the view's name — tokens 96 to 99, "FRONT" to
+        // "RIGHT" — followed by the laser's own name, skipping the ones with nothing fitted. Ours
+        // showed the front laser alone, which was all there could be until the other three views
+        // arrived.
+        foreach (LaserMount mount in new[] { LaserMount.Front, LaserMount.Rear, LaserMount.Left, LaserMount.Right })
+        {
+            LaserType fitted = commander.GetLaser(mount);
+            if (fitted != LaserType.None)
+            {
+                Line($"{Outfitting.ViewName(mount)} LASER", Outfitting.LaserName(fitted), normal);
+            }
+        }
         Line("ECM", Fitted(commander.Ecm), normal);
         Line("FUEL SCOOPS", Fitted(commander.FuelScoops), normal);
         Line("ENERGY UNIT", Fitted(commander.EnergyUnit), normal);
@@ -188,15 +204,13 @@ public sealed class StatusScene : IScene
         void Line(string name, string value, Color colour)
         {
             _text.Draw(spriteBatch, name, left + cellWidth, y, scale, dim);
-            _text.Draw(spriteBatch, value, left + (cellWidth * 19), y, scale, colour);
+            // The value column leaves two clear columns past the longest label, which is what keeps
+            // GALACTIC HYPERDRIVE and its "FITTED" from running together
+            _text.Draw(spriteBatch, value, left + (cellWidth * ValueColumn), y, scale, colour);
             y += cellHeight;
         }
 
         static string Fitted(bool fitted) => fitted ? "FITTED" : "-";
     }
 
-    private static string LaserName(LaserMount mount) => mount switch
-    {
-        _ => "PULSE",
-    };
 }

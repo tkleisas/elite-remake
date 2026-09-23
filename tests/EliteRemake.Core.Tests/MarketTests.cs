@@ -435,6 +435,31 @@ public class CombatTests
         }
     }
 
+    /// <summary>
+    /// A mining laser in the crosshairs of an asteroid breaks it into splinters, where any other
+    /// laser leaves a canister: the whole point of the fourth mount's own laser.
+    /// </summary>
+    [Fact]
+    public void AMiningLaserBreaksUpARockEndToEnd()
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"));
+        sim.Commander = Commander.CreateDefault();
+        sim.Commander.SetLaser(LaserMount.Front, LaserType.Mining);
+        sim.TargetableAreaProvider = _ => 55 * 55;
+
+        // An asteroid in front of us, close enough to be in the crosshairs
+        var rock = Ship.Create(Debris.Asteroid, "asteroid", "Asteroid", 0, 0, 0, 0, 400);
+        rock.Energy = 10;
+        sim.Spawn(rock);
+
+        sim.Step(new FlightInput(Fire: true));
+
+        Assert.Equal(Combat.MiningLaserPower, sim.FiringLaserPower);
+        Assert.Same(rock, sim.LaserTarget);
+        Assert.Equal(Debris.Splinter, sim.DropsThisFrame.Type);
+        Assert.InRange(sim.DropsThisFrame.Count, 1, 3);
+    }
+
     [Fact]
     public void LaserPowerMatchesTheOriginalsValues()
     {
@@ -443,12 +468,19 @@ public class CombatTests
         Assert.Equal(15, Combat.LaserRawByte(LaserType.Pulse));
         Assert.Equal(143, Combat.LaserRawByte(LaserType.Beam));
         Assert.Equal(151, Combat.LaserRawByte(LaserType.Military));
+
+        // A mining laser is Mlas = 50, a value of its own rather than a sort of pulse laser
+        Assert.Equal(50, Combat.LaserRawByte(LaserType.Mining));
+
         Assert.Equal(15, Combat.Power(LaserType.Pulse));
         Assert.Equal(15, Combat.Power(LaserType.Beam));
         Assert.Equal(23, Combat.Power(LaserType.Military));
+        Assert.Equal(50, Combat.Power(LaserType.Mining));
 
-        // A pulse laser has to wait ten frames between shots; beam lasers fire continuously
+        // A pulse laser has to wait ten ticks between shots and a mining laser fifty, which is one
+        // shot a second; beam and military lasers fire continuously
         Assert.Equal(10, Combat.FireInterval(LaserType.Pulse));
+        Assert.Equal(50, Combat.FireInterval(LaserType.Mining));
         Assert.Equal(0, Combat.FireInterval(LaserType.Beam));
         Assert.Equal(0, Combat.FireInterval(LaserType.Military));
     }
@@ -473,8 +505,8 @@ public class CombatTests
         Assert.Equal(242, Combat.OverheatTemperature);
         Assert.Equal(1, Combat.EnergyPerShot);
 
-        // The flight source's Mlas = 50. There is no mining laser to buy in the disc version's
-        // equipment list, but the power is defined and a mining laser is fitted to some ships.
+        // The flight source's Mlas = 50, which is the fourth item the equipment shop sells as a
+        // laser: "Extra Mining Lasers", the one that breaks rocks rather than ships.
         Assert.Equal(50, Combat.MiningLaserPower);
 
         // The energy bomb's BOMB value counts down from 8
@@ -1847,7 +1879,7 @@ public class OutfittingTests
     }
 
     [Fact]
-    public void MissilesFillTheRackAndLasersFillTheMounts()
+    public void MissilesFillTheRack()
     {
         Commander commander = Commander.CreateDefault();
         StarSystem system = SystemWithTechLevel(15);
@@ -1857,13 +1889,42 @@ public class OutfittingTests
         Outfitting.Buy(commander, system, 1);
         Assert.Equal(4, commander.Missiles);
         Assert.Contains("full", Outfitting.Buy(commander, system, 1)!);
+    }
 
-        // The extra laser items upgrade the front mount or fill an empty one
-        Outfitting.Buy(commander, system, 5); // beam lasers
-        Assert.Equal(LaserType.Beam, commander.GetLaser(LaserMount.Front));
+    /// <summary>
+    /// A laser is fitted to the view the player answers with, and the laser it replaces is refunded
+    /// at its own price — the disc version's refund routine, whose first release was an infinite
+    /// money bug because it refunded a price fetched from outside its table.
+    /// </summary>
+    [Fact]
+    public void ALaserIsFittedToTheChosenViewAndTheOldOneRefunded()
+    {
+        Commander commander = Commander.CreateDefault();   // a front pulse laser
+        StarSystem system = SystemWithTechLevel(15);
+        commander.Cash = 1000000;
 
-        Outfitting.Buy(commander, system, 12); // military lasers
-        Assert.Equal(LaserType.Military, commander.GetLaser(LaserMount.Front));
+        // The original will not fit a laser until it knows which view it is for
+        Assert.Contains("Which view", Outfitting.Buy(commander, system, 5)!);
+        Assert.Equal(LaserType.None, commander.GetLaser(LaserMount.Rear));
+
+        // A beam laser on the rear mount, which is empty: the full price, no refund
+        int before = commander.Cash;
+        Outfitting.Buy(commander, system, 5, 0, LaserMount.Rear);
+        Assert.Equal(LaserType.Beam, commander.GetLaser(LaserMount.Rear));
+        Assert.Equal(before - 10000, commander.Cash);
+
+        // A military laser in its place: the beam laser's price comes back
+        before = commander.Cash;
+        Outfitting.Buy(commander, system, 12, 0, LaserMount.Rear);
+        Assert.Equal(LaserType.Military, commander.GetLaser(LaserMount.Rear));
+        Assert.Equal(before - 60000 + 10000, commander.Cash);
+
+        // The front laser is untouched, and a mining laser is a laser in its own right rather than
+        // another pulse laser wearing its name
+        Assert.Equal(LaserType.Pulse, commander.GetLaser(LaserMount.Front));
+        Outfitting.Buy(commander, system, 13, 0, LaserMount.Left);
+        Assert.Equal(LaserType.Mining, commander.GetLaser(LaserMount.Left));
+        Assert.Equal(Combat.MiningLaserPower, Combat.Power(LaserType.Mining));
     }
 
     [Fact]
