@@ -350,6 +350,12 @@ public sealed class FlightSim
     }
 
     /// <summary>
+    /// The chance that the trader-or-junk branch produces a trader rather than a rock: the original
+    /// branches on the V flag of a random byte, which is set half the time.
+    /// </summary>
+    public const int TraderIn256 = 128;
+
+    /// <summary>
     /// How many iterations of the original's main loop make a second.
     /// </summary>
     /// <remarks>
@@ -1410,7 +1416,10 @@ public sealed class FlightSim
             return;
         }
 
-        // Junk first, as the original checks for rocks before it considers ships
+        // The original's first roll after the main loop counter comes round decides between the
+        // quiet half of the game and the dangerous half. On 13% of decisions it goes down the
+        // "trader or junk" branch, and that branch is split evenly: half a trader, half a rock. The
+        // other 87% is the pirates and bounty hunters below.
         int junk = 0;
         foreach (Ship existing in _bubble)
         {
@@ -1420,9 +1429,20 @@ public sealed class FlightSim
             }
         }
 
-        int junkType = Debris.ChooseJunk(Random, junk);
-        if (junkType != 0)
+        if (Debris.WantsJunk(Random, junk))
         {
+            // "Set A, X and V flag to random numbers ... If V flag is set (50% chance), jump up to
+            // MTT4 to spawn a trader"
+            if (Random.Next() >= TraderIn256)
+            {
+                Spawn(Spawner.Create(SpawnKind.Trader, System.Value, Random));
+                LastSpawn = SpawnKind.Trader;
+                LastJunkSpawned = 0;
+                _spawnDelay = Spawner.SpawnDelay;
+                return;
+            }
+
+            int junkType = Debris.ChooseJunkType(Random);
             Spawn(Debris.CreateJunk(junkType, Random));
             LastSpawn = SpawnKind.None;
             LastJunkSpawned = junkType;
@@ -1815,9 +1835,18 @@ public sealed class FlightSim
         // meaningful heading.
         if (!IsCelestial(ship.Type))
         {
-            ShipMath.Mvs4(ship.Orientation, Orientation.Nosev, RollAngle, PitchAngleValue);
-            ShipMath.Mvs4(ship.Orientation, Orientation.Roofv, RollAngle, PitchAngleValue);
-            ShipMath.Mvs4(ship.Orientation, Orientation.Sidev, RollAngle, PitchAngleValue);
+            // The angles MVS4 rotates by are the magnitudes *with their sign bits*: the original
+            // builds them with ORA ALP2 and ORA BET2, "so ALPHA has a different sign to the actual
+            // roll rate". Handing MVS4 the bare magnitudes loses the direction, and a rotation
+            // without a direction is not a rotation — every ship in the sky was counter-rolled the
+            // same way whichever way we rolled, which is why matching the station's roll to dock was
+            // impossible: rolling with it and rolling against it looked the same.
+            byte alpha = (byte)(RollAngle | (RollSign & 0x80));
+            byte beta = (byte)(PitchAngleValue | (PitchSign & 0x80));
+
+            ShipMath.Mvs4(ship.Orientation, Orientation.Nosev, alpha, beta);
+            ShipMath.Mvs4(ship.Orientation, Orientation.Roofv, alpha, beta);
+            ShipMath.Mvs4(ship.Orientation, Orientation.Sidev, alpha, beta);
 
             // Part 8: rotate the ship about its own axes by its pitch and roll counters, which is
             // how ships turn under their own power (and how the AI steers).

@@ -1164,7 +1164,7 @@ public class DebrisTests
 
         for (int i = 0; i < 5000; i++)
         {
-            if (Debris.ChooseJunk(random, junkInBubble: 0) != 0)
+            if (Debris.WantsJunk(random, junkInBubble: 0))
             {
                 spawned++;
             }
@@ -1176,7 +1176,7 @@ public class DebrisTests
         // And nothing spawns once three bits of junk are already about
         for (int i = 0; i < 1000; i++)
         {
-            Assert.Equal(0, Debris.ChooseJunk(random, junkInBubble: Debris.MaxJunk));
+            Assert.False(Debris.WantsJunk(random, junkInBubble: Debris.MaxJunk));
         }
     }
 
@@ -1188,12 +1188,7 @@ public class DebrisTests
 
         for (int i = 0; i < 20000; i++)
         {
-            int type = 0;
-            while (type == 0)
-            {
-                type = Debris.ChooseJunk(random, 0);
-            }
-
+            int type = Debris.ChooseJunkType(random);
             counts[type] = counts.GetValueOrDefault(type) + 1;
         }
 

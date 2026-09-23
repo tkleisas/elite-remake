@@ -70,19 +70,34 @@ public static class Debris
     /// <param name="random">The random number generator.</param>
     /// <param name="junkInBubble">How many bits of junk are already in the bubble.</param>
     /// <returns>The ship type to spawn, or 0 for nothing.</returns>
-    public static int ChooseJunk(EliteRandom random, int junkInBubble)
+    public static bool WantsJunk(EliteRandom random, int junkInBubble)
     {
+        // "If we already have 3 or more bits of junk in the local bubble, jump down to MTT1"
         if (junkInBubble >= MaxJunk)
         {
-            return 0;
+            return false;
         }
 
-        if (random.Next() >= 35)
-        {
-            return 0; // 13% of the time we get this far
-        }
+        // "If A >= 35 (87% chance), jump down to MTT1 to skip the spawning of an asteroid or cargo
+        // canister" — so the branch is taken on the other 13%
+        return random.Next() < JunkBranchThreshold;
+    }
 
-        // 2% cargo canister, 50% boulder, 48% asteroid
+    /// <summary>
+    /// The roll that opens the junk branch: the original's <c>CMP #35</c>, so it is taken on 35
+    /// iterations in 256.
+    /// </summary>
+    public const int JunkBranchThreshold = 35;
+
+    /// <summary>
+    /// Picks which piece of junk appears.
+    /// </summary>
+    /// <remarks>
+    /// <c>CMP #10</c> sets the carry on 96% of rolls, and the type is <c>#OIL + (A AND 1) + carry</c>
+    /// — so a cargo canister 2% of the time, a boulder 50% and an asteroid 48%.
+    /// </remarks>
+    public static int ChooseJunkType(EliteRandom random)
+    {
         int roll = random.Next();
         int bonus = roll >= 10 ? 1 : 0;
         return Canister + (roll & 1) + bonus;

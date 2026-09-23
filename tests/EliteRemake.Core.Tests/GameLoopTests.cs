@@ -1,3 +1,4 @@
+using EliteRemake.Core.Maths;
 using EliteRemake.Core.Sim;
 using EliteRemake.Core.Universe;
 using EliteRemake.Data.Ships;
@@ -239,11 +240,11 @@ public class GameLoopTests
     /// A ship the spawner produces is hostile, and therefore able to attack.
     /// </summary>
     /// <remarks>
-    /// The flight loop decides whether to fight from the NEWB hostile bit, and the original sets that
-    /// bit for both spawn branches — "set bit 2 of the NEWB flags ... so the ship we are about to
-    /// spawn is hostile". Leaving it clear meant every pirate and bounty hunter arrived aggressive
-    /// but peaceful: nothing the spawner created could attack at all. No unit test noticed, because
-    /// the spawner's own test only checked which ship type it chose.
+    /// The flight loop decides whether to fight from the NEWB hostile bit, and on this build that
+    /// bit comes from the ship's own E% flags rather than from the spawner: a pirate hull is hostile
+    /// and a Fer-de-lance is a bounty hunter that leaves a clean commander alone. The spawner used
+    /// to force the bit on everything it made, which is the NES behaviour — that made the bounty
+    /// hunters attack commanders they are supposed to ignore.
     /// </remarks>
     [Fact]
     public void ASpawnedPirateIsHostile()
@@ -251,12 +252,29 @@ public class GameLoopTests
         var random = new EliteRandom(1);
         StarSystem lave = Galaxy.GenerateGalaxy(Galaxy.GalaxySeeds(0))[7];
 
-        foreach (SpawnKind kind in new[] { SpawnKind.Pirates, SpawnKind.BountyHunter })
+        var seen = new HashSet<int>();
+        for (int i = 0; i < 40; i++)
         {
-            Ship ship = Spawner.Create(kind, lave, random);
-            Assert.True(ship.IsHostile, $"{kind} should spawn hostile");
-            Assert.True(ship.AiFlag >= 0x80, "and aggressive, as it already was");
+            foreach (SpawnKind kind in new[] { SpawnKind.Pirates, SpawnKind.BountyHunter })
+            {
+                Ship ship = Spawner.Create(kind, lave, random);
+                seen.Add(ship.Type);
+
+                // It arrives with exactly the personality its blueprint gives it
+                Assert.Equal(ShipData.NewbFlagsFor(ship.Type), ship.NewbFlags);
+                Assert.True(ship.AiFlag >= 0x80, "and aggressive, as it already was");
+            }
         }
+
+        // Every pirate hull is hostile; the bounty hunters are a mixed bag, which is the point —
+        // the Fer-de-lance in particular is not hostile until our legal status earns it
+        foreach (int type in seen.Where(t => t is >= 17 and <= 24))
+        {
+            Assert.True((ShipData.NewbFlagsFor(type) & 0x04) != 0, $"pirate hull {type} should be hostile");
+        }
+
+        Assert.Contains(27, seen);
+        Assert.False((ShipData.NewbFlagsFor(27) & 0x04) != 0, "a Fer-de-lance is not hostile on arrival");
 
         // And the two together are what lets it fight: aggressive alone is not enough
         var aggressiveOnly = new Ship(17, "sidewinder", "Sidewinder") { AiFlag = 0xF8 };
@@ -1105,5 +1123,129 @@ public class StationTacticsTests
         Assert.True(cops > 0, "an angered station should send the police");
         Assert.True(mostAtOnce <= Tactics.HostileStationCopLimit,
             $"the original keeps at most {Tactics.HostileStationCopLimit} police out at once, but {mostAtOnce} were");
+    }
+}
+
+/// <summary>
+/// Checks that our own roll turns the rest of the universe the right way, which is what makes
+/// docking possible at all.
+/// </summary>
+/// <remarks>
+/// The station rolls continuously, so docking means rolling with it until the two rotations match and
+/// the slot holds still. That only works if rolling one way counters the station's spin and rolling
+/// the other way adds to it. The angles MVS4 rotates a ship's orientation by were being passed as
+/// bare magnitudes, with the sign left behind in ALP2 — so both directions produced the same
+/// rotation, and no amount of rolling could ever cancel the station's.
+/// </remarks>
+public class OurRollTurnsTheUniverseTests
+{
+    /// <summary>The station's roof angle as we see it: its apparent roll on screen.</summary>
+    private static double ApparentRoll(Ship station) => Math.Atan2(
+        station.Orientation.GetUnity(Orientation.Roofv, Orientation.Y),
+        station.Orientation.GetUnity(Orientation.Roofv, Orientation.X)) * 180 / Math.PI;
+
+    private static double SpinOver(FlightInput input, int iterations = 60)
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = false,
+            Commander = Commander.CreateDefault(),
+        };
+
+        Ship station = SystemArrival.CreateStation(3000, SystemArrival.StationRollCounter);
+        sim.Spawn(station);
+
+        // Hold the input long enough for the roll rate to reach a steady deflection
+        for (int i = 0; i < 40; i++)
+        {
+            sim.Step(input);
+        }
+
+        double previous = ApparentRoll(station);
+        double total = 0;
+        for (int i = 0; i < iterations; i++)
+        {
+            sim.Step(input);
+            double now = ApparentRoll(station);
+            double turned = now - previous;
+            while (turned > 180) turned -= 360;
+            while (turned < -180) turned += 360;
+            total += turned;
+            previous = now;
+        }
+
+        return total / iterations;
+    }
+
+    [Fact]
+    public void RollingWithTheStationCountersItsSpinAndRollingAgainstItAdds()
+    {
+        double coasting = SpinOver(default);
+        double withIt = SpinOver(new FlightInput(RollRight: true));
+        double againstIt = SpinOver(new FlightInput(RollLeft: true));
+
+        // The station rolls one way on its own
+        Assert.True(coasting < -3 && coasting > -4, $"the station's own spin measured {coasting:0.00}");
+
+        // Rolling one way counters it and the other doubles it — and, crucially, the two are not
+        // the same, which is what the missing sign made them
+        Assert.True(withIt > 3, $"rolling with the station should counter its spin, but measured {withIt:0.00}");
+        Assert.True(againstIt < -10, $"rolling against it should add to the spin, but measured {againstIt:0.00}");
+    }
+
+    /// <summary>The station's residual spin when the roll key is held for a fraction of each turn.</summary>
+    private static double ResidualAtDutyCycle(int onIterations, int period)
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = false,
+            Commander = Commander.CreateDefault(),
+        };
+
+        Ship station = SystemArrival.CreateStation(3000, SystemArrival.StationRollCounter);
+        sim.Spawn(station);
+
+        double previous = ApparentRoll(station);
+        double total = 0;
+        int counted = 0;
+
+        for (int i = 0; i < 400; i++)
+        {
+            sim.Step(new FlightInput(RollRight: i % period < onIterations));
+
+            double now = ApparentRoll(station);
+            double turned = now - previous;
+            while (turned > 180) turned -= 360;
+            while (turned < -180) turned += 360;
+
+            // Ignore the first stretch, while the roll rate is still building up
+            if (i >= 200)
+            {
+                total += turned;
+                counted++;
+            }
+
+            previous = now;
+        }
+
+        return total / counted;
+    }
+
+    [Fact]
+    public void HoldingTheRollForPartOfEachTurnCanCancelTheStationsSpin()
+    {
+        // Docking is matching the station's roll, so there has to be a deflection that leaves the two
+        // turning together. Holding the key for a fraction of each turn is how a player does it: the
+        // more of the turn the key is down, the harder we roll.
+        double none = ResidualAtDutyCycle(onIterations: 0, period: 8);
+        double some = ResidualAtDutyCycle(onIterations: 3, period: 8);
+        double most = ResidualAtDutyCycle(onIterations: 8, period: 8);
+
+        Assert.True(none < -2, $"coasting, the station should still turn, but measured {none:0.00}");
+        Assert.True(most > 2, $"rolling hard, we should out-turn it, but measured {most:0.00}");
+
+        // Which means the residual crosses zero somewhere between them, and that crossing is the
+        // roll a commander docks with
+        Assert.True(some > none, $"more roll should counter more of the spin: {none:0.00} then {some:0.00}");
     }
 }

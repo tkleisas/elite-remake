@@ -4107,3 +4107,40 @@ closes on the planet, which is the trade route it exists to fly.
 `SpawnFromParent` also gave its children no blueprint figures at all, so anything launched arrived with
 no speed and hung in space. The game layer's blueprint lookup happened to cover for it; the simulation
 on its own did not, which is how the missing speed was found.
+
+## You could not roll with the station, because a rotation had lost its sign
+
+**Reported as**: "I am having difficulty matching the station's rotation with the ship in order to
+dock."
+
+**It was not difficulty. It was impossible.** Docking means rolling until your rotation matches the
+station's, so that its slot stops turning on the screen. Measured, the station's apparent spin was:
+
+| input | the station appeared to turn |
+|---|---|
+| no input | −3.58° an iteration |
+| rolling left | **−10.47°** |
+| rolling right | **−10.47°** |
+
+Rolling *with* the station and rolling *against* it did exactly the same thing, and both made it worse.
+There was no roll a commander could hold that would settle the slot.
+
+**The fault was a missing sign bit.** When MVEIT turns a ship's orientation vectors to keep its heading
+right in our rotating frame, it calls MVS4 with two angle bytes. The original builds those bytes as
+`ALP1 ORA ALP2` and `BET1 ORA BET2` — *"so ALPHA has a different sign to the actual roll rate"* — while
+our port passed the bare magnitudes and left the signs behind in the separate sign bytes. MVS4 reads its
+angle as a signed byte, so a magnitude with no sign is a rotation with no direction: every ship in the
+galaxy was counter-rolled the same way whichever way we rolled.
+
+The world's *positions* rotated correctly all along, because the location rotation does apply the sign
+(`(alp2 & 0x80) != 0 ? -alp1 : alp1`). That is what made the bug so quiet: the stars and planets swung
+past the right way, so the view felt like it was responding, and only the *orientation* of the thing you
+were trying to line up with was wrong.
+
+**After the fix**, rolling right at full deflection gives +3.32° an iteration against the station's
+−3.58°, and rolling left gives −10.47°: the two directions now differ, and the residual crosses zero
+somewhere between coasting and a hard roll. That crossing is the roll you dock with.
+
+**Two tests hold it**: one asserts that rolling one way counters the station's spin and the other adds
+to it, and one sweeps how much of each turn the roll key is held and asserts the residual crosses zero —
+that is, that a matching roll exists at all. Both fail if the signs are dropped again.

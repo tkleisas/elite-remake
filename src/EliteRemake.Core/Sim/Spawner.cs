@@ -14,6 +14,9 @@ public enum SpawnKind
 
     /// <summary>A lone bounty hunter, after us because of our legal status.</summary>
     BountyHunter,
+
+    /// <summary>A trader, minding its own business on its way to the planet or the station.</summary>
+    Trader,
 }
 
 /// <summary>
@@ -100,8 +103,20 @@ public static class Spawner
     {
         SpawnKind.Pirates => PackHunterBase + (random.Next() & (PackHunterCount - 1)),
         SpawnKind.BountyHunter => BountyHunterBase + (random.Next() & (BountyHunterCount - 1)),
+
+        // "a ship type from the following: Cobra Mk III, Python, Boa or Anaconda"
+        SpawnKind.Trader => TraderBase + (random.Next() & 3),
         _ => 0,
     };
+
+    /// <summary>The Cobra Mk III, the first of the four ships a trader can be flying.</summary>
+    public const int TraderBase = 11;
+
+    /// <summary>
+    /// The chance a trader is on its way in to dock rather than minding its own business: the
+    /// original's <c>BMI</c> on a random byte, so half of them.
+    /// </summary>
+    public const int DockingTradersIn256 = 128;
 
     /// <summary>
     /// Builds the AI flag for a spawned ship. The original sets bits 6 and 7 (AI enabled and
@@ -152,9 +167,24 @@ public static class Spawner
         int offsetY = ((random.Next() & 0xFF) - 128) * (index + 1);
         int z = SpawnDistance + (index * 512);
 
+        // A trader's flags are its own: MTT4 builds them from a single random byte, and half of the
+        // traders it makes are on their way in to dock. Nothing is drawn from the generator for the
+        // other kinds, so that adding this did not shift the numbers they get.
+        bool trader = kind == SpawnKind.Trader;
+        byte traderFlags = trader ? (byte)(random.Next() >> 1) : (byte)0;
+        bool docking = trader && random.Next() >= DockingTradersIn256;
+        if (docking)
+        {
+            // "Set bits 6 and 7 of A, so the ship has AI (bit 7) and an aggression level of at
+            // least 32 out of 63 (this makes the ship more likely to turn towards its target, which
+            // in this case is the space station, as we are about to set the ship flags so it is
+            // docking)"
+            traderFlags |= 0xC0;
+        }
+
         var ship = new Ship(type, string.Empty, $"Type {type}")
         {
-            AiFlag = AiFlag(random),
+            AiFlag = trader ? traderFlags : AiFlag(random),
 
             // The ship's personality, out of the disc's own E% byte for its type: a pirate hull is
             // hostile and a Fer-de-lance is a bounty hunter that leaves a clean commander alone.
@@ -165,7 +195,7 @@ public static class Spawner
             // spawns hostile. It does — in the NES version. On the disc the hostility is the E%
             // byte's job, and forcing the bit made bounty hunters attack commanders they are
             // supposed to ignore.
-            NewbFlags = defaults.NewbFlags,
+            NewbFlags = (byte)(defaults.NewbFlags | (docking ? Ship.NewbDocking : 0)),
 
             // Everything the blueprint gives a new ship, as NWSHP copies it in: without these the
             // ship arrives inert and either cannot reach us or dies to the first hit
@@ -176,6 +206,17 @@ public static class Spawner
         };
 
         ship.Energy = ship.MaxEnergy;
+
+        // "Store A in the ship's roll counter, giving it a clockwise roll (as bit 7 is clear), and a
+        // 1 in 127 chance of having no damping" — the same byte as the AI flag, which is where the
+        // trader's gentle roll comes from
+        if (trader)
+        {
+            ship.Data[ShipDataBlock.RollCounter] = traderFlags;
+
+            // "Set the ship speed to our random number, set to a minimum of 16 and a maximum of 31"
+            ship.Speed = (byte)(16 | (random.Next() & 15));
+        }
 
         ship.SetPosition(offsetX, offsetY, z);
 
