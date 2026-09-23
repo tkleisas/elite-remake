@@ -442,6 +442,37 @@ public class MissionHintTests
         Assert.Equal(0, hints.TokenFor(150, 0, false));
     }
 
+    /// <summary>
+    /// A hint with bit 7 set applies in its own galaxy only, not in all of them.
+    /// </summary>
+    /// <remarks>
+    /// PDESC requires bits 0-6 of RUGAL to equal the current galaxy <em>before</em> it looks at bit
+    /// 7, so bit 7 means "no mission needed yet" rather than "any galaxy". Three hints carry it:
+    /// Teorge in the first galaxy, and Arredi and Anreer in the third. Reading bit 7 as a shortcut
+    /// past the galaxy test — which the code used to do — puts the Teorge hint in all eight galaxies
+    /// rather than the first, and the other two in all eight rather than the third.
+    /// </remarks>
+    [Fact]
+    public void AHintWithTheAlwaysBitStillBelongsToItsGalaxy()
+    {
+        var hints = Data.DescriptionData.Hints;
+
+        // Teorge, system 211 of the first galaxy, and not the second
+        Assert.NotEqual(0, hints.TokenFor(211, 0, mission1Active: false));
+        Assert.Equal(0, hints.TokenFor(211, 1, mission1Active: false));
+        Assert.Equal(0, hints.TokenFor(211, 7, mission1Active: false));
+
+        // Arredi and Anreer are in the third galaxy, so they need no mission but do need galaxy 2
+        Assert.NotEqual(0, hints.TokenFor(100, 2, mission1Active: false));
+        Assert.NotEqual(0, hints.TokenFor(41, 2, mission1Active: false));
+        Assert.Equal(0, hints.TokenFor(100, 0, mission1Active: false));
+        Assert.Equal(0, hints.TokenFor(41, 1, mission1Active: false));
+
+        // And the mission's own trail still needs the mission, as before
+        Assert.NotEqual(0, hints.TokenFor(150, 0, mission1Active: true));
+        Assert.Equal(0, hints.TokenFor(150, 0, mission1Active: false));
+    }
+
     [Fact]
     public void HintsBelongToTheirOwnGalaxy()
     {

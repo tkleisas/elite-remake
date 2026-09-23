@@ -40,10 +40,24 @@ public sealed class MissionHints
     public int Count => _hints.Count;
 
     /// <summary>
-    /// The hint to show for a system, or 0 when the system has none. The criteria are the original's:
-    /// the system number must match, and either the hint is always shown or it belongs to the galaxy
-    /// we are in and mission 1 is in progress.
+    /// The hint to show for a system, or 0 when the system has none.
     /// </summary>
+    /// <remarks>
+    /// The criteria are the original's, and the order of the tests matters. PDESC first matches the
+    /// system number in RUPLA, then requires bits 0-6 of RUGAL to equal the current galaxy, and only
+    /// then looks at bit 7:
+    ///
+    /// <code>
+    /// LDA RUGAL-1,Y / AND #%01111111   \ bits 0-6 are the galaxy
+    /// CMP GCNT / BNE PD2               \ and it must be the galaxy we are in
+    /// LDA RUGAL-1,Y / BMI PD3          \ bit 7 set means print it without more ado
+    /// ...                              \ otherwise mission 1 must be in progress
+    /// </code>
+    ///
+    /// So bit 7 means "no mission needed yet", not "any galaxy". Reading it as the latter — which
+    /// this used to do — makes the Teorge hint appear in all eight galaxies rather than the first,
+    /// and the Arredi and Anreer hints in all eight rather than the third.
+    /// </remarks>
     /// <param name="systemIndex">The system's number within its galaxy.</param>
     /// <param name="galaxyNumber">The galaxy we are in.</param>
     /// <param name="mission1Active">Whether mission 1 is in progress.</param>
@@ -53,17 +67,13 @@ public sealed class MissionHints
         for (int i = 0; i < _hints.Count; i++)
         {
             MissionHint hint = _hints[i];
-            if (hint.System != systemIndex)
+            if (hint.System != systemIndex || hint.Galaxy != galaxyNumber)
             {
                 continue;
             }
 
-            if (hint.Always)
-            {
-                return i + 1; // the token number is the entry's position in the table
-            }
-
-            if (hint.Galaxy == galaxyNumber && mission1Active)
+            // The token number is the entry's position in the table
+            if (hint.Always || mission1Active)
             {
                 return i + 1;
             }

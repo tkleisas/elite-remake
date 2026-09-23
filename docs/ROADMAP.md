@@ -1626,3 +1626,37 @@ mining lasers where tech 8 does not.
 
 **The tally is eight**, and this one had no test at all: the stock gate was exercised incidentally by
 tests that happened to use tech levels 4 and 8, both of which agree.
+
+## The mission hints' "always" flag is not "any galaxy"
+
+PDESC's criteria test has an order, and the order is the whole of it:
+
+```
+LDA RUGAL-1,Y / AND #%01111111   \ bits 0-6 are the galaxy
+CMP GCNT / BNE PD2               \ and it must be the galaxy we are in
+LDA RUGAL-1,Y / BMI PD3          \ bit 7 set means print it without more ado
+...                              \ otherwise mission 1 must be in progress
+```
+
+So bit 7 means **"no mission needed yet"**, not **"any galaxy"**. Ours read it as a shortcut past the
+galaxy test and returned the hint before checking the galaxy at all.
+
+Three hints carry the bit, and the fault showed on two of them:
+
+| hint | system | galaxy | ours showed it |
+| --- | --- | --- | --- |
+| Teorge | 211 | 0 | in all eight galaxies |
+| Arredi | 100 | **2** | in all eight |
+| Anreer | 41 | **2** | in all eight |
+
+Teorge is in the first galaxy, which is where a commander starts, so a test checking it there passes
+either way. Arredi and Anreer are in the *third* galaxy and need no mission — so they were appearing
+in every galaxy a commander visited, at systems 100 and 41, which in most galaxies are ordinary
+systems with nothing to do with the Constrictor.
+
+The test now checks each of the three in its own galaxy and in a galaxy it does not belong to, and
+that the mission's own trail still requires the mission.
+
+**The tally is nine.** This one, like the stock gate before it, had no test that went near the
+disagreement: the hint tests covered the trail systems, which all need the mission, and the one
+always-bit hint they covered was Teorge in galaxy 0.
