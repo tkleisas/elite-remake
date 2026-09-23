@@ -3150,3 +3150,34 @@ Both have their beep data correct and neither has a caller. Wiring them means de
 our simulation correspond to the original's call sites, and that is a small piece of reading I have not
 done — so they are listed as open rather than connected to the nearest plausible thing, which is how the
 E.C.M.'s first attempt went wrong.
+
+## All ten sounds play, and the E.C.M.'s zero entry was correct after all
+
+Last round left two effects unplayed rather than connecting them to the nearest plausible thing. Both
+are now wired from the source's own call sites, and a third thing was checked on the way.
+
+**`HitOrDeath` plays when the commander dies.** The table's labels are *"16 - We died 1 / We made a hit
+or kill 2"* and *"24 - We died 2 / We made a hit or kill 1"*, and **`FlightSim.PlayerDied` was being set
+and never read by the game** — so the commander died in silence.
+
+**`Boop` plays when the missile is unarmed.** The disc's branch says *"Call the NOISE routine with A =
+40 to make a low, long beep to indicate the missile is now unarmed"*, and its table entry is `40 - Long,
+low beep`. That happens at the two points the lock is released: firing one, and losing the lock because
+the target was destroyed. `FlightSim` now raises a per-frame flag at both and the game sounds it.
+
+**And the E.C.M.'s switch-off entry is genuinely all zeros.** Last round I wired `EcmOff` and then
+doubted it, because a sound effect with no parameters looks like a mistake. It is what the original's
+`SFX` table holds — `EQUB &13, &00, &00, &00  \ 72 - E.C.M. off` — and `ECMOF` on the disc really does
+call it, with the comment *"Call the NOISE routine with A = 72 to make the sound of the E.C.M. being
+turned off"*. **Zeroing the sound buffer is how the original stops the E.C.M.'s continuous tone**, so
+the entry is correct and the wiring was right.
+
+**Our whole sound table matches the source's `SFX` data byte for byte**, all ten entries in the same
+order with the same labels — checked while looking at the zero, which is the only reason the doubt was
+resolved rather than acted on.
+
+**What "unplayed" turned out to mean.** Three effects had no caller, and they were three different
+things: one was a genuine gap in our wiring (`EcmOff`, already fixed), one was a state flag the core set
+and the game ignored (`PlayerDied`), and one was an event the core did not surface at all (the missile
+lock being released). They looked identical from the outside — a defined constant with no reference —
+and needed three different fixes.

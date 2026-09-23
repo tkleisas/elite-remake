@@ -127,6 +127,22 @@ public sealed class FlightScene : IScene
             Sounds.Play(Core.Audio.SoundEffect.Explosion);
         }
 
+        // Our own death has its own two-part sound in the original's table — entries 16 and 24, whose
+        // labels are "We died 1 / We made a hit or kill 2" and "We died 2 / We made a hit or kill 1".
+        // Nothing was playing either of them, so the commander died in silence.
+        // The long, low beep that says the missile is no longer aimed at anything, which the original
+        // makes at both points the lock is released
+        if (_sim.MissileUnarmedThisFrame)
+        {
+            Sounds.Play(Core.Audio.SoundEffect.Boop);
+        }
+
+        if (_sim.PlayerDied && !_deathSoundPlayed)
+        {
+            _deathSoundPlayed = true;
+            Sounds.Play(Core.Audio.SoundEffect.HitOrDeath);
+        }
+
         // The E.C.M. has a sound for starting and another for running down, and only the first was
         // ever played: the flag went false, the effect was defined, and the two were never connected.
         // A previous-state field is what tells "it has just ended" from "it was never on" — the
@@ -151,6 +167,7 @@ public sealed class FlightScene : IScene
     }
 
     private bool _ecmWasActive;
+    private bool _deathSoundPlayed;
     private bool _hyperspaceSoundPlayed;
 
     /// <summary>The nearest system we have the fuel to reach, which is where H takes us.</summary>

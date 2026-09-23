@@ -171,6 +171,7 @@ public sealed class FlightSim
         if (MissileLock is { IsKilled: true })
         {
             MissileLock = null;
+            MissileUnarmedThisFrame = true;
         }
 
         return removed;
@@ -209,6 +210,7 @@ public sealed class FlightSim
         UpdateLasers(input);
 
         DamageTakenThisFrame = 0;
+        MissileUnarmedThisFrame = false;
 
         for (int slot = 0; slot < _bubble.Count; slot++)
         {
@@ -459,6 +461,16 @@ public sealed class FlightSim
     /// <summary>The ship our missiles are locked onto, or null.</summary>
     public Ship? MissileLock { get; set; }
 
+    /// <summary>
+    /// Set for a frame when the missile lock is released, for the game to sound.
+    /// </summary>
+    /// <remarks>
+    /// The original makes its long, low beep at the two points the missile is unarmed — "to make a
+    /// low, long beep to indicate the missile is now unarmed" — which are firing one and losing the
+    /// lock because the target was destroyed. This flag is set at both, and the game clears it.
+    /// </remarks>
+    public bool MissileUnarmedThisFrame { get; set; }
+
     /// <summary>Set when a missile goes off on us, for the game to report.</summary>
     public bool HitByMissile { get; private set; }
 
@@ -692,6 +704,7 @@ public sealed class FlightSim
         MissileLock!.AiFlag = 0xFF;
         Commander!.Missiles--;
         MissileLock = null;
+        MissileUnarmedThisFrame = true;
         return true;
     }
 
