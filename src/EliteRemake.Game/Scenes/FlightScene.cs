@@ -170,7 +170,7 @@ public sealed class FlightScene : IScene
     }
 
     /// <summary>Clears the local bubble, as arriving in a new system does.</summary>
-    private void ResetBubble()
+    public void ResetBubble()
     {
         foreach (Ship ship in _sim.Bubble.ToArray())
         {

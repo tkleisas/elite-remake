@@ -24,13 +24,24 @@ public sealed class StatusScene : IScene
 
     private readonly GameSession _session;
     private readonly TextRenderer _text;
+    private readonly FlightScene? _flight;
     private KeyboardState _previousKeys;
 
-    public StatusScene(ViewCamera camera, GameSession session, TextRenderer text)
+    /// <summary>
+    /// Builds the screen.
+    /// </summary>
+    /// <param name="flight">
+    /// The flight scene, so a galactic jump can rebuild the sky. The galactic hyperdrive is fired
+    /// from this screen and it moves us to a different galaxy's system, so the planet, the sun and
+    /// the station all have to be replaced — and without this the old ones stayed, leaving the sky
+    /// of a galaxy we had left.
+    /// </param>
+    public StatusScene(ViewCamera camera, GameSession session, TextRenderer text, FlightScene? flight = null)
     {
         Camera = camera;
         _session = session;
         _text = text;
+        _flight = flight;
     }
 
     public ViewCamera Camera { get; }
@@ -59,9 +70,12 @@ public sealed class StatusScene : IScene
 
         // CTRL-H fires the galactic hyperdrive, as it does in the original
         bool control = keys.IsKeyDown(Keys.LeftControl) || keys.IsKeyDown(Keys.RightControl);
-        if (control && IsNewPress(keys, Keys.H))
+        if (control && IsNewPress(keys, Keys.H) && _session.UseGalacticHyperdrive())
         {
-            _session.UseGalacticHyperdrive();
+            // We are in a different galaxy now, so the sky has to be rebuilt: the new system's
+            // planet, sun and station, and nothing left of the old
+            _flight?.ArriveInSystem(_session.System);
+            _flight?.ResetBubble();
         }
 
         if (IsNewPress(keys, Keys.F1))

@@ -1452,3 +1452,25 @@ back at Lave at all.
 the wrong thing: checking the mission hints against the names in the source's RUPLA comments, I had
 Arredi and Anreer in the wrong galaxy and read the mismatch as a data fault. They are in galaxy 2,
 as the table says and as the extracted criteria say. The hints were right; the check was not.
+
+## A galactic jump left the old galaxy's sky in place
+
+Following the galaxy thread after the hyperdrive fix: flying a session through a galactic jump and
+then an ordinary one worked as far as the numbers went — the new system, the market, the next jump
+all correct — but the *sky* was not rebuilt. `UseGalacticHyperdrive` changes the session's system and
+nothing else, so the planet, the sun and the space station of the galaxy we had just left stayed
+where they were. Jumping galaxies and finding the same station outside is the sort of thing that
+would be noticed immediately by a player and by nothing else: no test covered the transition, and
+every screenshot of a galactic jump showed a system that was, on paper, correct.
+
+The status screen is where the drive is fired, so it now rebuilds the flight scene's system and
+bubble when the jump succeeds. The flight scene's `ResetBubble` became public for it, which is the
+honest shape: the status screen is a docked screen and the sky belongs to the flight scene, so the
+one has to tell the other.
+
+**And a false alarm, recorded because it nearly went the other way.** The same probe printed that the
+chart showed galaxy 1 after a jump to galaxy 2, which looked like the previous round's bug returning.
+It was my comment that was wrong: `GalaxyNumber` is zero-based, so 1 *is* the second galaxy, and its
+systems begin at Ausis with Orarra at index 193 — exactly where RUPLA puts it. Checked before
+changing anything, which is the lesson from the round before, where a wrong verification script
+nearly sent me after correct data.
