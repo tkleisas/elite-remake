@@ -72,6 +72,34 @@ public class GameLoopTests
         Assert.False(session.GameOver);
     }
 
+    /// <summary>
+    /// Docking and launching are counted, because the flight scene draws the launch and docking
+    /// tunnels when they change: the original's LAUN draws them on the way out of the station and
+    /// GOIN on the way in, both of them as the flight loop ends.
+    /// </summary>
+    [Fact]
+    public void DockingAndLaunchingAreCounted()
+    {
+        GameSession session = NewSession();
+        Assert.Equal(0, session.Launches);
+
+        session.Dock();
+        Assert.Equal(GameMode.Docked, session.Mode);
+        Assert.Equal(0, session.Launches);
+
+        // A launch puts us back in flight looking out of the front window, whatever view we docked
+        // from, and counts as a launch
+        session.Flight.View = SpaceView.Rear;
+        session.Launch();
+        Assert.Equal(GameMode.Flying, session.Mode);
+        Assert.Equal(SpaceView.Front, session.Flight.View);
+        Assert.Equal(1, session.Launches);
+
+        session.Dock();
+        session.Launch();
+        Assert.Equal(2, session.Launches);
+    }
+
     /// <summary>Runs a hyperspace countdown to its end, returning whether the jump completed.</summary>
     private static bool CompleteJump(GameSession session)
     {

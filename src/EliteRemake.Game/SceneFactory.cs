@@ -110,6 +110,14 @@ public static class SceneFactory
             session.Screen = options.StartScreen;
         }
 
+        // --launch: the real path out of the station, so the flight scene sees a launch and draws
+        // the tunnel the original's LAUN draws
+        if (options.StartByLaunching)
+        {
+            session.Dock();
+            session.Launch();
+        }
+
         // --buy: the equipment shop's own rules, from the command line. A laser needs a view, which
         // is the original's "View ?" prompt answered in advance.
         if (options.BuyItem is { } purchase)

@@ -66,7 +66,7 @@ public sealed class FlightScene : IScene
     /// </summary>
     private void UpdateDocking()
     {
-        if (Session is null || Session.Mode != GameMode.Flying || _dockingRequested)
+        if (Session is null || Session.Mode != GameMode.Flying || _dockingRequested || DockingSequenceRunning)
         {
             return;
         }
@@ -97,7 +97,7 @@ public sealed class FlightScene : IScene
             if (result == DockingResult.Docking)
             {
                 _dockingRequested = true;
-                Session.Dock();
+                _dockTunnelFrames = DockTunnelFrames;
                 Sounds?.Play(Core.Audio.SoundEffect.Beep);
                 return;
             }
@@ -843,6 +843,22 @@ public sealed class FlightScene : IScene
             }
         }
 
+        // Launching draws the tunnel as we leave the station, which is the original's LAUN: it makes
+        // the launch sound — the same table entry as a missile's — and draws the rings.
+        if (Session is { } launched && launched.Launches != _launchesSeen)
+        {
+            _launchesSeen = launched.Launches;
+            _launchTunnelFrames = LaunchTunnelFrames;
+            Sounds?.Play(Core.Audio.SoundEffect.Launch);
+        }
+
+        // A successful docking draws the same rings as we enter the station, which is GOIN: it calls
+        // HFS2 with the launch's step size and only then shows the docking bay.
+        if (_dockTunnelFrames > 0 && --_dockTunnelFrames == 0)
+        {
+            Session?.Dock();
+        }
+
         UpdateSounds();
         UpdateDocking();
 
@@ -855,10 +871,21 @@ public sealed class FlightScene : IScene
             _dockingRequested = true;
             Session.Dock();
         }
-        else if (Session is not null &&
+        else if (Session is not null && !DockingSequenceRunning &&
                  !Microsoft.Xna.Framework.Input.Keyboard.GetState().IsKeyDown(Microsoft.Xna.Framework.Input.Keys.D))
         {
             _dockingRequested = false;
+        }
+
+        // The launch and docking tunnels are not part of the flight: the original draws them as it
+        // leaves the flight loop (LAUN on the way out of the station, GOIN on the way in), so the
+        // simulation stands still while they are up. Letting it run on through a docking tunnel flew
+        // us into the station we had just been cleared to enter, which is a game over rather than a
+        // docking.
+        if (_launchTunnelFrames > 0 || _dockTunnelFrames > 0)
+        {
+            _starfield.Update(0);
+            return;
         }
 
         // Run the simulation at the original's fixed rate, so the ported maths stays in its
@@ -928,6 +955,27 @@ public sealed class FlightScene : IScene
     }
 
     /// <summary>
+    /// How many drawn frames the launch and docking tunnels stay up for. The original draws them
+    /// once, on the frame we leave the station or enter it, and then gets on with loading the next
+    /// bank of code; a handful of frames is what it takes to be seen at all.
+    /// </summary>
+    public const int LaunchTunnelFrames = 24;
+
+    /// <summary>How many drawn frames the docking tunnel stays up for.</summary>
+    public const int DockTunnelFrames = 24;
+
+    private int _launchTunnelFrames;
+    private int _dockTunnelFrames;
+    private int _launchesSeen;
+
+    /// <summary>
+    /// True while the docking rings are up, which means the docking is decided and the station's
+    /// screens are next. The check that decided it must not run again: without this it fires every
+    /// frame, and each one puts the rings back up, so the ship sits at the slot for ever.
+    /// </summary>
+    private bool DockingSequenceRunning => _dockTunnelFrames > 0;
+
+    /// <summary>
     /// Draws the hyperspace tunnel for this many drawn frames as well as while a jump counts down.
     /// </summary>
     /// <remarks>
@@ -956,6 +1004,23 @@ public sealed class FlightScene : IScene
         spriteBatch.Begin(samplerState: SamplerState.PointClamp);
         _starfield.Draw(spriteBatch, pixel, Camera);
         spriteBatch.End();
+
+        // The launch and docking tunnels cover everything for their few frames, with the launch's
+        // sixteen sets of rings against the eight that hyperspace and docking draw
+        if (_launchTunnelFrames > 0 || _dockTunnelFrames > 0)
+        {
+            int sets = _launchTunnelFrames > 0 ? HyperspaceTunnel.LaunchRingSets : HyperspaceTunnel.RingSets;
+            if (_launchTunnelFrames > 0)
+            {
+                _launchTunnelFrames--;
+            }
+
+            spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            HyperspaceTunnel.Draw(spriteBatch, pixel, Camera, Palette.White, sets);
+            spriteBatch.End();
+            _hud.Draw(spriteBatch, pixel, Camera, _sim);
+            return;
+        }
 
         // The hyperspace tunnel covers everything while the drive is counting down, as the
         // original's LL164 clears the screen and draws its rings over the top

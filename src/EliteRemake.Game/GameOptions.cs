@@ -78,6 +78,12 @@ public sealed class GameOptions
     public bool StartDocked { get; private set; }
 
     /// <summary>
+    /// If set, start by launching from the station, so the launch tunnel and its sound can be seen
+    /// without a keyboard to press the launch key with.
+    /// </summary>
+    public bool StartByLaunching { get; private set; }
+
+    /// <summary>
     /// True to open on the start screen. It is the default, and the options that ask for a
     /// particular screen or for the ship viewer turn it off, because a development command that
     /// wants to look at the market or at a ship's geometry does not want a menu in the way.
@@ -237,6 +243,10 @@ public sealed class GameOptions
                     options.StartView = (Next() ?? "front").ToLowerInvariant();
                     options.ShowTitle = false;
                     break;
+                case "--launch":
+                    options.StartByLaunching = true;
+                    options.ShowTitle = false;
+                    break;
                 case "--buy":
                     options.BuyItem = Next();
                     options.ShowTitle = false;
@@ -314,6 +324,7 @@ public sealed class GameOptions
               --jump                  begin a hyperspace jump at once, to see the tunnel
               --in-system-jump <n>    make n in-system jumps as the flight scene starts
               --buy <item>[,<view>]   buy an equipment item, e.g. 13,rear, and report the result
+              --launch                start by launching from the station, to see the tunnel
               --dock [screen]         start docked, at the market or the equipment shop
               --laser <type>          fit a pulse, beam, military or none laser to the front
               --fully-equipped        start with every piece of equipment

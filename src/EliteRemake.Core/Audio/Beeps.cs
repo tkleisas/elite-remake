@@ -21,8 +21,14 @@ public enum SoundEffect
     /// <summary>A long, low beep, used for missile unarming and errors.</summary>
     Boop = 40,
 
-    /// <summary>A missile has been launched.</summary>
+    /// <summary>
+    /// A missile has been launched, and also the ship launching from the station: the disc version
+    /// points both at entry 48 of its sound table, so the two sounds are the same one.
+    /// </summary>
     Missile = 48,
+
+    /// <summary>Launching from the station, which is the same table entry as a missile.</summary>
+    Launch = 48,
 
     /// <summary>The hyperspace drive has engaged.</summary>
     Hyperspace = 56,

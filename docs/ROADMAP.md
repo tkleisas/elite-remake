@@ -4544,3 +4544,30 @@ mounts had been *modelled* since the shops were written — the commander has fo
 equipment table sells four laser items, the status screen had a `LaserName` that returned "PULSE" for
 everything — and none of it could be reached, because there was only one view. Two faults fell out of
 following that thread: a laser that was not a laser, and a shop that chose the mount for you.
+
+## The launch and docking tunnels
+
+**Both were missing, and both are the same eight rings.** Drawing the launch tunnel is `LAUN`, which
+makes the launch sound — entry 48 of the sound table, which is also the missile's, so the two sounds
+are literally the same one — and then draws the rings. Drawing the docking tunnel is `GOIN`, which the
+flight loop reaches the moment a docking check clears: `RES2`, then `HFS2` with the launch's step
+size, and only then the docking bay and its screens. Ours went straight from one to the other with no
+rings at all.
+
+`HFS2` draws sets of rings from a starting radius of 8 to 15, doubling each one until it reaches 160,
+and the two banks of the disc's code draw different numbers of sets: the flight bank's `HFS2` draws
+eight, and the docked bank's calls `HFS1` and then falls through into it, so the **launch draws
+sixteen**. Hyperspace keeps its eight sets and its step of 4 — the rounder rings — and the launch and
+docking rings use the step of 8 the original calls "quite polygonal".
+
+**The tunnels are not part of the flight**, and getting that wrong was worth a game over: the sim
+carried on stepping while the docking rings were up, so the autopilot flew us straight through the
+slot it had just been cleared to enter and into the far wall. The original draws both tunnels as the
+flight loop *ends*. Ours now stands the simulation still while they are up, which is also what stops
+the docking check firing again every frame and putting the rings back up for ever. That second fault
+was found by the docking computer itself: the autopilot stopped docking altogether, and the run ended
+parked at the slot with the rings up and the ship alive.
+
+**Verified from the command line**: `--launch` starts by taking the station's own route out — dock,
+then launch — so the sixteen-ring tunnel and its sound can be seen, and the autopilot's docking run
+was caught at the frame the eight-ring tunnel comes up. 392 tests pass.

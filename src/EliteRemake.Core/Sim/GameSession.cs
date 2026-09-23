@@ -716,6 +716,7 @@ public sealed class GameSession
     {
         Mode = GameMode.Flying;
         Message = string.Empty;
+        Launches++;
 
         // We launch looking out of the front window, which is TT110: it reaches LOOK1 with X = 0
         // whether it is launching us or bringing us out of a hyperspace jump.
@@ -734,6 +735,13 @@ public sealed class GameSession
         Flight.Player.HasEnergyUnit = Commander.EnergyUnit;
         return result;
     }
+
+    /// <summary>
+    /// How many times we have launched from a station. The flight scene watches this so that it can
+    /// draw the launch tunnel: the original's LAUN draws it as we leave, and it counts rather than
+    /// flags so that a launch is never missed and never replayed.
+    /// </summary>
+    public int Launches { get; private set; }
 
     /// <summary>Buys as much of an item as the credits and the hold allow.</summary>
     public int Buy(int item, int amount)

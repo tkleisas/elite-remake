@@ -31,8 +31,14 @@ public static class HyperspaceTunnel
     /// <summary>The ring step size LL164 uses for hyperspace, against 8 for the launch rings.</summary>
     public const int StepSize = 4;
 
-    /// <summary>How many sets of rings HFS2 draws.</summary>
+    /// <summary>How many sets of rings HFS2 draws in the flight bank, for hyperspace and docking.</summary>
     public const int RingSets = 8;
+
+    /// <summary>
+    /// How many sets the launch tunnel draws: the docked bank's HFS2 calls HFS1 and then falls
+    /// through into it again, which is the sixteen rings the original versions draw.
+    /// </summary>
+    public const int LaunchRingSets = 16;
 
     /// <summary>The radius past which HFS2 stops drawing a set.</summary>
     public const int MaximumRadius = 160;
@@ -48,7 +54,21 @@ public static class HyperspaceTunnel
     /// The original's radius is in 256x192 screen pixels, so it is scaled by the view's height —
     /// the same basis the projection uses — to fill a widescreen window without changing the shape.
     /// </remarks>
-    public static void Draw(SpriteBatch spriteBatch, Texture2D pixel, ViewCamera camera, Color colour)
+    /// <param name="spriteBatch">The batch to draw with.</param>
+    /// <param name="pixel">A one-pixel texture.</param>
+    /// <param name="camera">The camera the space view is drawn with.</param>
+    /// <param name="colour">The colour of the rings.</param>
+    /// <param name="ringSets">
+    /// How many sets of rings to draw. Hyperspace and the docking tunnel use the flight bank's
+    /// HFS2, which draws eight; the launch tunnel is drawn from the docked bank, where HFS2 calls
+    /// HFS1 and then falls through into it, so it draws sixteen.
+    /// </param>
+    public static void Draw(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        ViewCamera camera,
+        Color colour,
+        int ringSets = RingSets)
     {
         float scale = camera.ViewportHeight / ScreenHeight;
         float cx = camera.CentreX;
@@ -59,7 +79,7 @@ public static class HyperspaceTunnel
         DrawBorder(spriteBatch, pixel, cx, cy, scale, colour);
 
 
-        for (int set = 0; set < RingSets; set++)
+        for (int set = 0; set < ringSets; set++)
         {
             // The original's terminating test, in its own units: a set stops once a ring's radius
             // reaches 160, which is what its own CMP #160 does. Bounding by the window instead would
