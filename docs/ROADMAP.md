@@ -2032,3 +2032,35 @@ two banks of memory works rather than about the game:
 Recording these as read-and-rejected is worth as much as recording the faults: a branch being
 disc-only does not make it a rule, and the two above would have been changes with no observable
 effect.
+
+## Anacondas release Worms, and nothing else
+
+The next disc-only behavioural branch, and a rule we did not have at all: an Anaconda releases the
+ship it carries.
+
+```
+CMP #ANA / BNE TN7            \ only an Anaconda
+JSR DORND / CMP #200 / BCC TN7 \ and only on a roll of 200 or more
+LDX #WRM                      \ a Worm — and on this build, always a Worm
+```
+
+The disc's branch is the narrow one: *"in the disc version, Anacondas can only spawn Worms, while in
+the advanced versions they can also spawn Sidewinders"*, so there is no second roll here. It runs on
+**every frame** the tactics do, so an Anaconda that survives a while fills the sky with Worms, which
+is what the original does and what the source's own 22% describes. The released ship gets an AI flag
+of `%11110001` — E.C.M., AI enabled, hostile, low aggression — from the shared `TN6` path.
+
+**And the branch direction was a trap I walked into.** Writing `>= 200` releases, I first wrote it as
+`< 200` — reading "BCC skips" as "below the threshold is the interesting case" — and the test caught
+it immediately by measuring **77% instead of 22%**. The lesson is the same one the guards have been
+teaching, one level down: on this codebase the direction of a comparison is as easy to get wrong as
+the condition around it, and the only defence is to measure the rate rather than read it.
+
+**The tally is seventeen.**
+
+## Still open
+
+`main_game_loop_part_2_of_6` carries a disc-only branch described as *"a bug fix for the first version
+of disc Elite, in which asteroids never appeared"*. That is a fix we would have to decide whether to
+take: the disc build this port follows is the Stairway to Hell variant, and whether its `_VARIANT=2`
+includes the fix is the next thing to establish rather than assume.

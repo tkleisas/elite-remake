@@ -176,6 +176,31 @@ public sealed class FlightSim
         return removed;
     }
 
+    /// <summary>
+    /// Spawns the smaller ship an Anaconda releases, near the Anaconda and under its own AI.
+    /// </summary>
+    /// <remarks>
+    /// The spawned ship is put just ahead of the ship that released it, which is what the original's
+    /// SFS1 does when it is called from TACTICS: the ship workspace holds the parent, so the child
+    /// starts from the parent's position and orientation.
+    /// </remarks>
+    private Ship? SpawnFromParent(int type, Ship parent)
+    {
+        (int x, int y, int z) = parent.GetPosition();
+
+        // Just ahead of the parent, which is where the original's workspace puts it
+        var child = Ship.Create(type, string.Empty, $"Type {type}", x, y, z + 256, 0, 0);
+        child.AiFlag = Tactics.SpawnedShipAiFlag;
+
+        if (!Spawn(child))
+        {
+            return null;
+        }
+
+        ShipSpawned?.Invoke(child);
+        return child;
+    }
+
     /// <summary>Advances the simulation by one frame (the original runs at 50 frames a second).</summary>
     public void Step(FlightInput input = default)
     {
@@ -188,6 +213,12 @@ public sealed class FlightSim
         for (int slot = 0; slot < _bubble.Count; slot++)
         {
             Ship ship = _bubble[slot];
+
+            // An Anaconda may release the ship it carries, which is part of TACTICS in the original
+            if (Tactics.ShouldReleaseShip(ship, Random))
+            {
+                SpawnFromParent(Tactics.WormType, ship);
+            }
 
             // TACTICS runs before the ship is moved, as it does in the original
             int before = Player.Energy + Player.ForeShield + Player.AftShield;

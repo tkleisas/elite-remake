@@ -130,6 +130,65 @@ public class GameLoopTests
     }
 
     /// <summary>
+    /// An Anaconda releases a Worm, and on this build nothing else.
+    /// </summary>
+    /// <remarks>
+    /// The disc's branch, which differs from the advanced versions': "in the disc version, Anacondas
+    /// can only spawn Worms, while in the advanced versions they can also spawn Sidewinders". The
+    /// roll is a 22% chance on every frame, so an Anaconda that survives a while fills the sky.
+    /// </remarks>
+    [Fact]
+    public void AnAnacondaReleasesAWormAndNothingElse()
+    {
+        var random = new EliteRandom(1);
+
+        // Only the Anaconda releases anything
+        foreach (int type in new[] { 11, 12, 13, 16, 19 })
+        {
+            Assert.False(Tactics.ShouldReleaseShip(new Ship(type, "x", "x"), new EliteRandom(1)));
+        }
+
+        // The Anaconda does, at roughly the 22% the original rolls
+        int released = 0;
+        for (int i = 0; i < 10_000; i++)
+        {
+            if (Tactics.ShouldReleaseShip(new Ship(Tactics.AnacondaType, "anaconda", "Anaconda"), random))
+            {
+                released++;
+            }
+        }
+
+        Assert.InRange(released, 2_050, 2_350);   // 22% of 10000, with room for the generator
+
+        // And it is always the Worm: the disc has no Sidewinder branch
+        Assert.Equal(23, Tactics.WormType);
+    }
+
+    /// <summary>
+    /// The released ship arrives in the bubble under its own AI.
+    /// </summary>
+    [Fact]
+    public void AReleasedWormJoinsTheBubble()
+    {
+        GameSession session = NewSession();
+        var anaconda = Ship.Create(Tactics.AnacondaType, "anaconda", "Anaconda", 0, 0, 0, 3000, 0);
+        Assert.True(session.Flight.Spawn(anaconda));
+
+        // Run until one is released, which the 22% chance makes quick
+        int before = session.Flight.Bubble.Count;
+        for (int i = 0; i < 500 && session.Flight.Bubble.Count == before; i++)
+        {
+            session.Flight.Step();
+        }
+
+        Assert.Equal(before + 1, session.Flight.Bubble.Count);
+        Ship worm = session.Flight.Bubble.Last();
+        Assert.Equal(Tactics.WormType, worm.Type);
+        Assert.Equal(Tactics.SpawnedShipAiFlag, worm.AiFlag);
+        Assert.True(worm.AiFlag >= 0x80, "it has AI and is hostile");
+    }
+
+    /// <summary>
     /// A missile lock does not outlive the ship it is locked onto.
     /// </summary>
     /// <remarks>

@@ -59,6 +59,46 @@ public static class Tactics
         return roll < ship.AiFlag;
     }
 
+    /// <summary>The Anaconda, the one ship that carries a smaller ship inside it.</summary>
+    public const int AnacondaType = 14;
+
+    /// <summary>The Worm, which is what an Anaconda spawns on this build.</summary>
+    public const int WormType = 23;
+
+    /// <summary>
+    /// The threshold an Anaconda rolls against to release the ship it carries: the original's
+    /// <c>CMP #200</c>, where a roll of 200 or more releases it. That is 56 in 256, or 22%.
+    /// </summary>
+    public const int AnacondaReleaseThreshold = 200;
+
+    /// <summary>
+    /// The AI flag the spawned ship is given: <c>%11110001</c>, which is E.C.M., AI enabled and
+    /// hostile, with a low aggression.
+    /// </summary>
+    public const byte SpawnedShipAiFlag = 0b1111_0001;
+
+    /// <summary>
+    /// Considers whether an Anaconda should release the ship it carries.
+    /// </summary>
+    /// <remarks>
+    /// The disc's branch, which differs from the advanced versions': *"in the disc version, Anacondas
+    /// can only spawn Worms, while in the advanced versions they can also spawn Sidewinders"*. So the
+    /// roll is a 22% chance of a Worm and nothing else — where the advanced versions then roll again
+    /// and give a 61% chance of a Worm against a 39% chance of a Sidewinder.
+    ///
+    /// It is a chance on <em>every frame</em>, not a one-off: the original tests it each time the
+    /// tactics run, so an Anaconda that survives a while will fill the sky with Worms.
+    /// </remarks>
+    /// <returns>True if it should release one.</returns>
+    /// <remarks>
+    /// The comparison is the original's <c>CMP #200 / BCC TA7</c>, which <em>skips</em> when the roll
+    /// is below 200 — so it is the roll of 200 or more that releases the ship, and the chance is the
+    /// 56 in 256 the source's own comment gives as 22%. Reading the branch the other way makes it
+    /// release on 78% of frames instead, which fills the sky with Worms.
+    /// </remarks>
+    public static bool ShouldReleaseShip(Ship ship, EliteRandom random) =>
+        ship.Type == AnacondaType && random.Next() >= AnacondaReleaseThreshold;
+
     /// <summary>
     /// Runs the AI for one ship. Returns true if the ship hit us with its laser this frame.
     /// </summary>
