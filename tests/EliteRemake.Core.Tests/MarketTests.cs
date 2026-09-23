@@ -395,6 +395,41 @@ public class CombatTests
         Assert.Equal(0, Combat.FireInterval(LaserType.Military));
     }
 
+    /// <summary>
+    /// The rest of the combat constants, taken from the disc's own sources.
+    /// </summary>
+    /// <remarks>
+    /// Every one of these was read out of the disc build rather than assumed: the heat and cooling
+    /// from LASLI and the main game loop, the mining laser from the flight source's Mlas, and the
+    /// spawn figures from the main game loop's own branches. They are pinned here because a
+    /// hand-written constant is exactly the sort of thing that silently becomes another version's
+    /// value — as seven equipment prices had.
+    /// </remarks>
+    [Fact]
+    public void TheCombatAndSpawnConstantsAreTheDiscVersions()
+    {
+        // LASLI adds 8 to GNTMP a shot; the main game loop decrements it once a frame; the laser
+        // refuses to fire at 242
+        Assert.Equal(8, Combat.HeatPerShot);
+        Assert.Equal(1, Combat.CoolingPerFrame);
+        Assert.Equal(242, Combat.OverheatTemperature);
+        Assert.Equal(1, Combat.EnergyPerShot);
+
+        // The flight source's Mlas = 50. There is no mining laser to buy in the disc version's
+        // equipment list, but the power is defined and a mining laser is fitted to some ships.
+        Assert.Equal(50, Combat.MiningLaserPower);
+
+        // The energy bomb's BOMB value counts down from 8
+        Assert.Equal(8, Combat.EnergyBombFrames);
+
+        // The disc branches on CMP #120 for a 47% chance of any spawn, and on CMP #100 for the 61%
+        // chance of a pack rather than a lone hunter
+        Assert.Equal(120, Spawner.AnySpawnThreshold);
+        Assert.Equal(100, Spawner.PackThreshold);
+        Assert.Equal(38 * 256, Spawner.SpawnDistance);   // "Set z_hi = 38 (far away)"
+        Assert.Equal(64, Spawner.SpawnDelay);
+    }
+
     [Fact]
     public void AShipInTheCrosshairsIsHit()
     {

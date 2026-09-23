@@ -57,6 +57,18 @@ public static class Spawner
     public const int SpawnDelay = 64;
 
     /// <summary>
+    /// The random byte at or above which nothing spawns: the disc version tests <c>CMP #120</c>,
+    /// which is the 47% chance its own comment describes.
+    /// </summary>
+    public const int AnySpawnThreshold = 120;
+
+    /// <summary>
+    /// The random byte at or above which a pack of pirates rather than a lone bounty hunter
+    /// appears: <c>CMP #100</c>, the 61% chance.
+    /// </summary>
+    public const int PackThreshold = 100;
+
+    /// <summary>
     /// Decides whether to spawn anything this iteration and, if so, what.
     /// </summary>
     /// <param name="system">The system we are in.</param>
@@ -66,7 +78,7 @@ public static class Spawner
     {
         // There is a 47% chance of spawning anything at all in the disc version
         byte roll = random.Next();
-        if (roll >= 120)
+        if (roll >= AnySpawnThreshold)
         {
             return SpawnKind.None;
         }
@@ -80,7 +92,7 @@ public static class Spawner
 
         // Then it is 61% pirates and otherwise a lone bounty hunter
         byte choice = random.Next();
-        return choice >= 100 ? SpawnKind.Pirates : SpawnKind.BountyHunter;
+        return choice >= PackThreshold ? SpawnKind.Pirates : SpawnKind.BountyHunter;
     }
 
     /// <summary>Picks the ship type for a spawn, using the original's tables.</summary>

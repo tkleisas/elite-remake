@@ -1145,3 +1145,38 @@ bytes, because for some of those combinations the computed figure would otherwis
 
 What is left un-audited in the same style, and is the next thing to check: the combat constants
 (laser powers, heat, the OOPS chain) and the spawn probabilities.
+
+## Audit: the combat and spawn constants
+
+The last two rounds' lesson was that a hand-written constant is where another version's value
+hides, so the combat and spawn figures were checked the same way. **These were all correct**, and
+the reading is worth recording because it also settles some of the reasoning in the code comments.
+
+| constant | value | where it comes from |
+| --- | --- | --- |
+| Pulse laser power | 15 | `POW = 15` in the disc flight source |
+| Beam laser power | 15, bit 7 set | a beam laser is `POW` with bit 7, so 143 raw |
+| Military laser power | 23 | `Armlas = INT(128.5 + 1.5*POW)` = 151, masked to 7 bits |
+| Mining laser power | 50 | `Mlas = 50` |
+| Heat a shot | 8 | LASLI's `LDA GNTMP / ADC #8 / STA GNTMP` |
+| Cooling | 1 a frame | the main game loop's `DEC GNTMP`, guarded against zero |
+| Overheat | 242 | the flight loop's `CMP #242` before it will fire |
+| Energy a shot | 1 | LASLI's `JSR DENGY` |
+| Energy bomb | 8 frames | the `BOMB` counter |
+| Any spawn | 47% | the disc branch `CMP #120`, against 90 in the other versions |
+| Pack of pirates | 61% | `CMP #100` |
+| Spawn distance | 38 * 256 | "Set z_hi = 38 (far away)" |
+| Spawn delay | 64 | `EV` |
+
+**The OOPS chain is right down to its corner case.** A hit takes the shield on the side the
+attacker's `z_sign` names; if the shield is not overwhelmed the remainder comes off the energy
+banks; and the death test is the original's `BEQ`/`BCS` pair, which means energy reaching *exactly*
+zero is death as well as going below it. `Combat.TakeDamage` reproduces that with `Energy > damage`
+rather than `>=`. The shields recharge from the banks only while `ENERGY` has bit 7 set — above half
+charge — and each gains one point a frame, which is `SHD` plus `DENGY`.
+
+A test now pins the whole set, so the figures cannot drift to another version's unnoticed the way
+seven equipment prices had. Worth noting for the remaining work: the equipment prices and the alien
+items rule were the only two faults this audit found in the hand-written tables, and both were in
+tables that had a *sibling* table for another platform to be confused with. The combat constants
+have no such sibling, which is likely why they were right.
