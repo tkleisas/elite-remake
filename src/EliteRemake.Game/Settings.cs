@@ -37,6 +37,10 @@ public sealed class Settings
     [JsonPropertyName("energyBomb")]
     public string EnergyBomb { get; set; } = nameof(Keys.Tab);
 
+    /// <summary>The docking computer, on the original's "C".</summary>
+    [JsonPropertyName("dockingComputer")]
+    public string DockingComputer { get; set; } = nameof(Keys.C);
+
     /// <summary>Hyperspace. The original uses "H" from the charts; there is no flight key for it.</summary>
     [JsonPropertyName("hyperspace")]
     public string Hyperspace { get; set; } = nameof(Keys.H);
@@ -84,6 +88,7 @@ public sealed class Settings
         ("E.C.M.", () => Ecm, v => Ecm = v),
         ("ENERGY BOMB", () => EnergyBomb, v => EnergyBomb = v),
         ("HYPERSPACE", () => Hyperspace, v => Hyperspace = v),
+        ("DOCKING COMPUTER", () => DockingComputer, v => DockingComputer = v),
         ("ROLL LEFT", () => RollLeft, v => RollLeft = v),
         ("ROLL RIGHT", () => RollRight, v => RollRight = v),
         ("PULL UP", () => PullUp, v => PullUp = v),
@@ -131,6 +136,7 @@ public sealed class Settings
     public Keys EcmKey => Key(Ecm, Keys.E);
     public Keys EnergyBombKey => Key(EnergyBomb, Keys.Tab);
     public Keys HyperspaceKey => Key(Hyperspace, Keys.H);
+    public Keys DockingComputerKey => Key(DockingComputer, Keys.C);
     public Keys RollLeftKey => Key(RollLeft, Keys.OemComma);
     public Keys RollRightKey => Key(RollRight, Keys.OemPeriod);
     public Keys PullUpKey => Key(PullUp, Keys.X);

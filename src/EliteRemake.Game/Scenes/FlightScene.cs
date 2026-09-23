@@ -304,6 +304,7 @@ public sealed class FlightScene : IScene
             text.Append(
                 $", energy {_sim.Player.Energy}/{_sim.Player.MaxEnergy}, " +
                 $"cabin {_sim.CabinTemperature}, laser {_sim.LaserTemperature}, " +
+                $"autopilot {(DockingComputerEngaged ? "on" : "off")}, " +
                 $"fuel {Session?.Commander.Fuel ?? 0}, sim step {_sim.MainLoopCounter}, took {_sim.DamageTakenThisFrame} damage, died {_sim.PlayerDied}" +
                 (Session is null ? string.Empty : $", game over {Session.GameOver}, \"{Session.Message}\""));
 
@@ -451,6 +452,95 @@ public sealed class FlightScene : IScene
     }
 
     /// <summary>
+    /// True while the docking computer is flying the ship.
+    /// </summary>
+    /// <remarks>
+    /// The original's DOKEY engages it when "C" is pressed with a docking computer fitted and a
+    /// station in the safe zone, and DOCKIT then writes rotation counters rather than reading the
+    /// keyboard — which is why the simulation has a path for counters that does not go through the
+    /// key rate at all. Nothing engaged it before this: the computer could be bought, showed as
+    /// fitted on the status screen, and did nothing whatever.
+    /// </remarks>
+    public bool DockingComputerEngaged { get; set; }
+
+    /// <summary>Engages or disengages the docking computer when the key is tapped.</summary>
+    private void UpdateDockingComputer(Microsoft.Xna.Framework.Input.KeyboardState keys)
+    {
+        if (!keys.IsKeyDown(Settings.DockingComputerKey) || _dockingComputerPressed)
+        {
+            if (!keys.IsKeyDown(Settings.DockingComputerKey))
+            {
+                _dockingComputerPressed = false;
+            }
+
+            return;
+        }
+
+        _dockingComputerPressed = true;
+
+        if (DockingComputerEngaged)
+        {
+            DockingComputerEngaged = false;
+            return;
+        }
+
+        if (DockingComputer.CanEngage(StationInBubble(), Session?.Commander.DockingComputer == true))
+        {
+            DockingComputerEngaged = true;
+        }
+    }
+
+    /// <summary>The space station in the local bubble, or null when there is none.</summary>
+    private Ship? StationInBubble()
+    {
+        foreach (Ship ship in _sim.Bubble)
+        {
+            if (ship.Type == Combat.SpaceStationType)
+            {
+                return ship;
+            }
+        }
+
+        return null;
+    }
+
+    private bool _dockingComputerPressed;
+
+    /// <summary>
+    /// Advances the simulation by one iteration, with the docking computer flying if it is engaged.
+    /// </summary>
+    private void StepWithDockingComputer()
+    {
+        if (!DockingComputerEngaged)
+        {
+            _sim.Step(LastInput);
+            return;
+        }
+
+        Ship? station = StationInBubble();
+
+        if (station is null || station.IsKilled)
+        {
+            // Nothing to fly to any more
+            DockingComputerEngaged = false;
+            _sim.Step(LastInput);
+            return;
+        }
+
+        DockingComputer.Manoeuvre move = DockingComputer.Fly(station, _sim.Speed);
+        _sim.SetRotationCounters(move.RollCounter, move.PitchCounter);
+        _sim.Step(LastInput with { RollLeft = false, RollRight = false, PullUp = false, PitchDown = false,
+            SpeedUp = move.SpeedUp, SlowDown = move.SlowDown });
+        _sim.ClearRotationCounters();
+
+        // Docking ends the flight, so the autopilot goes with it
+        if (Session is { Mode: not GameMode.Flying })
+        {
+            DockingComputerEngaged = false;
+        }
+    }
+
+    /// <summary>
     /// The message to show, or empty for none.
     /// </summary>
     /// <remarks>
@@ -562,6 +652,11 @@ public sealed class FlightScene : IScene
                 _missilePressed = false;
             }
 
+            // C hands the ship to the docking computer, as the original's DOKEY does: it needs the
+            // computer fitted and a station in range, and it refuses to fly us in to one we have
+            // annoyed. Pressing it again takes the controls back.
+            UpdateDockingComputer(keys);
+
             // H jumps to the nearest system we can reach, until the charts arrive. Holding CTRL
             // as well forces the jump to go wrong, as the original's own mis-jump key does.
             if (keys.IsKeyDown(Settings.HyperspaceKey) && !_jumpPressed)
@@ -648,7 +743,7 @@ public sealed class FlightScene : IScene
         while (_accumulator >= FrameTime && steps < 10)
         {
             RememberPositions();
-            _sim.Step(LastInput);
+            StepWithDockingComputer();
             _accumulator -= FrameTime;
             steps++;
         }

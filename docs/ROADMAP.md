@@ -4144,3 +4144,30 @@ somewhere between coasting and a hard roll. That crossing is the roll you dock w
 **Two tests hold it**: one asserts that rolling one way counters the station's spin and the other adds
 to it, and one sweeps how much of each turn the roll key is held and asserts the residual crosses zero —
 that is, that a matching roll exists at all. Both fail if the signs are dropped again.
+
+## The docking computer was never switched on
+
+**Nothing in the game called it.** `DockingComputer.Fly` was written, tuned and unit-tested, and the
+flight scene never invoked it: a commander could buy a docking computer, watch the status screen list it
+as fitted, press every key there is, and dock by hand or not at all. It is reachable only from the tests,
+which is the one place a user cannot go.
+
+**Now wired the way the original wires it.** DOKEY engages it when the key is pressed with a docking
+computer fitted and a station in the safe zone, and refuses a station that has turned against us — *"so
+we can't use the docking computer to dock at a station that has turned against us"*. On this build that
+hostility is the station's NEWB flag, not the top bit of its AI flag, which is the cassette's rule. The
+rule lives in `DockingComputer.CanEngage` so it can be tested; **C** is the key, as it is in the original,
+and it is now in the rebindable settings with the others.
+
+**The autopilot writes rotation counters rather than pressing keys**, which is why the simulation has a
+path for counters that does not go through the key rate at all, and why the scene drives it inside the
+fixed-step loop rather than once per drawn frame.
+
+**Two tests fly it**, which none of the existing ones did: the autopilot is given a station 6000 units
+ahead and left to get on with it, and it must reach a docking — once with the station rolling the
+original's way, and once with it rolling each of three other ways, because the station's roll is the
+thing the autopilot has to match and the one thing about a station that differs from system to system.
+
+**And it was checked in the game, not only in the simulation**: `--autopilot` hands the ship over at
+once, and the run ends on the market screen at Lave, having flown there rather than having been placed
+there by `--dock`.

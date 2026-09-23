@@ -143,6 +143,11 @@ public static class SceneFactory
             scene.Rate = rate;
         }
 
+        if (options.Autopilot)
+        {
+            scene.DockingComputerEngaged = true;
+        }
+
         foreach (ShipCatalog.Entry entry in ShipCatalog.All)
         {
             scene.RegisterMesh(entry.Id, entry.Mesh);

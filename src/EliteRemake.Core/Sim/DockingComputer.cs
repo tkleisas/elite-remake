@@ -88,6 +88,22 @@ public static class DockingComputer
         bool LinedUp);
 
     /// <summary>
+    /// Whether the docking computer may take over: it has to be fitted, there has to be a station in
+    /// range, and the station must not have turned against us.
+    /// </summary>
+    /// <remarks>
+    /// The original's DOKEY tests three things before it hands over — <c>LDA KY19 / AND DKCMP / AND
+    /// SSPR</c>, the key, the computer and the station's safe zone — and then refuses a hostile
+    /// station: "so we can't use the docking computer to dock at a station that has turned against
+    /// us". On this build the hostility is the station's NEWB flag rather than the top bit of its AI
+    /// flag, which is the cassette's rule.
+    /// </remarks>
+    /// <param name="station">The station we would be flying to, or null if there is none.</param>
+    /// <param name="hasDockingComputer">Whether the commander has one fitted.</param>
+    public static bool CanEngage(Ship? station, bool hasDockingComputer) =>
+        hasDockingComputer && station is { IsKilled: false } && !station.IsHostile;
+
+    /// <summary>
     /// Works out the docking computer's manoeuvre for this frame, as counters and a speed rather
     /// than as key presses — which is what DOCKIT actually produces.
     /// </summary>

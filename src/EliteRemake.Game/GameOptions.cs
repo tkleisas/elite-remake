@@ -78,6 +78,9 @@ public sealed class GameOptions
     /// </summary>
     public bool ShowTitle { get; private set; } = true;
 
+    /// <summary>True to hand the ship to the docking computer as soon as the flight starts.</summary>
+    public bool Autopilot { get; private set; }
+
     /// <summary>True to open the start screen with its settings panel already showing.</summary>
     public bool TitleSettings { get; private set; }
 
@@ -191,6 +194,9 @@ public sealed class GameOptions
                 case "--title-settings":
                     options.TitleSettings = true;
                     break;
+                case "--autopilot":
+                    options.Autopilot = true;
+                    break;
                 case "--sim-rate":
                     options.SimRate = float.Parse(Next() ?? "12.5");
                     break;
@@ -268,6 +274,7 @@ public sealed class GameOptions
               --title                 open on the start screen (the default)
               --skip-title            go straight into the game, past the start screen
               --title-settings        open the start screen with its settings showing
+              --autopilot             hand the ship to the docking computer at once
               --sim-rate <hz>         main loop iterations a second (default 12.5, the disc's own)
               --jump                  begin a hyperspace jump at once, to see the tunnel
               --dock [screen]         start docked, at the market or the equipment shop

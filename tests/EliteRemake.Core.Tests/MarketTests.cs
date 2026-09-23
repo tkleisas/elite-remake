@@ -3413,3 +3413,90 @@ public class ScoopItemTests
         Assert.False(Debris.IsScoopable(11));
     }
 }
+
+/// <summary>
+/// Flies the docking computer from a standing start to a docking, which is the only check that says
+/// whether the autopilot actually works.
+/// </summary>
+/// <remarks>
+/// The unit tests around this cover the manoeuvre it asks for at a given moment. None of them flies
+/// it, and until now nothing in the game called it at all: the computer could be bought, showed as
+/// fitted, and did nothing. This drives the same loop the flight scene drives — ask for a manoeuvre,
+/// write the counters, step, clear them — and watches for the docking.
+/// </remarks>
+public class DockingComputerFlightTests
+{
+    /// <summary>Flies the autopilot at a station and reports how it went.</summary>
+    private static (int Iterations, DockingResult Result) FlyIt(int stationDistance, byte spinRoll)
+    {
+        var player = new Ship(11, "cobra-mk-3", "Cobra Mk III");
+        var sim = new FlightSim(player) { SpawningEnabled = false, Commander = Commander.CreateDefault() };
+
+        Ship station = SystemArrival.CreateStation(stationDistance, spinRoll);
+        sim.Spawn(station);
+
+        for (int i = 0; i < 4000; i++)
+        {
+            DockingComputer.Manoeuvre move = DockingComputer.Fly(station, sim.Speed);
+            sim.SetRotationCounters(move.RollCounter, move.PitchCounter);
+            sim.Step(new FlightInput(SpeedUp: move.SpeedUp, SlowDown: move.SlowDown));
+            sim.ClearRotationCounters();
+
+            (int x, int y, int z) = station.GetPosition();
+            DockingResult result = Docking.Check(
+                station,
+                (x, y, z),
+                new System.Numerics.Vector3(0, 0, 1),
+                station.IsHostile);
+
+            if (result == DockingResult.Docking)
+            {
+                return (i, result);
+            }
+
+            if (result == DockingResult.Collision)
+            {
+                return (i, result);
+            }
+        }
+
+        return (4000, DockingResult.TooFar);
+    }
+
+    [Fact]
+    public void TheAutopilotNeedsAComputerAndAWillingStation()
+    {
+        Ship station = SystemArrival.CreateStation(3000, SystemArrival.StationRollCounter);
+
+        Assert.True(DockingComputer.CanEngage(station, hasDockingComputer: true));
+        Assert.False(DockingComputer.CanEngage(station, hasDockingComputer: false));
+        Assert.False(DockingComputer.CanEngage(null, hasDockingComputer: true));
+
+        // "so we can't use the docking computer to dock at a station that has turned against us"
+        station.NewbFlags |= Ship.NewbHostile;
+        Assert.False(DockingComputer.CanEngage(station, hasDockingComputer: true));
+    }
+
+    [Fact]
+    public void TheAutopilotDocksUsFromAheadOfTheStation()
+    {
+        (int iterations, DockingResult result) = FlyIt(6000, SystemArrival.StationRollCounter);
+
+        Assert.True(result == DockingResult.Docking,
+            $"the autopilot should fly us in, but it ended as {result} after {iterations} iterations");
+    }
+
+    [Fact]
+    public void TheAutopilotDocksUsWhicheverWayTheStationRolls()
+    {
+        // The station's roll is what the autopilot has to match, and it is the one thing about a
+        // station that differs from system to system
+        foreach (byte spin in new byte[] { SystemArrival.StationRollCounter, 0x00, 0x40, 0x7F })
+        {
+            (int iterations, DockingResult result) = FlyIt(6000, spin);
+
+            Assert.True(result == DockingResult.Docking,
+                $"spin {spin:X2}: the autopilot ended as {result} after {iterations} iterations");
+        }
+    }
+}
