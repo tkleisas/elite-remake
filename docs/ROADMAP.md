@@ -3366,3 +3366,33 @@ probed the renderer four times — the basis, the culling, the visibility scale,
 probe was clean, because **the renderer was never wrong**. It was drawing a spiral faithfully. The
 measurement that found it came from asking what a rotation must preserve rather than where the fault
 probably was.
+
+## The fix over a long flight, and the pitch case
+
+The rigidity test measures a full turn at one offset; the fix was then measured the way a player would
+use it — two thousand frames of continuous rolling with a station off to one side at (1200, 600, 2400):
+
+| | |
+| --- | --- |
+| worst distance error | **1.45%** over two thousand frames, where the old path collapsed to 18.8% within one turn |
+| largest one-frame movement | 171.9 units, so the motion is smooth rather than stepping |
+| z coordinate | **exactly 2400 throughout**, which is what a pure roll about z requires |
+| final position | (-36, 1371, 2400) |
+
+The z coordinate holding exactly is the clearest single statement that this is now a rotation: a roll
+about the z axis cannot change z, and the old path happened to preserve it too, which is part of why the
+fault looked like a *shape* problem rather than a *position* one. What was wrong was x and y: their
+combined radius wandered, and a body whose distance wanders while its height holds still reads as a body
+that will not stay put.
+
+**The pitch case is covered by the same test**, which walks `bet1` rather than `alp1` and requires both
+paths to agree exactly — so the departure from the original's two-byte method is confined to the ships'
+location rotation and both components of it are checked.
+
+**What is left open, precisely.** The original works on two bytes here; this port now does not. That is a
+deliberate departure and it is recorded as one, but **what the original's own routine does at these
+magnitudes has not been measured**, and there are two possibilities that matter: either the shipped game
+drifted in the same way and it was invisible in a wireframe, or our port of that routine was wrong and
+the original is rigid. Reading MVEIT part 5's `MVT6` usage with that question in mind is the next piece
+of work, and it is a reading rather than a measurement — which is the sort that has gone wrong most
+often in this project.
