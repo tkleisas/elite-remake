@@ -130,6 +130,40 @@ public class GameLoopTests
     }
 
     /// <summary>
+    /// A ship the spawner produces is hostile, and therefore able to attack.
+    /// </summary>
+    /// <remarks>
+    /// The flight loop decides whether to fight from the NEWB hostile bit, and the original sets that
+    /// bit for both spawn branches — "set bit 2 of the NEWB flags ... so the ship we are about to
+    /// spawn is hostile". Leaving it clear meant every pirate and bounty hunter arrived aggressive
+    /// but peaceful: nothing the spawner created could attack at all. No unit test noticed, because
+    /// the spawner's own test only checked which ship type it chose.
+    /// </remarks>
+    [Fact]
+    public void ASpawnedPirateIsHostile()
+    {
+        var random = new EliteRandom(1);
+        StarSystem lave = Galaxy.GenerateGalaxy(Galaxy.GalaxySeeds(0))[7];
+
+        foreach (SpawnKind kind in new[] { SpawnKind.Pirates, SpawnKind.BountyHunter })
+        {
+            Ship ship = Spawner.Create(kind, lave, random);
+            Assert.True(ship.IsHostile, $"{kind} should spawn hostile");
+            Assert.True(ship.AiFlag >= 0x80, "and aggressive, as it already was");
+        }
+
+        // And the two together are what lets it fight: aggressive alone is not enough
+        var aggressiveOnly = new Ship(17, "sidewinder", "Sidewinder") { AiFlag = 0xF8 };
+        Assert.False(Tactics.WantsToAttack(aggressiveOnly, new EliteRandom(1)));
+
+        aggressiveOnly.NewbFlags = Ship.NewbHostile;
+        bool attacked = false;
+        var roll = new EliteRandom(1);
+        for (int i = 0; i < 200 && !attacked; i++) attacked = Tactics.WantsToAttack(aggressiveOnly, roll);
+        Assert.True(attacked, "hostile and aggressive should eventually attack");
+    }
+
+    /// <summary>
     /// A hostile ship engages us and a non-hostile one does not — the link between the NEWB hostile
     /// bit and the decision to fight.
     /// </summary>

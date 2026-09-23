@@ -2779,3 +2779,29 @@ overloaded — it was *available* and passed as a constant anyway, because the c
 where all the other arguments were to hand and the shield side was not. That is the shape to watch for
 in the remaining work: a parameter that a caller has to *compute* is the one most likely to be
 defaulted, because defaulting it is the only way to make the call compile without thinking about it.
+
+## Round 109 broke the spawner, and nothing said so
+
+Two rounds after making the NEWB hostile bit decide whether a ship fights, flying the live simulation
+showed **every ship the spawner produced arriving with `newb=0x00`** — not hostile. So with the fight
+now gated on hostility, **nothing the spawner created could attack at all.** Pirates and bounty hunters
+arrived aggressive and peaceful at the same time.
+
+**The cause is the other half of the same seam.** The original sets bit 2 of NEWB before either spawn
+branch — *"set bit 2 of the NEWB flags ... so the ship we are about to spawn is hostile"* — and our
+spawner set only the AI flag. That was invisible while `WantsToAttack` read the AI flag alone, which is
+why it survived until the gate was added; the moment the gate existed, the gap it exposed was total.
+
+**And the test suite had nothing to say about it.** The spawner's own test checked which ship *type* it
+chose, and every tactics test built its enemies by hand with the flags it wanted. So a change that made
+the entire game peaceful passed 264 tests.
+
+**The fix is one line, and the test that would have caught it is now in place** — a spawned pirate must
+be hostile *and* aggressive, with the second half asserted separately because aggressive alone is not
+enough. Restoring the bug fails it, which was checked.
+
+**What this says about the order of the last three rounds.** Round 109 added the gate and I verified it
+by hand-constructing two ships; round 110 audited the *bits* for readers; round 112 audited
+*parameters* for defaults. None of those three looked at what the **spawner** produces, which is the
+path every ship in an actual game arrives through. A check that constructs its own inputs cannot find a
+fault in the thing that constructs them.

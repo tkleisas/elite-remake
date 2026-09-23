@@ -154,6 +154,13 @@ public static class Spawner
         var ship = new Ship(type, string.Empty, $"Type {type}")
         {
             AiFlag = AiFlag(random),
+
+            // Both spawns are hostile — the original sets bit 2 of NEWB before either branch, with
+            // the comment "set bit 2 of the NEWB flags ... so the ship we are about to spawn is
+            // hostile" — and the flight loop decides whether to fight from that bit rather than from
+            // the AI flag alone. Leaving it clear meant nothing the spawner produced could attack:
+            // every pirate and bounty hunter arrived aggressive but peaceful.
+            NewbFlags = Ship.NewbHostile,
         };
 
         ship.SetPosition(offsetX, offsetY, z);
