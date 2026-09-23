@@ -1472,8 +1472,12 @@ public class OutfittingTests
         Assert.True(commander.EnergyUnit);
         Assert.Contains("already", Outfitting.Buy(commander, system, 9)!);
 
-        Assert.NotNull(Outfitting.Buy(commander, system, 2)); // large cargo bay
-        Assert.Equal(35, commander.CargoCapacity);
+        // A large cargo bay takes the hold to 37 tonnes, which is what the original's EQSHP sets
+        // CRGO to — fifteen tonnes more than the Cobra's 22, not thirteen
+        Assert.NotNull(Outfitting.Buy(commander, system, 2));
+        Assert.Equal(Outfitting.LargeCargoCapacity, commander.CargoCapacity);
+        Assert.Equal(37, commander.CargoCapacity);
+        Assert.Contains("already", Outfitting.Buy(commander, system, 2)!);
     }
 
     [Fact]

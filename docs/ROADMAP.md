@@ -1564,3 +1564,31 @@ already passed its tests: the equipment prices, the galactic hyperdrive's system
 eight-jump round trip, docking's market rebuild, selling's restock, and now the escape pod's missing
 rescue. The tests that catch things are the ones written after reading the source; the ones that
 hide things were written from the code.
+
+## The large cargo bay was two tonnes short
+
+Continuing the source-against-code audit into the equipment's effects. `EQSHP` sets `CRGO` to **37**
+for a large cargo bay, and says so in its own comment — "we just scored ourselves a large cargo bay,
+so update our current cargo capacity in CRGO to 37". Ours set 35, and checked for 35 when deciding
+whether one was already fitted, so the hold was two tonnes smaller than the original's and a second
+bay would have been sellable to a commander who already had one at the true size.
+
+The starting capacity of 22 is right: the commander template holds `EQUB 22 + (15 AND Q%)`, and `Q%`
+is zero for the Cobra. So a large bay is worth fifteen tonnes, not thirteen.
+
+**Checked at the same time and found correct**, which is worth recording because a clean result is
+still a result:
+
+| effect | the original | ours |
+| --- | --- | --- |
+| Large cargo bay | `CRGO` = 37 | now 37 |
+| Missiles | four to a rack (`LDA #2` on the menu item when fewer than four) | four |
+| Energy unit | sets `ENGY` to 1, and the banks recharge at `ENGY + 1`, so it doubles the *rate* | doubles the rate |
+| Starting credits | 100.0 Cr | 100.0 Cr |
+| Starting fuel | a full tank, 7.0 light years | 70 tenths |
+
+The energy unit is the interesting one, because the obvious guess is that it raises a maximum energy
+figure. It does not: it doubles the recharge rate, and the blueprint's own energy is the ceiling.
+
+**The tally is seven.** Six of the seven had a test asserting the wrong behaviour; this one had a test
+asserting `35`, which is the same fault in the same place — written from the code, not the source.

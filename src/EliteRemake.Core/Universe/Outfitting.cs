@@ -30,6 +30,11 @@ public static class Outfitting
     public const int MaxFuel = 70;
 
     /// <summary>
+    /// What a large cargo bay makes the hold, which the original's EQSHP sets to 37.
+    /// </summary>
+    public const int LargeCargoCapacity = 37;
+
+    /// <summary>
     /// The equipment table, in the original's order, with the disc version's own prices.
     /// </summary>
     /// <remarks>
@@ -134,7 +139,7 @@ public static class Outfitting
     private static string? AlreadyFitted(Commander commander, int item) => item switch
     {
         1 when commander.Missiles >= 4 => "Missile racks are already full.",
-        2 when commander.CargoCapacity >= 35 => "A large cargo bay is already fitted.",
+        2 when commander.CargoCapacity >= LargeCargoCapacity => "A large cargo bay is already fitted.",
         3 when commander.Ecm => "An E.C.M. system is already fitted.",
         6 when commander.FuelScoops => "Fuel scoops are already fitted.",
         7 when commander.EscapePod => "An escape pod is already fitted.",
@@ -154,7 +159,10 @@ public static class Outfitting
                 commander.Missiles = Math.Min(4, commander.Missiles + 1);
                 break;
             case 2:
-                commander.CargoCapacity = 35; // the original's large bay
+                // The original's EQSHP sets CRGO to 37 for a large cargo bay: "we just scored
+                // ourselves a large cargo bay, so update our current cargo capacity in CRGO to 37".
+                // A Cobra starts at 22, so the bay is worth fifteen tonnes, not thirteen.
+                commander.CargoCapacity = LargeCargoCapacity;
                 break;
             case 3:
                 commander.Ecm = true;
