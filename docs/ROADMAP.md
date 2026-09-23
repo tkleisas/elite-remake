@@ -3122,3 +3122,31 @@ routines that use them: `MVEIT` reads byte #27 for speed and byte #32 for the AI
 byte #36 for the NEWB flags. A constant that disagreed would break those routines visibly, whereas a
 ship type constant that disagrees breaks nothing at all until a specific thing is tried. **The
 difference between the two tables is not care, it is whether anything would notice.**
+
+## The E.C.M.'s second sound, and the two that are still unplayed
+
+Following "which tables would anything notice", the sound effects were next: ten are defined with the
+original's own beep data, and **three of them were never played anywhere.**
+
+**The E.C.M. running down is now wired.** The original has `ECMOF` for the moment the field collapses,
+and we had the effect defined and the flag going false with nothing connecting the two. `FlightScene`
+now plays `EcmOn` or `EcmOff` on a change of state.
+
+**The first attempt at that was wrong, and in the same way as several faults before it.** I reused the
+existing "pending" flag to mean "it has just ended" — but that flag is also true *before the first
+firing*, so the E.C.M. would have made its switch-off sound every frame of a session in which it was
+never used. A **previous-state field** is what distinguishes the two, and the flag is gone. It is the
+same trap as the hostile bit and the station's refusal: a single boolean carrying two meanings, caught
+this time by the compiler's absence rather than by flying it.
+
+**Two effects remain unplayed, and are recorded rather than guessed at:**
+
+| effect | the original's sound | what it should fire on |
+| --- | --- | --- |
+| `HitOrDeath` | `0x10, 0xF1, 0x07, 0x1A` | the player being hit, and dying |
+| `Boop` | `0x13, 0xF4, 0x0C, 0x08` | the original's `BOOP`, a low beep |
+
+Both have their beep data correct and neither has a caller. Wiring them means deciding which events in
+our simulation correspond to the original's call sites, and that is a small piece of reading I have not
+done — so they are listed as open rather than connected to the nearest plausible thing, which is how the
+E.C.M.'s first attempt went wrong.

@@ -127,10 +127,16 @@ public sealed class FlightScene : IScene
             Sounds.Play(Core.Audio.SoundEffect.Explosion);
         }
 
-        if (_sim.EcmActive && EcmSoundPending)
+        // The E.C.M. has a sound for starting and another for running down, and only the first was
+        // ever played: the flag went false, the effect was defined, and the two were never connected.
+        // A previous-state field is what tells "it has just ended" from "it was never on" — the
+        // pending flag cannot, because it is true both before the first firing and after the end.
+        if (_sim.EcmActive != _ecmWasActive)
         {
-            EcmSoundPending = false;
-            Sounds.Play(Core.Audio.SoundEffect.EcmOn);
+            _ecmWasActive = _sim.EcmActive;
+            Sounds.Play(_sim.EcmActive
+                ? Core.Audio.SoundEffect.EcmOn
+                : Core.Audio.SoundEffect.EcmOff);
         }
 
         if (Session is { HyperspaceCountdown: > 0 } && !_hyperspaceSoundPlayed)
@@ -144,7 +150,7 @@ public sealed class FlightScene : IScene
         }
     }
 
-    private bool EcmSoundPending = true;
+    private bool _ecmWasActive;
     private bool _hyperspaceSoundPlayed;
 
     /// <summary>The nearest system we have the fuel to reach, which is where H takes us.</summary>
