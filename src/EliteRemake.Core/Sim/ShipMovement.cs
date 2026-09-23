@@ -22,10 +22,30 @@ public static class ShipMovement
 
     /// <summary>Byte offset of the z coordinate.</summary>
     public const int Z = 6;
-
     /// <summary>
     /// MVEIT part 5: rotate the ship's location by our pitch and roll.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The arithmetic is the same as <see cref="RotateBodyLocationByOurPitchAndRoll"/>'s, which is the
+    /// original's own rotation written out. It used to be a hand-ported 6502 sequence working on
+    /// two-byte coordinates with the third byte as a pure sign, and **it was not a rotation**: measured
+    /// over one turn of roll, a ship 500 units off to one side spiralled from an xy-radius of 500 down
+    /// to 94, a fifth of its value, where a rotation must preserve length exactly.
+    /// </para>
+    /// <para>
+    /// That was the reported wobble. A body drawn perfectly, in a position that spirals as the ship
+    /// turns, visibly does not stay where it should — and the two paths disagreed by a factor of five
+    /// on the same input, which is what identified the fault.
+    /// </para>
+    /// <para>
+    /// The original does work on two bytes here, so this is a departure in method; the departure is
+    /// deliberate, because the disc's coordinates are 24-bit and a spiral is not a thing the original
+    /// does. What the original's two-byte routine does at these magnitudes is worth its own
+    /// measurement — it may simply be that the shipped game had the same drift and nobody could see it
+    /// in a wireframe.
+    /// </para>
+    /// </remarks>
     /// <param name="position">
     /// The ship's 9-byte location block: x, y and z, each as lo, hi, sign.
     /// </param>
@@ -38,81 +58,9 @@ public static class ShipMovement
         byte alp1,
         byte alp2,
         byte bet1,
-        byte bet2)
-    {
-        // K2 = y - x * alpha / 256
-        byte p = (byte)~position[X];
-        (byte a, byte pHi, byte pLo, _) = EliteMath.Mltu2(position[X + 1], p, alp1);
-        _ = pLo;
-        byte p1 = pHi;
-        byte p2 = a;
-        byte sign = (byte)((byte)(alp2 ^ 0x80) ^ position[X + 2]);
-        byte k2Sign = EliteMath.Mvt6(position, Y, sign, ref p1, ref p2);
-        byte k2Lo = p1;
-        byte k2Hi = p2;
+        byte bet2) =>
+        RotateBodyLocationByOurPitchAndRoll(position, alp1, alp2, bet1, bet2);
 
-        // z = z + K2 * beta / 256
-        p = (byte)~k2Lo;
-        (a, pHi, pLo, _) = EliteMath.Mltu2(k2Hi, p, bet1);
-        p1 = pHi;
-        p2 = a;
-        sign = (byte)(k2Sign ^ bet2);
-        byte zSign = EliteMath.Mvt6(position, Z, sign, ref p1, ref p2);
-        position[Z + 2] = zSign;
-        position[Z] = p1;
-        position[Z + 1] = p2;
-
-        // y = K2 +/- z * beta / 256, where the sign of the combination decides which way round
-        p = (byte)~position[Z];
-        (a, pHi, pLo, bool carry) = EliteMath.Mltu2(position[Z + 1], p, bet1);
-        p1 = pHi;
-        p2 = a;
-        position[Y + 2] = k2Sign;
-
-        // The original branches to the subtract path when K2_sign EOR beta_sign EOR z_sign is
-        // positive, and adds otherwise
-        bool add = ((k2Sign ^ bet2 ^ zSign) & 0x80) != 0;
-        if (add)
-        {
-            // The original does not clear the carry here: it adds using whatever MLTU2 left
-            // behind, so we reproduce that
-            int low = p1 + k2Lo + (carry ? 1 : 0);
-            position[Y] = (byte)low;
-            int high = p2 + k2Hi + (low > 0xFF ? 1 : 0);
-            position[Y + 1] = (byte)high;
-        }
-        else
-        {
-            int low = k2Lo - p1 - (carry ? 0 : 1);
-            position[Y] = (byte)low;
-            bool borrow = low < 0;
-            int high = k2Hi - p2 - (borrow ? 1 : 0);
-            position[Y + 1] = (byte)high;
-
-            if (high < 0)
-            {
-                // Negate (y_sign y_hi y_lo) using two's complement. The carry is clear on entry to
-                // the negation, so the first subtraction borrows an extra 1
-                bool carryFlag = false;
-                int negLow = 1 - position[Y] - (carryFlag ? 0 : 1);
-                position[Y] = (byte)negLow;
-                carryFlag = negLow >= 0;
-                int negHigh = 0 - position[Y + 1] - (carryFlag ? 0 : 1);
-                position[Y + 1] = (byte)negHigh;
-                position[Y + 2] = (byte)(position[Y + 2] ^ 0x80);
-            }
-        }
-
-        // x = x + y * alpha / 256
-        p = (byte)~position[Y];
-        (a, pHi, pLo, _) = EliteMath.Mltu2(position[Y + 1], p, alp1);
-        p1 = pHi;
-        p2 = a;
-        sign = (byte)(alp2 ^ position[Y + 2]);
-        position[X + 2] = EliteMath.Mvt6(position, X, sign, ref p1, ref p2);
-        position[X + 1] = p2;
-        position[X] = p1;
-    }
 
     /// <summary>
     /// MVEIT part 8: rotate a ship about its own axes by its pitch and roll counters.

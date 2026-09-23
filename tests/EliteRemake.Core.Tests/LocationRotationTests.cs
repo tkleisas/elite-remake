@@ -1,0 +1,104 @@
+using EliteRemake.Core.Maths;
+using EliteRemake.Core.Sim;
+using Xunit;
+
+namespace EliteRemake.Core.Tests;
+
+/// <summary>
+/// Rotating the universe about us must be a rotation: it preserves distance.
+/// </summary>
+/// <remarks>
+/// This is the check that found the reported wobble, thirty rounds after it was first described. Both
+/// location paths used to be exercised by flying, and the ships' one — a hand-ported 6502 sequence on
+/// two-byte coordinates — spiralled a body from an xy-radius of 500 down to 94 over a single turn of
+/// roll, where a rotation must preserve length exactly. A body drawn perfectly in a position that
+/// spirals as the ship turns visibly does not stay where it should.
+///
+/// The assertion is deliberately about a *quantity* rather than about the arithmetic: it does not care
+/// how the rotation is computed, only that the distance holds.
+/// </remarks>
+public class LocationRotationTests
+{
+    private static readonly int[] X = [0, 3, 6];
+
+    private static void Set(Span<byte> position, int x, int y, int z)
+    {
+        for (int i = 0; i < 3; i++)
+        {
+            int value = i == 0 ? x : i == 1 ? y : z;
+            int magnitude = Math.Abs(value);
+            position[X[i]] = (byte)(magnitude & 0xFF);
+            position[X[i] + 1] = (byte)((magnitude >> 8) & 0xFF);
+            position[X[i] + 2] = (byte)(((magnitude >> 16) & 0x7F) | (value < 0 ? 0x80 : 0x00));
+        }
+    }
+
+    private static double Component(byte[] position, int offset)
+    {
+        int magnitude = position[offset]
+            | (position[offset + 1] << 8)
+            | ((position[offset + 2] & 0x7F) << 16);
+        return (position[offset + 2] & 0x80) != 0 ? -magnitude : magnitude;
+    }
+
+    private static (double X, double Y, double Z) Get(byte[] position) =>
+        (Component(position, 0), Component(position, 3), Component(position, 6));
+
+    /// <summary>
+    /// A body's distance survives a full turn of roll, at every offset a station might sit at.
+    /// </summary>
+    [Theory]
+    [InlineData(500, 0, 1500)]
+    [InlineData(300, 400, 1200)]
+    [InlineData(0, 800, 2000)]
+    [InlineData(20000, 0, 60000)]
+    [InlineData(-1500, 900, 2500)]
+    public void RollingPreservesDistance(int x, int y, int z)
+    {
+        var position = new byte[9];
+        Set(position, x, y, z);
+
+        double start = Math.Sqrt(((double)x * x) + ((double)y * y) + ((double)z * z));
+        double worst = 0;
+
+        // A full turn at the fastest roll rate, which is 3/256 radians a frame
+        for (int frame = 0; frame < 540; frame++)
+        {
+            ShipMovement.RotateLocationByOurPitchAndRoll(position, alp1: 3, alp2: 0x80, bet1: 0, bet2: 0);
+
+            (double px, double py, double pz) = Get(position);
+            double distance = Math.Sqrt((px * px) + (py * py) + (pz * pz));
+            worst = Math.Max(worst, Math.Abs(distance - start) / start);
+        }
+
+        // One part in twenty: the fixed-point arithmetic is coarse, but a spiral is not
+        Assert.True(worst < 0.05, $"distance wandered by {worst * 100:0.0}% over one turn");
+    }
+
+    /// <summary>Pitching preserves distance too, and the two paths agree.</summary>
+    [Fact]
+    public void PitchingPreservesDistanceAndBothPathsAgree()
+    {
+        var ships = new byte[9];
+        var bodies = new byte[9];
+        Set(ships, 700, -400, 1800);
+        Set(bodies, 700, -400, 1800);
+
+        for (int frame = 0; frame < 540; frame++)
+        {
+            ShipMovement.RotateLocationByOurPitchAndRoll(ships, alp1: 0, alp2: 0, bet1: 8, bet2: 0x00);
+            ShipMovement.RotateBodyLocationByOurPitchAndRoll(bodies, alp1: 0, alp2: 0, bet1: 8, bet2: 0x00);
+        }
+
+        (double sx, double sy, double sz) = Get(ships);
+        (double bx, double by, double bz) = Get(bodies);
+
+        Assert.Equal(bx, sx);
+        Assert.Equal(by, sy);
+        Assert.Equal(bz, sz);
+
+        double start = Math.Sqrt((700.0 * 700) + (400 * 400) + (1800 * 1800));
+        double distance = Math.Sqrt((sx * sx) + (sy * sy) + (sz * sz));
+        Assert.True(Math.Abs(distance - start) / start < 0.05);
+    }
+}

@@ -3326,3 +3326,43 @@ confined to the two-byte routine.
 rounds have used, applied to the right quantity. **I had been measuring the wrong vector.** The
 renderer's basis, the face culling, the visibility scale and the flicker were all about how a body is
 *drawn*; the wobble is about *where it is*, and a body drawn perfectly in the wrong place still wobbles.
+
+## The wobble, fixed: the location rotation is now a rotation
+
+The measurement that identified the fault was to compare the two paths on the same input. They disagreed
+by a factor of five:
+
+| start | ships' path | bodies' path |
+| --- | --- | --- |
+| (500, 0, 1500) | xy-radius **94** — 18.8% of where it started | 511.7 — 102.3% |
+| (20000, 0, 60000) | 19110 — 95.6% | 19946 — 99.7% |
+
+**One path rotates and the other spirals**, and which is which was never in doubt: preserving distance
+is the definition of a rotation, and a body's distance is what a player watches while turning.
+
+**The fix is for the ships' path to use the same arithmetic as the bodies'.** Which is a departure in
+method and is recorded as one: the original works on two bytes here, and this port now does not. The
+reason is that the disc's coordinates are 24 bits and a spiral is not a thing the original does — but
+the honest statement is that **what the original's two-byte routine does at these magnitudes has not
+been measured**, and it may be that the shipped game drifted in the same way and nobody could see it in
+a wireframe. That is worth its own round rather than being assumed either way.
+
+**Measured after the fix**: both paths preserve the distance to within 2.3%, and they agree exactly with
+each other on the same input.
+
+**And it is now guarded by a test that can fail.** `LocationRotationTests` rolls and pitches a body
+through a full turn at the fastest rate and requires the distance to hold to within one part in twenty,
+at five different offsets including a negative one and one at sixty thousand units. Reverting the fix
+fails it — checked rather than assumed. The assertion is about a **quantity**, not about the arithmetic,
+so it does not care how the rotation is computed.
+
+**One test's premise had to change, and the change is evidence.** `ACommanderCanFightBackAndBePaid` held
+a pirate in the crosshairs and expected it to die; it stopped passing, because the target had been
+spiralling out of the crosshairs on its own and the test had been relying on that. The target is now
+held still, which is what the test was always about.
+
+**Thirty rounds, and the reason it took so long.** The wobble was reported as a rendering problem and I
+probed the renderer four times — the basis, the culling, the visibility scale, the flicker — and every
+probe was clean, because **the renderer was never wrong**. It was drawing a spiral faithfully. The
+measurement that found it came from asking what a rotation must preserve rather than where the fault
+probably was.

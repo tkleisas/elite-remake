@@ -209,6 +209,12 @@ public class GameLoopTests
         // Put a pirate directly ahead, in the crosshairs, with a front laser fitted
         Ship target = Spawner.Create(SpawnKind.Pirates, lave, random);
         target.SetPosition(0, 0, 1500);
+
+        // Held still for the test: the point is whether the laser can destroy it, not whether a
+        // pirate that is flying and turning stays in the crosshairs. It matters more than it used to,
+        // because the location rotation used to spiral a ship away from where it was put, which
+        // carried the target out of the crosshairs on its own.
+        target.Speed = 0;
         Assert.True(sim.Spawn(target));
 
         // Our laser needs a power and a target, and the game supplies both from the blueprint
