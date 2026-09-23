@@ -291,10 +291,17 @@ public sealed class GameSession
         Commander.GalacticHyperdrive = false;
         Commander.GalaxyNumber = (Commander.GalaxyNumber + 1) % Galaxy.GalaxyCount;
 
-        // Rotating the galaxy seeds moves us to the same system number in the next galaxy, which is
-        // what the original's GHY routine does
-        SystemSeeds seeds = Galaxy.NextGalaxy(System.Seeds);
-        System = Galaxy.Describe(seeds, System.Index);
+        // The original's GHY routine rotates the *galaxy's* seed table one bit to the left, raises
+        // the galaxy number, and then finds the nearest system to (96, 96) — the point it always
+        // arrives at. It is not the same system number: rotating a system's own seeds is not the
+        // same operation at all, and the nearest system to (96, 96) would very rarely be the one
+        // that index names.
+        StarSystem arrived = Galaxy.FindClosest(
+            Galaxy.GalaxySeeds(Commander.GalaxyNumber),
+            96,
+            96).System;
+
+        System = arrived;
         Commander.CurrentSystem = System;
         SelectedSystem = System;
 

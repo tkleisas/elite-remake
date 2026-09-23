@@ -1418,3 +1418,37 @@ Lave it must report the real Lave at (20, 173) with Diso and Leesti alongside.
 **On method.** This is the third fault this session found by flying the game rather than by reading
 it or testing it — after the station's invisible docking slot and the docking computer's off-axis
 approach. A test suite checks what it was written to check; a flight checks what a player does.
+
+## The galactic hyperdrive was rotating the wrong seeds
+
+Following the last round's find — a system's seeds are not the galaxy's — the same confusion turned
+out to be in the galactic jump, in a worse form.
+
+**The original's GHY** rotates the **galaxy's** seed table (`QQ21`) one bit to the left, raises the
+galaxy number, and then finds the **nearest system to (96, 96)**, which is where it always arrives.
+Ours rotated the *current system's* seeds and kept the *same system number*. Rotating a system's own
+seeds is not a related operation at all, so the system it landed on was arbitrary — and the nearest
+system to (96, 96) is very rarely the one a system number names.
+
+Measured after the fix, jumping from Lave:
+
+| jump | arrives at | galaxy |
+| --- | --- | --- |
+| 1 | ORORRA (96, 95) | 2 |
+| 2 | XEINES (90, 111) | 3 |
+| 3 | SOENISTI (99, 103) | 4 |
+
+Orarra at (96, 95) is the nearest system to the arrival point in galaxy 2, which is what the
+original does.
+
+**Two tests were pinning the bug**, and this is the third time this session that has happened. One
+asserted "we arrive at the same system number in the new galaxy" — which was the fault, written up
+as the specification. The other asserted that eight jumps come back to the starting *system*; the
+seeds do come back after eight bits, but every jump lands at (96, 96), so the commander ends up at
+the system the first jump would have taken him to had he begun in galaxy 0, and should not end up
+back at Lave at all.
+
+**A verification script of mine was also wrong**, and worth noting because it nearly sent me after
+the wrong thing: checking the mission hints against the names in the source's RUPLA comments, I had
+Arredi and Anreer in the wrong galaxy and read the mismatch as a data fault. They are in galaxy 2,
+as the table says and as the extracted criteria say. The hints were right; the check was not.

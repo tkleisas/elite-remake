@@ -1745,27 +1745,58 @@ public class GalacticHyperdriveTests
         Assert.Equal(1, session.Commander.GalaxyNumber);
         Assert.False(session.Commander.GalacticHyperdrive);
 
-        // We arrive at the same system number in the new galaxy, with a different name
-        Assert.Equal(index, session.System.Index);
+        // We arrive at the nearest system to (96, 96) in the new galaxy, which is where the
+        // original's GHY always puts us — not at the same system number, which would call for
+        // rotating a system's own seeds rather than the galaxy's
+        StarSystem expected = Galaxy.FindClosest(Galaxy.GalaxySeeds(1), 96, 96).System;
+        Assert.Equal(expected.Name, session.System.Name);
         Assert.Equal(session.System.Name, session.Commander.CurrentSystem.Name);
         Assert.Equal(session.System.Name, session.SelectedSystem.Name);
         Assert.NotEqual(systemName, session.System.Name);
     }
 
+    /// <summary>
+    /// Eight galactic jumps come back to the first galaxy.
+    /// </summary>
+    /// <remarks>
+    /// The seeds rotate one bit a jump and eight bits bring them round, so eight jumps land us in
+    /// the galaxy we started in. The *system* is not the one we started at, and should not be: every
+    /// jump puts us at the nearest system to (96, 96), so after eight jumps we are at the system the
+    /// first jump would have taken us to had we begun in galaxy 0.
+    /// </remarks>
     [Fact]
     public void EightJumpsComeBackToTheFirstGalaxy()
     {
         GameSession session = CreateSession();
-        string first = session.System.Name;
 
         for (int i = 0; i < Galaxy.GalaxyCount; i++)
         {
             session.Commander.GalacticHyperdrive = true;
             Assert.True(session.UseGalacticHyperdrive());
+            Assert.Equal((i + 1) % Galaxy.GalaxyCount, session.Commander.GalaxyNumber);
         }
 
         Assert.Equal(0, session.Commander.GalaxyNumber);
-        Assert.Equal(first, session.System.Name);
+
+        StarSystem expected = Galaxy.FindClosest(Galaxy.GalaxySeeds(0), 96, 96).System;
+        Assert.Equal(expected.Name, session.System.Name);
+    }
+
+    /// <summary>
+    /// A galactic jump lands at the nearest system to (96, 96), as the original's GHY does.
+    /// </summary>
+    [Fact]
+    public void AGalacticJumpLandsAtTheSystemsNearestToTheOrigin()
+    {
+        GameSession session = CreateSession();
+        session.Commander.GalacticHyperdrive = true;
+        Assert.True(session.UseGalacticHyperdrive());
+
+        StarSystem expected = Galaxy.FindClosest(Galaxy.GalaxySeeds(1), 96, 96).System;
+
+        Assert.Equal(expected.Name, session.System.Name);
+        Assert.Equal(expected.X, session.System.X);
+        Assert.Equal(expected.Y, session.System.Y);
     }
 }
 
