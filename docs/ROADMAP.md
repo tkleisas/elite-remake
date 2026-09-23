@@ -3597,3 +3597,37 @@ down is worth as much as a confirmed one, and this project has more of the forme
 the *magnitude of the coordinates*. Rotating a planet by half the step size for twice as many frames
 would separate the two, and that distinguishes "the composition accumulates error" from "large numbers
 are handled badly" — which are different faults with different fixes.
+
+## The planet's drift is compounded by combining roll and pitch, and is bounded
+
+The question flagged two rounds ago was whether the drift depends on the number of steps or on the
+magnitude of the coordinates. The answer is **neither** — it depends on **combining the two axes**, and
+that was not among the candidates.
+
+| case | worst distance error |
+| --- | --- |
+| roll alone, 536 frames | **0.00%** |
+| pitch alone, 536 frames | 0.79% |
+| roll and pitch together, 1200 frames | **4.60%** |
+| one step of 12 instead of 12 steps of 1 | 0.00% |
+| radius 2000 against radius 262144 | 0.00% both |
+
+**Roll alone does not move a body on the z axis, so its distance cannot change** — that is geometry, not
+precision, and it is why the first line is a clean zero. **Step count and magnitude make no difference at
+all**, which rules out both candidates from the previous round. What does make a difference is applying
+roll and pitch in the same step: the routine updates each component from the already-updated values of
+the others, so the composition is not exactly a rotation of the original vector, and the discrepancy
+grows while both axes are being driven.
+
+**The drift is directional.** Over twelve hundred frames of continuous combined rotation the planet moves
+from 262144 to 252166 and keeps going. That is about four percent, or twelve thousand units — small
+enough that it would be invisible in play, since the planet's apparent size varies by the same four
+percent, but it is a genuine accumulation rather than the bounded oscillation measured for a station
+near two thousand units.
+
+**The context that matters**: the counters driven here are the maximum the ship has, held continuously
+for twenty-four seconds. In play they are transient, and the planet is a fixed backdrop rather than
+something being aimed at. So the practical effect is nil — but the honest state is that the rotation is
+*approximately* rigid rather than rigid, and that the approximation is worse when both axes turn at once.
+Any future work on this should start from "roll and pitch together compound", which is now measured
+rather than guessed at.
