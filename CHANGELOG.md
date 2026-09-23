@@ -5,10 +5,12 @@ All notable changes to this project are recorded here. The format follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html) — see [`docs/VERSIONING.md`](docs/VERSIONING.md)
 for what the three numbers mean for a faithful port.
 
-## [Unreleased]
+## [1.1.0] — 2026-09-24
 
-A sweep of the flight loop's bookkeeping against the disc sources: every fix below was found by
-comparing the port with the disc version's own routines, and each carries a test that pins the rule.
+The mission screens, the death and the docked flow, measured against the disc sources: the flight
+loop's bookkeeping swept, cargo scooping made the disc's own pass, mission 2 paid its naval energy
+unit, and the briefings, the hangar, the pause and the death sequence staged as the disc stages
+them — with a development harness to drive the live game and check all of it.
 
 ### Fixed
 

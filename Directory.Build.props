@@ -8,7 +8,7 @@
       for the port to be complete against the disc version, MINOR is for a mechanic or a screen the
       original has and we did not, and PATCH is for fixing something we already claimed to do.
     -->
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <Product>Elite Remake</Product>
     <Description>A modern remake of BBC Micro disc Elite, rebuilt from the original 6502 sources.</Description>
     <TargetFramework>net10.0</TargetFramework>
