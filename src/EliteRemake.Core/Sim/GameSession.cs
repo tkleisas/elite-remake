@@ -164,7 +164,8 @@ public sealed class GameSession
         // The jump can go wrong. The fuel is spent either way, but a mis-jump leaves us in
         // witchspace rather than at the destination, which is what the caller's arrival then has to
         // deal with.
-        InWitchspace = IsMisjump(_random.Next());
+        InWitchspace = ForceMisjump || IsMisjump(_random.Next());
+        ForceMisjump = false;
         if (InWitchspace)
         {
             Message = "Hyperspace malfunction! You have been thrown into witchspace.";
@@ -192,6 +193,19 @@ public sealed class GameSession
 
     /// <summary>The random byte at or above which a jump mis-jumps: the original's <c>CMP #253</c>.</summary>
     public const int MisjumpThreshold = 253;
+
+    /// <summary>
+    /// Forces the next jump to mis-jump instead of arriving, which is what holding CTRL down as the
+    /// countdown ends does.
+    /// </summary>
+    /// <remarks>
+    /// The original reaches MJP by two routes from TT18: this one, when CTRL is held, and a random
+    /// byte of 253 or more. It gates the CTRL route behind the author-names flag, so that the
+    /// competition code would record whether the feature had been used — an anti-cheat measure for
+    /// a 1984 contest rather than a game rule. There is no competition to protect here, so the
+    /// key simply works.
+    /// </remarks>
+    public bool ForceMisjump { get; set; }
 
     /// <summary>
     /// Decides whether a jump mis-jumps, as the disc version does with a random byte compared

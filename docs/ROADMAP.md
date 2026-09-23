@@ -1259,3 +1259,26 @@ The fix for the harness is `FlightScene.ShowTunnelFrames`, which holds the tunne
 number of *drawn* frames, with `--jump` setting it. The tunnel is now visible in
 `screenshots/hyperspace.png`, and it looks like the original's: concentric rings crowded at the
 centre and opening out to the edge of the view.
+
+## The manual mis-jump, and what witchspace holds
+
+The CTRL route into witchspace is wired up: holding CTRL as well as the jump key forces the jump to
+go wrong, ahead of the random roll, exactly as TT18 reaches MJP by two routes. The original gates
+that key behind the author-names flag so that its competition code would record whether the feature
+had been used — an anti-cheat measure for a 1984 contest rather than a game rule — so the remake
+simply offers the key.
+
+The ambush moved from the game layer into `FlightSim.ArriveInWitchspace`, which is where it belongs
+and which makes it testable. A test now checks what witchspace actually holds: four Thargoids, four
+Thargons, nothing else, no planet and no sun, and whatever was in the bubble beforehand cleared away.
+
+One fault was found in the process, and it was in the test rather than the code: `ForceMisjump` is
+set before the jump begins and consumed when the countdown ends, so clearing it part-way through the
+countdown — which the first version of the test did — makes the jump ordinary again. The flag is now
+asserted to be a one-shot, so the next jump is ordinary unless asked otherwise.
+
+**On method.** This round spent several cycles on a test that failed for a reason the code was right
+about, and the thing that resolved it was printing the state at both ends of the countdown rather
+than reasoning about it. That is the third time this session that the fastest route out of a
+confusing failure was to make the program say what it was doing, and it remains worth doing first
+rather than last.

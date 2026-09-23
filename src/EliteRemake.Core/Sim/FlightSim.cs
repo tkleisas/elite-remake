@@ -265,6 +265,42 @@ public sealed class FlightSim
     /// <summary>The missions, which decide whether the Constrictor or extra Thargoids appear.</summary>
     public Missions? Missions { get; set; }
 
+    /// <summary>How many Thargoids the original puts in witchspace: four.</summary>
+    public const int WitchspaceThargoids = 4;
+
+    /// <summary>The Thargoid mothership, which the original's XX21 numbers 29.</summary>
+    public const int ThargoidType = 29;
+
+    /// <summary>The Thargon, the Thargoid's small companion, which XX21 numbers 30.</summary>
+    public const int ThargonType = 30;
+
+    /// <summary>
+    /// Sets up the witchspace ambush, as the original's MJP does: the bubble is emptied and four
+    /// Thargoids appear, each with a Thargon in attendance, and there is no planet or sun.
+    /// </summary>
+    /// <remarks>
+    /// The disc's loop is <c>LDA #3 / CMP MANY+THG / BCS MJP1</c>, so it keeps going until there are
+    /// four Thargoids, where the Master version settles for three. The counter it tests is the one
+    /// GTHG increments, so this counts Thargoids rather than assuming all eight ships fit.
+    /// </remarks>
+    public void ArriveInWitchspace()
+    {
+        foreach (Ship ship in _bubble.ToArray())
+        {
+            Remove(ship);
+        }
+
+        for (int i = 0; i < WitchspaceThargoids; i++)
+        {
+            if (SpawnAhead(ThargoidType, "thargoid", "Thargoid") is null)
+            {
+                break;   // no room left in the bubble
+            }
+
+            SpawnAhead(ThargonType, "thargon", "Thargon");
+        }
+    }
+
     /// <summary>
     /// Spawns a ship of a given type ahead of us, as the original's GTHG does for the Thargoids that
     /// wait in witchspace.

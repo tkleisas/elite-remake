@@ -160,45 +160,14 @@ public sealed class FlightScene : IScene
     }
 
     /// <summary>
-    /// Arrives in witchspace: the Thargoid ambush, as the original's MJP sets it up.
+    /// Arrives in witchspace, where the ambush waits and there is no station to be found.
     /// </summary>
-    /// <remarks>
-    /// MJP loads the Thargoid blueprints, shows the tunnel a second time, resets the flight
-    /// variables and spawns four Thargoids, each with a Thargon in attendance, and there is no
-    /// planet or sun at all — the sky is empty but for them. The fuel was already spent by the jump
-    /// that went wrong.
-    /// </remarks>
     public void ArriveInWitchspace()
     {
-        foreach (Ship ship in _sim.Bubble.ToArray())
-        {
-            _sim.Remove(ship);
-        }
-
+        _sim.ArriveInWitchspace();
         _stationSpawned = true;   // there is no station here, and none should be added
-
-        // Four Thargoids, and a Thargon with each of them
-        for (int i = 0; i < WitchspaceThargoids; i++)
-        {
-            if (_sim.SpawnAhead(ThargoidType, "thargoid", "Thargoid") is null)
-            {
-                break;   // no room left in the bubble
-            }
-
-            _sim.SpawnAhead(ThargonType, "thargon", "Thargon");
-        }
-
         Sounds?.Play(Core.Audio.SoundEffect.Hyperspace);
     }
-
-    /// <summary>How many Thargoids the original puts in witchspace: four.</summary>
-    public const int WitchspaceThargoids = 4;
-
-    /// <summary>The Thargoid mothership, which the original's XX21 numbers 29.</summary>
-    private const int ThargoidType = 29;
-
-    /// <summary>The Thargon, the Thargoid's small companion, which XX21 numbers 30.</summary>
-    private const int ThargonType = 30;
 
     /// <summary>Clears the local bubble, as arriving in a new system does.</summary>
     private void ResetBubble()
@@ -444,7 +413,8 @@ public sealed class FlightScene : IScene
                 _missilePressed = false;
             }
 
-            // H jumps to the nearest system we can reach, until the charts arrive
+            // H jumps to the nearest system we can reach, until the charts arrive. Holding CTRL
+            // as well forces the jump to go wrong, as the original's own mis-jump key does.
             if (keys.IsKeyDown(Keys.H) && !_jumpPressed)
             {
                 _jumpPressed = true;
@@ -453,7 +423,11 @@ public sealed class FlightScene : IScene
                     Session.SelectedSystem = NearestReachableSystem();
                 }
 
-                Session.StartHyperspace();
+                Session.ForceMisjump = keys.IsKeyDown(Keys.LeftControl) || keys.IsKeyDown(Keys.RightControl);
+                if (!Session.StartHyperspace())
+                {
+                    Session.ForceMisjump = false;
+                }
             }
             else if (!keys.IsKeyDown(Keys.H))
             {

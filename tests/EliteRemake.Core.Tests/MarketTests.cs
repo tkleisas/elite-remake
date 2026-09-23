@@ -1929,6 +1929,65 @@ public class WitchspaceTests
     }
 
     /// <summary>
+    /// A forced mis-jump always mis-jumps, which is the CTRL route the original reaches MJP by
+    /// before it rolls anything.
+    /// </summary>
+    [Fact]
+    public void AForcedMisjumpAlwaysMisjumps()
+    {
+        var session = new GameSession(Commander.CreateDefault(), new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III")));
+
+        // A destination the tank can actually reach, since a jump that cannot be started cannot
+        // mis-jump either
+        session.SelectedSystem = Galaxy.GenerateGalaxy(session.System.Seeds)
+            .First(s => s.Seeds != session.System.Seeds &&
+                        Galaxy.DistanceTenths(session.System, s) <= session.Commander.Fuel);
+
+        // The flag is set before the jump starts and is consumed when the countdown ends, so it
+        // must stay set across the countdown - clearing it here would make the jump ordinary
+        session.ForceMisjump = true;
+        Assert.True(session.StartHyperspace());
+
+        for (int i = 0; i < 60 && session.HyperspaceCountdown > 0; i++)
+        {
+            session.TickHyperspace();
+        }
+
+        Assert.True(session.InWitchspace, "a forced mis-jump should leave us in witchspace");
+
+        // And it is a one-shot: the next jump is ordinary unless it is asked for again
+        Assert.False(session.ForceMisjump);
+        Assert.Equal(session.Commander.CurrentSystem.Seeds, session.System.Seeds);
+    }
+
+    /// <summary>
+    /// The witchspace ambush is four Thargoids, each with a Thargon, and nothing else.
+    /// </summary>
+    [Fact]
+    public void WitchspaceHoldsFourThargoidsAndTheirThargons()
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = false,
+            Commander = Commander.CreateDefault(),
+        };
+
+        // Something to be cleared away, and the bodies that must not be there afterwards
+        sim.Spawn(Ship.Create(17, "sidewinder", "Sidewinder", 0, 0, 0, 0, 2000));
+        sim.Spawn(SystemArrival.CreatePlanet(Galaxy.GenerateGalaxy(0).First()));
+
+        sim.ArriveInWitchspace();
+
+        Assert.Equal(FlightSim.WitchspaceThargoids, sim.Bubble.Count(s => s.Type == FlightSim.ThargoidType));
+        Assert.Equal(FlightSim.WitchspaceThargoids, sim.Bubble.Count(s => s.Type == FlightSim.ThargonType));
+
+        // The sidewinder and the planet are gone, and nothing else has taken their place
+        Assert.DoesNotContain(sim.Bubble, s => s.Type == 17);
+        Assert.DoesNotContain(sim.Bubble, s => FlightSim.IsCelestial(s.Type));
+        Assert.Equal(FlightSim.WitchspaceThargoids * 2, sim.Bubble.Count);
+    }
+
+    /// <summary>
     /// Across the whole byte range, the chance is the 3 in 256 the source describes, so the
     /// threshold is boundaries and not an approximation of them.
     /// </summary>
