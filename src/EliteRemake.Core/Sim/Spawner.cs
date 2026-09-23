@@ -107,10 +107,28 @@ public static class Spawner
     /// Builds the AI flag for a spawned ship. The original sets bits 6 and 7 (AI enabled and
     /// aggressive) and uses bit 0 to give the ship an E.C.M. about a fifth of the time.
     /// </summary>
+    /// <summary>
+    /// The AI flag for a hostile ship we are about to spawn.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The disc's bounty hunters carry no E.C.M.</b> The 22% chance of one is guarded by
+    /// <c>_CASSETTE_VERSION OR _DEMO_VERSION OR _ELECTRON_VERSION OR _6502SP_VERSION OR _C64_VERSION
+    /// OR _APPLE_VERSION OR _MASTER_VERSION OR _NES_VERSION</c> — every version except this one, and
+    /// the source says so in as many words: "Lone bounty hunters in the disc version don't have
+    /// E.C.M., while in the other versions they have a 22% chance of having E.C.M." Ours had the
+    /// chance, which is the cassette behaviour.
+    /// </para>
+    /// <para>
+    /// Bit 7 is the ship having AI at all and bit 6 is aggression, as the original sets with
+    /// <c>ORA #%11000000</c>; the low bits vary the aggression within that, which is what stops a
+    /// pack flying as one.
+    /// </para>
+    /// </remarks>
     public static byte AiFlag(EliteRandom random)
     {
-        bool ecm = random.Next() >= 200;
-        int flag = 0xC0 | (ecm ? 1 : 0);
+        // Bits 7 and 6: AI, and aggression
+        int flag = 0xC0;
 
         // Pirates are a little less single-minded than bounty hunters
         flag |= random.Next() & 0x0F;

@@ -1901,3 +1901,32 @@ Now a Viper that comes after us and a Krait that does are treated differently, a
 
 **A test covers both halves**: one cop makes us a fugitive at once and an innocent is worth one point,
 and a hostile ship with neither flag changes nothing however hostile it is.
+
+## Disc bounty hunters carry no E.C.M.
+
+Following the `E%` flags into the spawner turned up a fault of a kind that has recurred all session:
+**a rule implemented from the wrong version.**
+
+The 22% chance of a lone bounty hunter carrying E.C.M. is guarded by
+
+```
+IF _CASSETTE_VERSION OR _DEMO_VERSION OR _ELECTRON_VERSION OR _6502SP_VERSION OR _C64_VERSION
+   OR _APPLE_VERSION OR _MASTER_VERSION OR _NES_VERSION
+```
+
+— every version **except this one**, and the source says so in as many words: *"Lone bounty hunters
+in the disc version don't have E.C.M., while in the other versions they have a 22% chance of having
+E.C.M."* Ours had the chance. An E.C.M. on a bounty hunter is not a small thing either: it is a
+second health bar that shrugs off missiles.
+
+**The guard is the lesson.** The line that mattered was not the instruction but the `IF` above it, and
+reading the instruction alone gives the wrong answer. That is the same shape as the Transporter's
+`BEQ TT222` (which pays no cash at all on the disc) and the enhanced-version AI flag — three faults
+now that were each a correct reading of a line and a wrong reading of the version it belongs to.
+
+**Left open, precisely.** Where the disc *does* set a bounty hunter's AI flag is not yet pinned: the
+`STA INWK+32` that stores the value is inside its own guard, and the disc's route into `NWSHP` is the
+one taken by both pirates and bounty hunters after the random type is chosen in Y. The value we use —
+bits 7 and 6 for AI and aggression, low bits from a random byte — is consistent with the original's
+`ORA #%11000000` and with the low bits varying aggression, but I have not yet read the disc's own
+store. It is recorded as open rather than presented as verified.
