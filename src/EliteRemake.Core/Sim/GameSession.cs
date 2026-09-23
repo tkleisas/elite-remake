@@ -314,7 +314,7 @@ public sealed class GameSession
     public bool IsWanted => Commander.LegalStatus > 0;
 
     /// <summary>The two missions the original offers, and the state they are in.</summary>
-    public Missions Missions { get; }
+    public Missions Missions { get; private set; }
 
     /// <summary>
     /// Docks at the station: the market is regenerated, and any mission business is settled —
@@ -431,6 +431,12 @@ public sealed class GameSession
     /// Replaces the commander in play with a loaded one, which is what starting the game does when
     /// a save file is present.
     /// </summary>
+    /// <remarks>
+    /// The missions live in the commander's status byte and are rebuilt from it here, as the
+    /// constructor does. Loading without this leaves the missions empty, so a commander who saved
+    /// while carrying the plans or hunting the Constrictor loads with no mission at all — and the
+    /// four bits of the byte that a save carries would have been written and never read back.
+    /// </remarks>
     public void Load(Commander commander)
     {
         Commander = commander;
@@ -440,6 +446,7 @@ public sealed class GameSession
         System = commander.CurrentSystem;
         SelectedSystem = System;
         Market = Universe.Market.Build(System, _random.Next());
+        Missions = Missions.FromStatusByte(commander.MissionStatus);
     }
 
     /// <summary>Docks at the station.</summary>

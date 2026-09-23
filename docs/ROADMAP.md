@@ -1755,3 +1755,34 @@ galaxy" would have been the natural guess for it too.
 galaxies 0 and 1 for the offer), the Thargoid intercept chance of 56/256 while carrying the plans,
 the delivery reward of 10,000 tenths, and that the data screen asks for the hint at the system the
 commander is docked at rather than the one the charts point at.
+
+## Loading a commander threw his missions away
+
+Auditing the save file: what the original's commander block holds, and what ours carries.
+
+**The original writes a 75-byte block** starting at `NA%`, with two checksum bytes at the end —
+`CHK` holding the checksum and `CHK2` holding it `EOR #&A9`, so a file that has been tampered with
+can be spotted in two places. Ours is JSON with a format version and no checksum, which is a
+deliberate departure: a text file a person can read and fix is worth more in a remake than tamper
+detection on a single-player game. Every field the original's block holds is carried.
+
+**But nothing read the mission bits back.** `CommanderSave` carries `MissionStatus` and writes it on
+every save; the constructor rebuilds the missions from it; and `Load` — the path that runs when a save
+is read — rebuilt the commander, the flight model and the market, and left the missions empty. So a
+commander who saved while carrying the plans, or partway through hunting the Constrictor, loaded with
+no mission at all: the offer would come round again from the start, `OfferMission2` would refuse, and
+the four bits that a save had been writing all along were never once read.
+
+One line fixes it, and a test loads a commander mid-mission-2 through `Load` and checks all four bits
+come back — mission 1 complete, not in progress, mission 2 no longer in progress, plans carried.
+
+**Setting that test up was itself instructive.** Three attempts got the mission state wrong before
+the test was right, and each mistake was the same shape: *building the state by hand instead of
+letting the methods build it*. The first set `CarryingPlans` directly, which left the mission-2 bit
+set and produced `%1110` where the real game produces `%1010`; the second tried to fix that by
+docking, which rebuilds the missions from the status byte and discarded the setup entirely. Going
+through `PickUpPlans` at Ceerdi — the real method at the real system — gave the right state first
+time. The production code has the same lesson in it: `PickUpPlans` clears the mission-2 bit, and
+setting the field directly does not.
+
+**The tally is twelve.**

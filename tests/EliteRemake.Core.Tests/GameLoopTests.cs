@@ -94,6 +94,47 @@ public class GameLoopTests
     }
 
     /// <summary>
+    /// A saved commander's missions come back with him.
+    /// </summary>
+    /// <remarks>
+    /// The missions live in the commander's status byte, which a save carries. Loading rebuilt the
+    /// commander, the flight model and the market but not the missions, so a commander who saved
+    /// while carrying the plans or hunting the Constrictor loaded with no mission at all — and the
+    /// byte was written on every save and never read back.
+    /// </remarks>
+    [Fact]
+    public void LoadingACOmmanderRestoresHisMissions()
+    {
+        GameSession session = NewSession();
+
+        // A commander in the middle of mission 2: mission 1 finished and debriefed, mission 2
+        // accepted, plans collected. The status byte is what a save carries.
+        session.Missions.Mission1Complete = true;
+        session.Missions.Mission1Active = false;
+        session.Missions.AcceptMission2();
+
+        // Collected at the system the original puts them at, through the real method, so the bit
+        // that marks mission 2 in progress is cleared as picking them up does
+        session.Missions.PickUpPlans(
+            Galaxy.GenerateGalaxy(Galaxy.GalaxySeeds(Missions.PlansGalaxy))
+                .First(x => x.X == Missions.PlansX && x.Y == Missions.PlansY),
+            Missions.PlansGalaxy);
+
+        session.Commander.MissionStatus = session.Missions.StatusByte;
+        Assert.Equal(10, session.Commander.MissionStatus); // %1010: mission 1 done, carrying plans
+
+        // Load that commander into a fresh session, as starting the game does
+        var loaded = new GameSession(Commander.CreateDefault(), new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III")));
+        loaded.Load(session.Commander);
+
+        Assert.True(loaded.Missions.Mission1Complete);
+        Assert.True(loaded.Missions.CarryingPlans);
+        Assert.False(loaded.Missions.Mission1Active, "the debrief cleared that bit");
+        Assert.False(loaded.Missions.Mission2Active, "picking the plans up cleared that bit");
+        Assert.Equal(10, loaded.Missions.StatusByte);
+    }
+
+    /// <summary>
     /// Dying with an escape pod fitted means being picked up, not game over.
     /// </summary>
     /// <remarks>
