@@ -2833,3 +2833,29 @@ real path fails immediately.
 gap was the same: the tests supply the very thing that was broken. The test added here is deliberately
 the opposite — it asserts nothing about ships and only asks whether the commander takes damage — and it
 is worth more than any of the more specific ones for exactly that reason.
+
+## The other half of the live check: the fight can be won
+
+Last round's check proved we are shot at. This one asks the opposite question — whether a commander can
+**shoot back and kill what the spawner sends** — and it consumes the same real paths: `Spawner` makes
+the ship, the crosshair test picks the target, and the kill goes through the destruction bookkeeping.
+
+It passes, which is worth stating plainly because it is the first thing this session to pass on the
+first attempt in this area. Holding a spawned pirate in the crosshairs destroys it.
+
+**Together the two live checks bracket the loop.** One asserts only that damage arrives; the other only
+that a target dies. Neither says anything about how a ship is built, which is the property that makes
+them able to find faults in the thing that builds them — three rounds of hand-built ships could not,
+and these two found the missing hostile bit and the missing speed between them.
+
+**Where the project stands at round 115.**
+
+* **268 tests**, byte-exact ship verification, 133 commits, tree clean.
+* The game spans the disc's feature set: the procedural universe, trading, combat, missions, legal
+  status, witchspace, galactic hyperdrive, docking, a widescreen HUD and synthesized beeper effects.
+* The open item that matters to a player is still **whether the reported wobble is gone**; two faults
+  that could account for it are fixed, and only someone looking at the screen can say.
+* The durable output of the last twenty rounds has been the method rather than the features:
+  enumerate what a build takes, read the guards before the instructions, measure rates rather than
+  assert constants, ask who reads a value and what it means, and — most expensively learned — **never
+  let a check supply the very thing it is meant to be testing**.

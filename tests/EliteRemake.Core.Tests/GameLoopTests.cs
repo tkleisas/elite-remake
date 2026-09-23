@@ -179,6 +179,56 @@ public class GameLoopTests
     }
 
     /// <summary>
+    /// A commander can shoot back, kill what the spawner sends, and live to be paid for it.
+    /// </summary>
+    /// <remarks>
+    /// The other half of the live check: that one proves we are shot at, this one proves the fight can
+    /// be won. Both consume the real paths — <see cref="Spawner"/> makes the ships, the crosshair test
+    /// picks the target, and the kill goes through the bounty and legal-status bookkeeping — rather
+    /// than constructing the interesting state by hand.
+    /// </remarks>
+    [Fact]
+    public void ACommanderCanFightBackAndBePaid()
+    {
+        var commander = Commander.CreateDefault();
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            Commander = commander,
+            System = Galaxy.GenerateGalaxy(Galaxy.GalaxySeeds(0))[7],
+            GalaxySeeds = Galaxy.GalaxySeeds(0),
+        };
+
+        sim.Player.Energy = 255;
+        sim.Player.ForeShield = 255;
+        sim.Player.AftShield = 255;
+        sim.LaserPowerProvider = _ => 10;
+
+        var random = new EliteRandom(4);
+        StarSystem lave = Galaxy.GenerateGalaxy(Galaxy.GalaxySeeds(0))[7];
+
+        // Put a pirate directly ahead, in the crosshairs, with a front laser fitted
+        Ship target = Spawner.Create(SpawnKind.Pirates, lave, random);
+        target.SetPosition(0, 0, 1500);
+        Assert.True(sim.Spawn(target));
+
+        // Our laser needs a power and a target, and the game supplies both from the blueprint
+        sim.LaserPowerProvider = ship => ship == target ? 0 : Combat.PulseLaserPower;
+        sim.TargetableAreaProvider = _ => 95 * 95;
+
+        int kills = 0;
+        for (int frame = 0; frame < 4_000 && kills == 0; frame++)
+        {
+            sim.Step(new FlightInput(Fire: true));
+            if (sim.DestroyedThisFrame is not null)
+            {
+                kills++;
+            }
+        }
+
+        Assert.True(kills > 0, "a pirate held in the crosshairs should be destroyed");
+    }
+
+    /// <summary>
     /// A ship the spawner produces is hostile, and therefore able to attack.
     /// </summary>
     /// <remarks>
