@@ -120,14 +120,24 @@ public sealed class SettingsScene : IScene
         _ = pixel;
         device.Clear(Palette.Space);
 
-        int scale = 2;
-        int line = (int)(Camera.ViewportHeight / 2) - 240;
-        int left = (int)(Camera.CentreX - (Columns * 4 * scale));
+        // The whole panel is laid out from the view and scaled to fit it, so the list, the title and
+        // the hints stay on screen at any window size rather than running off the top on a small one
+        int rows = _settings.Bindings.Count + 5;   // title, the bindings, a gap, the message, two hints
+
+        // The glyphs are eight pixels tall plus their spacing, so the line height follows from the
+        // scale rather than the other way round: choosing a line height and then a scale that does
+        // not fit inside it is what made the rows overlap
+        int scale = Math.Max(1, (int)(Camera.ViewportHeight * 0.9f / rows) / 10);
+        int textHeight = TextRenderer.CellHeight(scale) + (2 * scale);
+        int left = (int)(Camera.CentreX - (10 * 8 * scale));
         int nameColumn = left + (17 * 8 * scale);
+
+        int blockHeight = rows * textHeight;
+        int line = (int)((Camera.ViewportHeight - blockHeight) / 2);
 
         spriteBatch.Begin();
         _text.DrawCentred(spriteBatch, "CONTROL SETTINGS", (int)Camera.CentreX, line, scale, Palette.White);
-        line += 40;
+        line += textHeight * 2;
 
         for (int i = 0; i < _settings.Bindings.Count; i++)
         {
@@ -137,15 +147,15 @@ public sealed class SettingsScene : IScene
 
             _text.Draw(spriteBatch, $"{marker}{name}", left, line, scale, colour);
             _text.Draw(spriteBatch, Settings.DisplayName(get()), nameColumn, line, scale, colour);
-            line += 24;
+            line += textHeight;
         }
 
-        line += 16;
+        line += textHeight;
         _text.Draw(spriteBatch, _message, left, line, scale, Palette.Cyan);
-        line += 32;
-        _text.Draw(spriteBatch, "UP/DOWN SELECT   ENTER REBIND", left, line, scale, Palette.Cyan);
-        line += 24;
-        _text.Draw(spriteBatch, "R RESET   CTRL-S SAVE   ESCAPE BACK", left, line, scale, Palette.Cyan);
+        line += textHeight;
+        _text.Draw(spriteBatch, "UP/DOWN SELECT  ENTER REBIND", left, line, scale, Palette.Cyan);
+        line += textHeight;
+        _text.Draw(spriteBatch, "R RESET  CTRL-S SAVE  ESC BACK", left, line, scale, Palette.Cyan);
         spriteBatch.End();
     }
 }

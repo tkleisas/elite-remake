@@ -105,7 +105,8 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
             };
         }
 
-        return _flightScene ??= SceneFactory.CreateFlightScene(_options, GraphicsDevice, Camera, Layout, _text, _session);
+        return _flightScene ??= SceneFactory.CreateFlightScene(
+            _options, GraphicsDevice, Camera, Layout, _text, _session, _settings);
     }
 
     /// <summary>

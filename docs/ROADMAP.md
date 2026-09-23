@@ -1311,3 +1311,22 @@ does not have falls back per binding rather than taking the others down with it.
 The arrow keys and the gamepad stay alongside the bound keys rather than being rebindable, because
 the original has two keys for each of the four directions and the arrows are one of them — rebinding
 the other should not take the arrows away.
+
+## Two faults in the settings screen, both found by looking at it
+
+**The rebinding would not have worked.** `SceneFactory.CreateFlightScene` loaded its own
+`Settings`, and `EliteGame` loaded another for the settings screen, so a rebind changed the screen's
+copy and left the flight scene reading the old one — which looks exactly like rebinding silently
+doing nothing, and would have been an awkward thing to diagnose from the symptom. There is one
+instance now, owned by the shell and passed to both. The rule this is an instance of: a settings
+object is shared state, and loading it twice is the bug rather than a detail.
+
+**The screen ran off the top of a small window.** The list began at a fixed offset below the middle
+of the view, so at 640x480 the title and the first binding were above the top edge. It is laid out
+from the view now, scaled to fit whatever height it has.
+
+That second fix took two passes, and the first was wrong in an instructive way: the scale was chosen
+from a line height, and the glyphs then did not fit inside the line height that had been chosen. The
+line height now follows from the scale — `CellHeight(scale)` plus a little leading — rather than the
+other way round. Both were caught by rendering the screen at 640x480 and looking at it, which is the
+only way either would have been noticed: neither is a fault any test would reach for.

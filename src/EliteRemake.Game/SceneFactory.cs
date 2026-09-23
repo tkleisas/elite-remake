@@ -16,7 +16,7 @@ public static class SceneFactory
             return CreateViewer(options, device, camera);
         }
 
-        return CreateFlightScene(options, device, camera, layout, text, CreateSession(options));
+        return CreateFlightScene(options, device, camera, layout, text, CreateSession(options), new Settings());
     }
 
     /// <summary>
@@ -86,19 +86,25 @@ public static class SceneFactory
     /// Sets up a flight scene: our Cobra, a space station ahead of us and a few other ships to fly
     /// around, which is enough to exercise the flight model and the renderer.
     /// </summary>
+    /// <param name="settings">
+    /// The player's bindings. The caller owns them so that the settings screen and the flight scene
+    /// share one set: loading a second copy here means a rebind changes the screen's copy and leaves
+    /// the flight scene reading the old one, which looks exactly like rebinding not working.
+    /// </param>
     public static FlightScene CreateFlightScene(
         GameOptions options,
         GraphicsDevice device,
         ViewCamera camera,
         ScreenLayout layout,
         TextRenderer text,
-        GameSession session)
+        GameSession session,
+        Settings settings)
     {
         FlightSim sim = session.Flight;
         var scene = new FlightScene(device, camera, sim, new HudRenderer(layout, text))
         {
             Session = session,
-            Settings = Settings.Load(),
+            Settings = settings,
         };
 
         foreach (ShipCatalog.Entry entry in ShipCatalog.All)
