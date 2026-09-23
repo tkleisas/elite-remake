@@ -2499,9 +2499,31 @@ phrases lose their system name and the hint names no system at all. Since the wh
 hints is to say where the Constrictor was seen, those hints say nothing useful.
 
 **What is established, and what is not.** The extractor *does* start token 209 — traced — so the loss
-is downstream of parsing, and the output is a reachability walk rather than the whole table, which is
-where to look next. I have not found the cause, and have not changed anything to paper over it: the
-missing name is a symptom, and guessing at the walk would risk dropping more tokens than it recovered.
+is downstream of parsing, and the output is a reachability walk rather than the whole table.
+
+**Two real bugs in that walk were found and fixed**, both of the same shape, and both worth keeping
+whatever else turns out to be true:
+
+```
+if (element.Kind is "ETOK" or "EREC" && tokens.ContainsKey(element.Value) && reachable.Add(...))
+```
+
+`&&` binds to the second alternative only, so a plain `ETOK` skipped the whole condition — Python's
+`a or b and c` trap, written by hand in C#. And separately, `reachable.Add(x) && queue.Push(x)` never
+queues a token that an earlier walk already marked, so **its own references are never followed**: only
+the marking is idempotent, and the *visit* must not be conditional on it. Both are now split, and the
+main walk's early return was given the same treatment.
+
+**The fix did not change the output.** The file is byte-identical at 141,431 bytes and token 209 is
+still absent, so there is a second cause I have not found. Traced as far as this: the hints' random
+element does resolve to candidates 106 to 110, they *are* already marked reachable by the time the
+hint walk sees them, and with the queue no longer conditional on that, token 106 should now be visited
+and its trailing `ETOK 209` followed. It is not appearing, so something earlier in the chain is not
+what the trace suggested.
+
+**The walk fixes go in on their own merit and are labelled as not having fixed it**, because they are
+provably correct about a real trap regardless of whether they turn out to be this bug. The missing
+system name is still open, with the chain narrowed to the point where the next attempt starts.
 
 `PrintToken` was added to `DescriptionData` while checking this, so a main-table token can be printed
 on its own rather than only through the description and hint entry points. That is what made the five

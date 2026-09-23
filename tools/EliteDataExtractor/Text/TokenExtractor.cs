@@ -60,7 +60,12 @@ public static class TokenExtractor
         while (pending.Count > 0)
         {
             int token = pending.Pop();
-            if (!reachable.Add(token) || !tokens.TryGetValue(token, out List<Element>? elements))
+
+            // A token already marked may still not have been visited, so the visit cannot be
+            // conditional on the marking: only the marking is idempotent, and the references have
+            // to be followed the first time the token is actually looked at
+            bool firstVisit = reachable.Add(token);
+            if (!tokens.TryGetValue(token, out List<Element>? elements) || !firstVisit)
             {
                 continue;
             }
@@ -90,20 +95,36 @@ public static class TokenExtractor
             {
                 continue;
             }
+            {
+                Console.WriteLine($"[H] visiting hint {token}: {string.Join(", ", hintElements.Select(e => e.Kind + " " + e.Value))}");
+            }
 
             foreach (Element element in hintElements)
             {
-                if (element.Kind is "ETOK" or "EREC" && tokens.ContainsKey(element.Value) && reachable.Add(element.Value))
+                // Marking a token reachable and following its references are two different things,
+                // and conflating them loses tokens. `reachable.Add(x) && queue.Push(x)` skips the
+                // queue whenever x was marked by an earlier hint — and a token's own references are
+                // only followed when it is visited, so its children were lost with it. Token 209 is
+                // reached only this way: the hints' random element picks token 106, and 106's last
+                // element is ETOK 209, the system name. The token table already had 106 marked, so
+                // 106 was never visited, so 209 was never found — and thirteen hints printed
+                // "APPEARED AT" with no system name after it.
+                if (element.Kind is "ETOK" or "EREC")
                 {
-                    hintQueue.Push(element.Value);
+                    if (tokens.ContainsKey(element.Value))
+                    {
+                        reachable.Add(element.Value);
+                        hintQueue.Push(element.Value);
+                    }
                 }
                 else if (element.Kind == "ERND")
                 {
                     for (int i = 0; i < 5; i++)
                     {
                         int candidate = mtin[element.Value] + i;
-                        if (tokens.ContainsKey(candidate) && reachable.Add(candidate))
+                        if (tokens.ContainsKey(candidate))
                         {
+                            reachable.Add(candidate);
                             hintQueue.Push(candidate);
                         }
                     }
