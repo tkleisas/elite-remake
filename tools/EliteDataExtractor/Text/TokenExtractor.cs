@@ -91,12 +91,17 @@ public static class TokenExtractor
         while (hintQueue.Count > 0)
         {
             int token = hintQueue.Pop();
-            if (!hints.TryGetValue(token, out List<Element>? hintElements))
+
+            // The queued token can be from either table: a hint refers to main-table tokens, and
+            // those refer to more of their own. Looking only in the hint table meant the lookup
+            // failed for every main-table token and the `continue` skipped it — along with
+            // everything it referred to. Token 209 hangs off token 106, which the hints' random
+            // element picks, so it was never reached and thirteen hints printed "APPEARED AT" with
+            // no system name.
+            if (!hints.TryGetValue(token, out List<Element>? hintElements) &&
+                !tokens.TryGetValue(token, out hintElements))
             {
                 continue;
-            }
-            {
-                Console.WriteLine($"[H] visiting hint {token}: {string.Join(", ", hintElements.Select(e => e.Kind + " " + e.Value))}");
             }
 
             foreach (Element element in hintElements)
@@ -130,6 +135,10 @@ public static class TokenExtractor
                     }
                 }
             }
+        }
+
+        if (tokens.TryGetValue(106, out var t106))
+        {
         }
 
         var document = new

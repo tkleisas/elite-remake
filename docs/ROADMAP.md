@@ -2528,3 +2528,50 @@ system name is still open, with the chain narrowed to the point where the next a
 `PrintToken` was added to `DescriptionData` while checking this, so a main-table token can be printed
 on its own rather than only through the description and hint entry points. That is what made the five
 phrases visible individually and the truncation obvious.
+
+## The missing token: found, and fixed
+
+Two causes, and the second was the real one.
+
+**The second cause.** The hint walk's queue carries tokens from *both* tables — a hint refers to
+main-table tokens, and those refer to more of their own — but the lookup was only in the hint table:
+
+```
+if (!hints.TryGetValue(token, out List<Element>? hintElements))
+{
+    continue;
+}
+```
+
+Tokens 106 to 110 are **main-table** tokens, so the lookup failed for every one of them and the
+`continue` skipped them **along with everything they referenced**. Token 209 hangs off token 106, so it
+was never reached. It now falls back to the main table, and the traversal recovers token 209 and two
+more besides — the extracted table went from 209 tokens to 211 and from 141,431 bytes to 141,872.
+
+**The result.** Thirteen hints that read "APPEARED AT" now read:
+
+```
+I HEAR A FUNNY LOOKING SHIP APPEARED AT ERRIUS
+```
+
+and all five of the phrases the random element can pick are reachable:
+
+```
+GET YOUR IRON ASS OVER TO ...
+SOME WHORESON BEETLE HEADFLAP EAR'D KNAVE NEW SHIP WAS SEEN AT ...
+YEAH, I HEAR A FUNNY SHIP LEFT ... A WHILE BACK
+TRY ...
+I HEAR A PECULIAR LOOKING SHIP APPEARED AT ...
+```
+
+**What is still wrong, and it is cosmetic rather than structural.** Every one of them ends in "ERRIUS",
+because token 209's stored text *is* " ERRIUS" — it is a placeholder. The original substitutes the real
+system name for that control code when it prints, and we print the table's text instead, so the name
+is always the same. The hint now has a name and reads correctly; it just is not *the* system's name.
+That is the next step, and it is a substitution rather than a traversal, so it is a much smaller piece
+of work than the one just finished.
+
+**The method note.** This took two rounds because the first round's two fixes were real but were not
+the cause, and the thing that found the cause was **tracing the queue's visits** rather than reasoning
+about the code: the trace showed hint 10 visiting and its five candidates being pushed, and then
+nothing — which located the `continue` immediately. Two rounds of reading the walk had not.
