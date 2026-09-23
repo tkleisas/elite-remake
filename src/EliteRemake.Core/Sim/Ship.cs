@@ -183,6 +183,12 @@ public sealed class Ship
     /// </summary>
     public const byte NewbPirate = 0x08;
 
+    /// <summary>
+    /// Bit 4: this ship is on its way in to dock, which is what sends it to the station rather than
+    /// off towards the planet.
+    /// </summary>
+    public const byte NewbDocking = 0x10;
+
     /// <summary>Bit 6: a cop, whose destruction makes us a fugitive at once.</summary>
     public const byte NewbCop = 0x40;
 
@@ -204,6 +210,9 @@ public sealed class Ship
     /// <summary>True when this ship is hostile, which a trader becomes when it turns out to be a
     /// pirate.</summary>
     public bool IsHostile => (NewbFlags & NewbHostile) != 0;
+
+    /// <summary>True when this ship is on its way in to dock.</summary>
+    public bool IsDocking => (NewbFlags & NewbDocking) != 0;
 
     /// <summary>
     /// How many missiles this ship has left, which the original keeps in bits 0-2 of byte #31 and

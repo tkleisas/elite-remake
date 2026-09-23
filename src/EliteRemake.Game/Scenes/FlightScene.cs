@@ -79,14 +79,17 @@ public sealed class FlightScene : IScene
 
             // The universe turns around us rather than the other way round, so we always face along
             // +z in the world's terms
-            // A station we have annoyed will not let us in, which is what ANGRY and AN2 are for: the
-            // flag is parsed here rather than passed as a constant, because passing `false` meant the
-            // hostile-station check could never fire and shooting an innocent cost nothing.
+            // A station we have annoyed will not let us in, which is what ANGRY and AN2 are for.
+            //
+            // Hostility is the NEWB flag, not the AI flag: on this build bit 7 of the AI flag means
+            // only that the ship has AI, and every station carries it — NWSPS gives the station
+            // %10000001 — so asking the AI flag would refuse docking at every station in the galaxy.
+            // AN2 sets bit 2 of the NEWB flags, which is what this asks.
             DockingResult result = Docking.Check(
                 ship,
                 (x, y, z),
                 new System.Numerics.Vector3(0, 0, 1),
-                stationHostile: ship.AiFlag >= 0x80);
+                stationHostile: ship.IsHostile);
 
             if (result == DockingResult.Docking)
             {

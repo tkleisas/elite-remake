@@ -4055,3 +4055,55 @@ display: the game still advances in the original's steps, and only the drawing i
 when it took the energy banks to zero — so every hit the shields absorbed was recorded as no damage at
 all. That is nearly all of them, which meant the game made no sound when we were being hit and the tests
 that watched the figure were watching nothing.
+
+## The charts were plotting the galaxy in the wrong place, and the stations had no traffic
+
+Two things found by looking at what was on screen rather than at what the tests said.
+
+### The long-range chart drew everything to the right of the crosshair
+
+The chart plotted each system **relative to the current system** — `x = centre + (system.X - current.X) * scale`
+— where the original plots the galaxy in its own coordinates: TT22 takes the x coordinate as the pixel
+column and halves the y coordinate, because *"the galaxy in Elite is rectangular rather than square, and
+is twice as wide (x-axis) as it is high (y-axis)"*. Sitting at Lave, whose x is 20, put every system with
+a larger x to the right of the centre and pushed the whole left of the galaxy off the chart: the left
+half of the box was empty and the other half was crowded.
+
+**Three things were wrong together, and each was measurable against the source:**
+
+- The long-range chart must be absolute, not relative to us.
+- Both charts stretch x **twice as much as y**, and our version used one scale for both: the long chart
+  is x 1:1 and y halved, and the short chart is x at four chart pixels to the coordinate and y at two.
+  Both give a 2:1 chart, which is why the box is 2:1 and why our 3:2 box was wrong too.
+- The short-range chart's range test is not a circle: a system appears if it is within **20** coordinates
+  across and **38** down, which is wider than it is tall. We used a symmetric 26.
+
+The fuel circle falls out of the same numbers: at four chart pixels to the coordinate, a circle whose
+radius is the tank in tenths is exactly the reach of that tank, which is why a full tank draws a circle
+of radius 70.
+
+### The stations launched nothing, because they had no AI
+
+NWSPS gives the space station an AI flag of **%10000001**, and on this build bit 7 of that byte means
+"has AI" — hostility moved into the NEWB flags. Ours was zero, so the station never thought, and the
+station's own tactics are where most of Elite's traffic comes from: the original's TACTICS has a branch
+for the station alone, which launches a **Shuttle or a Transporter** to trade with the planet on a 0.8%
+chance, and sends the **police** after a commander who has annoyed it on a 6.2% chance.
+
+**A latent bug was hiding behind it.** The docking check asked whether the station was hostile by
+testing bit 7 of its AI flag — the *cassette* rule. On this build AN2 sets bit 2 of the NEWB flags
+instead, and every station carries the AI flag, so the moment the station was given the AI flag NWSPS
+gives it, **every station in the galaxy would have refused to let us dock**. It now asks the NEWB flag,
+which is what the original asks.
+
+### And peaceful ships had nowhere to go
+
+TACTICS sends a ship somewhere: a hostile one manoeuvres against us, one that is docking flies to the
+station (the original's `DOCKIT`), and **every other peaceful ship flies to the planet** (`GOPL`). We
+had none of that — a peaceful ship simply steered *away from us* — so traders fled in straight lines and
+never came back, and a shuttle a station had just launched had nowhere to go. A launched trader now
+closes on the planet, which is the trade route it exists to fly.
+
+`SpawnFromParent` also gave its children no blueprint figures at all, so anything launched arrived with
+no speed and hung in space. The game layer's blueprint lookup happened to cover for it; the simulation
+on its own did not, which is how the missing speed was found.

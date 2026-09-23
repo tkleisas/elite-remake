@@ -1,5 +1,6 @@
 using EliteRemake.Core.Sim;
 using EliteRemake.Core.Universe;
+using EliteRemake.Data.Ships;
 using Xunit;
 
 namespace EliteRemake.Core.Tests;
@@ -635,23 +636,28 @@ public class GameLoopTests
         GameSession session = NewSession();
 
         // A station and an innocent trader, as the game spawns them
-        var station = Ship.Create(2, "coriolis", "Coriolis", 0, 0, 0, 2000, 0);
+        Ship station = SystemArrival.CreateStation(2000, SystemArrival.StationRollCounter);
         var trader = Ship.Create(12, "python", "Python", 0, 0, 0, 1500, 0);
         trader.NewbFlags = Ship.NewbInnocent;
 
         Assert.True(session.Flight.Spawn(station));
         Assert.True(session.Flight.Spawn(trader));
-        Assert.False(station.AiFlag >= 0x80, "the station starts peaceful");
+
+        // A station starts peaceful, with the AI flag NWSPS gives it: AI enabled and no aggression.
+        // Bit 7 of the AI flag is not hostility on this build — every station carries it — so a
+        // peaceful station has it set
+        Assert.False(station.IsHostile, "the station starts peaceful");
+        Assert.Equal(SystemArrival.StationAiFlag, station.AiFlag);
 
         session.Flight.MakeAngry(trader);
 
-        Assert.True(station.AiFlag >= 0x80, "the station should turn hostile");
-        Assert.Equal(FlightSim.HostileStationAiFlag, station.AiFlag);
-        Assert.Equal(FlightSim.HostileStationSpeed, station.Speed);
+        // AN2 sets bit 2 of the NEWB flags, and ANGRY makes sure the ship can act on it
+        Assert.True(station.IsHostile, "the station should turn hostile");
+        Assert.Equal(FlightSim.AngryAcceleration, station.Acceleration);
+        Assert.Equal(FlightSim.HostileStationPitchCounter, station.Data[ShipDataBlock.PitchCounter]);
 
-        // The station's AI flag is what Docking.Check reads as "hostile", so this is what stops
-        // us docking
-        Assert.True(station.AiFlag >= 0x80);
+        // `IsHostile` is what Docking.Check reads as "hostile", so this is what stops us docking
+        Assert.True(station.IsHostile);
 
         // Shooting a pirate, which has no innocent bit, leaves the station alone
         GameSession other = NewSession();
@@ -966,5 +972,138 @@ public class DeathAndRestartTests
         Assert.Equal(1000, session.Commander.Cash);
         Assert.Equal(Universe.Outfitting.MaxFuel, session.Commander.Fuel);
         Assert.Equal(GameMode.Flying, session.Mode);
+    }
+}
+
+/// <summary>
+/// Checks the space station's own tactics: the shuttles and transports it sends out to trade with the
+/// planet, and the police it sends after a commander who has annoyed it.
+/// </summary>
+/// <remarks>
+/// This is the source of most of the traffic in Elite's skies, and none of it was implemented — our
+/// stations sat in an empty sky, because nothing else spawns near them either.
+/// </remarks>
+public class StationTacticsTests
+{
+    private static (FlightSim Sim, Ship Station) CreateSim()
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = false,
+            Commander = Commander.CreateDefault(),
+        };
+
+        // The planet has to be there: it is where the traffic the station launches is going
+        StarSystem lave = Galaxy.GenerateGalaxy(Galaxy.GalaxySeeds(0))[7];
+        SystemArrival.AddSystemBodies(sim, lave);
+
+        Ship station = SystemArrival.CreateStation(3000, SystemArrival.StationRollCounter);
+        sim.Spawn(station);
+        return (sim, station);
+    }
+
+    [Fact]
+    public void AStationHasTheAiFlagNwspsGivesIt()
+    {
+        var (_, station) = CreateSim();
+
+        Assert.Equal(SystemArrival.StationAiFlag, station.AiFlag);
+        Assert.False(station.IsHostile, "a station starts peaceful");
+    }
+
+    [Fact]
+    public void AStationSendsOutShuttlesAndTransports()
+    {
+        var (sim, _) = CreateSim();
+
+        // The launches are rare on purpose: one turn in eighty-five, and only while nothing else is
+        // out there flying the route
+        var launched = new List<int>();
+        for (int i = 0; i < 20000 && launched.Count < 2; i++)
+        {
+            sim.Step();
+            if (sim.StationLaunchedThisFrame is { } ship)
+            {
+                Assert.Equal(Tactics.StationLaunchAiFlag, ship.AiFlag);
+                launched.Add(ship.Type);
+            }
+        }
+
+        Assert.NotEmpty(launched);
+        Assert.All(launched, type => Assert.True(
+            type is Tactics.ShuttleType or Tactics.TransporterType,
+            $"a peaceful station should launch traders, not type {type}"));
+    }
+
+    [Fact]
+    public void WhatAStationLaunchesHeadsForThePlanet()
+    {
+        // The original's GOPL: a peaceful ship that is not docking flies to the planet. Without it
+        // the shuttle a station had just launched had nowhere to go and simply fled from us.
+        var (sim, _) = CreateSim();
+
+        Ship? launched = null;
+        for (int i = 0; i < 20000 && launched is null; i++)
+        {
+            sim.Step();
+            launched = sim.StationLaunchedThisFrame;
+        }
+
+        Assert.NotNull(launched);
+
+        Ship planet = Assert.Single(sim.Bubble, s => s.Type == SystemArrival.PlanetTypeA);
+        (int px, int py, int pz) = planet.GetPosition();
+
+        double Distance() 
+        {
+            (int x, int y, int z) = launched!.GetPosition();
+            return Math.Sqrt(Math.Pow(x - px, 2) + Math.Pow(y - py, 2) + Math.Pow(z - pz, 2));
+        }
+
+        double before = Distance();
+        for (int i = 0; i < 400; i++)
+        {
+            sim.Step();
+        }
+
+        Assert.True(Distance() < before,
+            $"the launched ship should be heading for the planet: {before:0} then {Distance():0}");
+    }
+
+    [Fact]
+    public void AnAngryStationSendsThePoliceInstead()
+    {
+        var (sim, station) = CreateSim();
+        station.NewbFlags |= Ship.NewbHostile;
+
+        int cops = 0;
+        int mostAtOnce = 0;
+        for (int i = 0; i < 20000; i++)
+        {
+            sim.Step();
+
+            // The original's limit is on how many are out there at once, not on how many it sends
+            // over a session: its police fly off towards the planet and are replaced
+            mostAtOnce = Math.Max(mostAtOnce, sim.Bubble.Count(s => s.Type == Tactics.CopType));
+
+            if (sim.StationLaunchedThisFrame is { } ship)
+            {
+                Assert.Equal(Tactics.CopType, ship.Type);
+                Assert.Equal(Tactics.StationLaunchAiFlag, ship.AiFlag);
+
+                // They are not hostile on arrival, and that is the original's doing rather than an
+                // oversight: the police are Vipers, whose E% flags make them bounty hunters, and a
+                // bounty hunter only turns on a commander whose legal status has reached 40. Shoot
+                // enough innocents to annoy a station and you will usually be there; annoy it once
+                // and you may not be, in which case its police fly off to the planet with everyone
+                // else.
+                Assert.Equal(ShipData.NewbFlagsFor(Tactics.CopType), ship.NewbFlags);
+                cops++;
+            }
+        }
+
+        Assert.True(cops > 0, "an angered station should send the police");
+        Assert.True(mostAtOnce <= Tactics.HostileStationCopLimit,
+            $"the original keeps at most {Tactics.HostileStationCopLimit} police out at once, but {mostAtOnce} were");
     }
 }

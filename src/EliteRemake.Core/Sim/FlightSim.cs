@@ -178,6 +178,54 @@ public sealed class FlightSim
     }
 
     /// <summary>
+    /// Runs the space station's tactics: it launches a shuttle or a transporter to trade with the
+    /// planet, or the police if we have annoyed it.
+    /// </summary>
+    /// <remarks>
+    /// The original's limits are counted over the whole bubble: it refuses to launch a trader while
+    /// one is already out there, and stops sending police once four are about.
+    /// </remarks>
+    private void LaunchFromStation(Ship station)
+    {
+        bool transporter = false;
+        int cops = 0;
+
+        foreach (Ship other in _bubble)
+        {
+            if (other.Type == Tactics.TransporterType)
+            {
+                transporter = true;
+            }
+            else if (other.Type == Tactics.CopType)
+            {
+                cops++;
+            }
+        }
+
+        int type = Tactics.StationLaunch(station, Random, transporter, cops);
+        if (type == 0)
+        {
+            return;
+        }
+
+        if (SpawnFromParent(type, station) is not { } launched)
+        {
+            return;
+        }
+
+        // Whatever the station launches gets its AI from the same three instructions in the original,
+        // and its personality from the E% flags for its type. A police Viper is a bounty hunter and a
+        // Shuttle is a trader; neither is hostile in itself, so it is their NEWB flags and not this
+        // line that decide whether they shoot at us.
+        launched.AiFlag = Tactics.StationLaunchAiFlag;
+
+        StationLaunchedThisFrame = launched;
+    }
+
+    /// <summary>The ship a station launched this frame, for the game to report.</summary>
+    public Ship? StationLaunchedThisFrame { get; private set; }
+
+    /// <summary>
     /// A ship that has given up launches its escape pod and is left drifting, as the original's
     /// SESCP does: the pod is spawned as a child of the ship and the ship itself has its AI switched
     /// off, so it becomes a sitting duck rather than a threat.
@@ -277,10 +325,20 @@ public sealed class FlightSim
     private Ship? SpawnFromParent(int type, Ship parent)
     {
         (int x, int y, int z) = parent.GetPosition();
+        BlueprintDefaults defaults = BlueprintDefaults.For(type);
 
-        // Just ahead of the parent, which is where the original's workspace puts it
+        // Just ahead of the parent, which is where the original's workspace puts it. It carries the
+        // blueprint's own figures, as every ship NWSHP creates does: without them a child arrives
+        // with no speed and simply hangs in space, which is what a station's shuttle did before the
+        // game layer's blueprint lookup happened to cover for it.
         var child = Ship.Create(type, string.Empty, $"Type {type}", x, y, z + 256, 0, 0);
         child.AiFlag = Tactics.SpawnedShipAiFlag;
+        child.Speed = defaults.Speed;
+        child.MaxEnergy = defaults.MaxEnergy;
+        child.MaxSpeed = defaults.MaxSpeed;
+        child.VisibilityDistance = defaults.VisibilityDistance;
+        child.NewbFlags = defaults.NewbFlags;
+        child.Energy = child.MaxEnergy;
 
         if (!Spawn(child))
         {
@@ -335,6 +393,7 @@ public sealed class FlightSim
         MissileUnarmedThisFrame = false;
         EscapePodLaunchedThisFrame = null;
         MissileFiredAtUsThisFrame = null;
+        StationLaunchedThisFrame = null;
 
         // The original's SSPR, which is the count of stations in our bubble and so is true for as
         // long as the station is with us. It guards two things: nothing spawns while it is set, and
@@ -367,7 +426,14 @@ public sealed class FlightSim
                 // game therefore made no sound when we were being hit, and the tests that watched
                 // this figure were watching nothing.
                 int before = Player.Energy + Player.ForeShield + Player.AftShield;
-                bool fatal = Tactics.Apply(ship, Random, Player, LaserPowerOf(ship), DamageOf(ship));
+                bool fatal = Tactics.Apply(
+                    ship,
+                    Random,
+                    Player,
+                    LaserPowerOf(ship),
+                    DamageOf(ship),
+                    PlanetPosition,
+                    StationPosition);
                 int lost = before - (Player.Energy + Player.ForeShield + Player.AftShield);
                 if (lost > 0)
                 {
@@ -390,6 +456,14 @@ public sealed class FlightSim
                 if (Tactics.ShouldFireMissile(ship, Random, EcmActive))
                 {
                     FireMissileFrom(ship);
+                }
+
+                // The station is the one ship whose tactics are not its own manoeuvring: it launches
+                // the shuttles and transports that trade with the planet, or the police, if we have
+                // annoyed it
+                if (ship.Type == Combat.SpaceStationType)
+                {
+                    LaunchFromStation(ship);
                 }
             }
 
@@ -524,15 +598,6 @@ public sealed class FlightSim
         }
     }
 
-    /// <summary>
-    /// The station's aggression when it turns hostile: the original's AN2 gives it a speed of 10 and
-    /// an AI flag that is hostile with the highest aggression.
-    /// </summary>
-    public const byte HostileStationAiFlag = 0xF8;
-
-    /// <summary>The speed the original gives a station that has turned hostile.</summary>
-    public const byte HostileStationSpeed = 10;
-
     /// <summary>The acceleration the original's ANGRY gives a ship it has just been shot at.</summary>
     public const byte AngryAcceleration = 2;
 
@@ -569,7 +634,23 @@ public sealed class FlightSim
         ship.Acceleration = AngryAcceleration;
     }
 
-    /// <summary>Makes the space station hostile, as the original's AN2 does.</summary>
+    /// <summary>
+    /// Makes the space station hostile, as the original's ANGRY and AN2 do.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// On this build hostility is a NEWB flag and the AI flag's bit 7 means only that the ship has
+    /// AI: AN2 is <c>LDA K%+NI%+36 / ORA #%00000100 / STA K%+NI%+36</c>, which sets bit 2 of the
+    /// station's NEWB flags. That is why a hostile station sends the police after us rather than
+    /// simply shooting: its tactics branch on the hostile bit.
+    /// </para>
+    /// <para>
+    /// Setting the AI flag instead was reading the cassette version, where bit 7 of the AI flag is
+    /// what makes a station hostile. It also would have broken docking outright once the station
+    /// started carrying the AI flag NWSPS gives it, because the docking check asked the same
+    /// question of the same byte.
+    /// </para>
+    /// </remarks>
     private void MakeStationHostile()
     {
         foreach (Ship ship in _bubble)
@@ -579,10 +660,25 @@ public sealed class FlightSim
                 continue;
             }
 
-            ship.AiFlag = HostileStationAiFlag;
-            ship.Speed = HostileStationSpeed;
+            ship.NewbFlags |= Ship.NewbHostile;
+
+            // ANGRY sets bit 7 of the AI flag to make sure the ship can act, and leaves a ship with
+            // no AI flag at all alone — it has neither AI nor aggression to work with
+            if (ship.AiFlag == 0)
+            {
+                continue;
+            }
+
+            ship.AiFlag |= 0x80;
+            ship.Acceleration = AngryAcceleration;
+
+            // "Set the ship's byte #30 (pitch counter) to 4, so it starts diving"
+            ship.Data[ShipDataBlock.PitchCounter] = HostileStationPitchCounter;
         }
     }
+
+    /// <summary>The pitch counter ANGRY gives a ship it has annoyed, so that it starts diving.</summary>
+    public const byte HostileStationPitchCounter = 4;
 
     /// <summary>
     /// Spawns a ship of a given type ahead of us, as the original's GTHG does for the Thargoids that
@@ -880,6 +976,30 @@ public sealed class FlightSim
 
         int scooped = Speed >> 3;
         commander.Fuel = Math.Min(Outfitting.MaxFuel, commander.Fuel + scooped);
+    }
+
+    /// <summary>
+    /// Where the planet is, which is where the original sends every peaceful ship that is not
+    /// docking, or null when there is no planet in the bubble.
+    /// </summary>
+    private System.Numerics.Vector3? PlanetPosition => PositionOf(SystemArrival.PlanetTypeA);
+
+    /// <summary>Where the station is, or null when there is none in the bubble.</summary>
+    private System.Numerics.Vector3? StationPosition => PositionOf(Combat.SpaceStationType);
+
+    /// <summary>The position of the first ship of a given type in the bubble.</summary>
+    private System.Numerics.Vector3? PositionOf(int type)
+    {
+        foreach (Ship ship in _bubble)
+        {
+            if (ship.Type == type)
+            {
+                (int x, int y, int z) = ship.GetPosition();
+                return new System.Numerics.Vector3(x, y, z);
+            }
+        }
+
+        return null;
     }
 
     /// <summary>True while a space station is in the local bubble, which is the original's SSPR.</summary>

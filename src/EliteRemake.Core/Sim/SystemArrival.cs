@@ -140,6 +140,12 @@ public static class SystemArrival
         // The roll counter is what MVEIT part 8 reads, so the station is already turning when it
         // appears
         station.Data[ShipDataBlock.RollCounter] = spinRoll;
+
+        // NWSPS gives the station an AI flag of %10000001: AI enabled and an E.C.M., with no
+        // aggression. On this build bit 7 of the AI flag means "has AI", not "is hostile" — that
+        // moved into the NEWB flags — and the station needs it because its own tactics are what
+        // launch the shuttles and transports that ply between it and the planet.
+        station.AiFlag = StationAiFlag;
         FaceTowardsUs(station);
         return station;
     }
@@ -163,6 +169,12 @@ public static class SystemArrival
     /// </para>
     /// </remarks>
     public const byte StationRollCounter = 0xFF;
+
+    /// <summary>
+    /// The AI flag NWSPS gives the space station: <c>%10000001</c>, which is AI enabled and an
+    /// E.C.M. fitted with no aggression.
+    /// </summary>
+    public const byte StationAiFlag = 0x81;
 
     /// <summary>
     /// Flips a newly created station's orientation vectors, as the original's NwS1 does.

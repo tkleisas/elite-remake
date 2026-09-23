@@ -171,6 +171,104 @@ public static class Tactics
     public const byte SafeZoneAiFlag = 0b1000_0001;
 
     /// <summary>
+    /// The space station's own tactics, which are what put traffic in the sky around it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The station is the one ship TACTICS treats differently. A station that has not been annoyed
+    /// considers launching a Shuttle or a Transporter — the ships that "ply their trade between the
+    /// station and the planet" — with a 0.8% chance on each of its turns and only ever one at a time,
+    /// since it gives up while a Transporter is already out there. A station that <em>has</em> been
+    /// annoyed sends the police after us instead, on a 6.2% chance, up to four of them.
+    /// </para>
+    /// <para>
+    /// None of this was implemented, which is why our stations sat in an empty sky: the original's
+    /// stations are the source of most of the traffic a commander meets, and the Shuttles and
+    /// Transporters they launch are the traders whose NEWB flags let them turn out to be pirates.
+    /// </para>
+    /// </remarks>
+    /// <param name="ship">The station.</param>
+    /// <param name="random">The random number generator.</param>
+    /// <param name="craftInBubble">How many ships are in the local bubble, for the limits.</param>
+    /// <param name="transporterPresent">True if a Transporter is already out there.</param>
+    /// <param name="copCount">How many police ships are already out there.</param>
+    /// <returns>The ship type to launch, or 0 for nothing.</returns>
+    public static int StationLaunch(
+        Ship ship,
+        EliteRandom random,
+        bool transporterPresent,
+        int copCount)
+    {
+        if (ship.IsKilled || ship.IsExploding)
+        {
+            return 0;
+        }
+
+        if (ship.IsHostile)
+        {
+            // TN5: an angry station sends the police, on 6.2%, up to four at a time
+            if (random.Next() < HostileStationCopThreshold)
+            {
+                return 0;
+            }
+
+            return copCount >= HostileStationCopLimit ? 0 : CopType;
+        }
+
+        // "The station is not hostile, so check how many Transporters there are in the vicinity, and
+        // if we already have one, return"
+        if (transporterPresent)
+        {
+            return 0;
+        }
+
+        // 99.2% of the time nothing happens
+        if (random.Next() < StationLaunchThreshold)
+        {
+            return 0;
+        }
+
+        // "a random number that's either 0 or 1 ... the ship type for a Shuttle or a Transporter"
+        return (random.Next() & 1) == 0 ? ShuttleType : TransporterType;
+    }
+
+    /// <summary>The Shuttle, which a station launches to trade with the planet.</summary>
+    public const int ShuttleType = 9;
+
+    /// <summary>The Transporter, which a station launches to trade with the planet.</summary>
+    public const int TransporterType = 10;
+
+    /// <summary>The police ship a station sends after a commander who has annoyed it.</summary>
+    public const int CopType = 16;
+
+    /// <summary>
+    /// The roll a station makes before launching a shuttle or transporter: the original's
+    /// <c>CMP #253</c>, so it happens on three turns in 256 — about one in eighty-five.
+    /// </summary>
+    public const int StationLaunchThreshold = 253;
+
+    /// <summary>
+    /// The roll an angry station makes before sending the police: the original's <c>CMP #240</c>, so
+    /// it happens on 16 turns in 256.
+    /// </summary>
+    public const int HostileStationCopThreshold = 240;
+
+    /// <summary>How many police ships an angry station will have out at once.</summary>
+    public const int HostileStationCopLimit = 4;
+
+    /// <summary>
+    /// The AI flag the station gives whatever it launches: <c>%11110001</c>, which is an E.C.M., AI
+    /// enabled and very aggressive — 56 out of 63.
+    /// </summary>
+    /// <remarks>
+    /// One value covers both launches, because the original's shuttle and police paths meet at the
+    /// same <c>TN6</c> label and fall through the same three instructions. A launched shuttle is
+    /// therefore aggressive but not hostile — its E% flags say "trader, innocent" — so what its
+    /// aggression does is send it off towards the planet, which is the trade route it exists to fly.
+    /// </remarks>
+    public const byte StationLaunchAiFlag = 0b1111_0001;
+
+    /// <summary>
     /// True when this ship gets to think this frame.
     /// </summary>
     /// <remarks>
@@ -316,7 +414,22 @@ public static class Tactics
     /// blueprint halved: that byte holds the laser power and missile count together, and halving it
     /// is what the original actually does.
     /// </param>
-    public static bool Apply(Ship ship, EliteRandom random, Ship player, int laserPower, int damage)
+    /// <param name="planetPosition">
+    /// Where the planet is, which is where a peaceful ship is going: the original's <c>GOPL</c> is
+    /// the branch every non-hostile ship that is not docking takes.
+    /// </param>
+    /// <param name="stationPosition">
+    /// Where the station is, which is where a ship that is docking is going — the original's
+    /// <c>DOCKIT</c>.
+    /// </param>
+    public static bool Apply(
+        Ship ship,
+        EliteRandom random,
+        Ship player,
+        int laserPower,
+        int damage,
+        System.Numerics.Vector3? planetPosition = null,
+        System.Numerics.Vector3? stationPosition = null)
     {
         if (ship.IsExploding || ship.IsKilled || !IsUnderPilotControl(ship.Type))
         {
@@ -351,8 +464,29 @@ public static class Tactics
         System.Numerics.Vector3 roof = Unit(ship.Orientation, Orientation.Roofv);
         System.Numerics.Vector3 side = Unit(ship.Orientation, Orientation.Sidev);
 
-        // Steering: peaceful ships turn away rather than towards us
-        System.Numerics.Vector3 steer = attack ? towardsUs : -towardsUs;
+        // Steering. A hostile ship manoeuvres against us; anything else is going somewhere, and the
+        // original's TACTICS sends it there rather than simply away from us: a ship with the docking
+        // bit set flies to the station (DOCKIT), and every other peaceful ship flies to the planet
+        // (GOPL). Turning peaceful ships away from us instead is what made traders flee across the
+        // sky in a straight line and never come back, and it left the shuttles a station launches
+        // with nowhere to go.
+        System.Numerics.Vector3 steer;
+        if (attack)
+        {
+            steer = towardsUs;
+        }
+        else if (ship.IsDocking && stationPosition is { } stationAim)
+        {
+            steer = DirectionTo(x, y, z, stationAim, towardsUs);
+        }
+        else if (planetPosition is { } planetAim)
+        {
+            steer = DirectionTo(x, y, z, planetAim, towardsUs);
+        }
+        else
+        {
+            steer = -towardsUs;
+        }
 
         float aimX = System.Numerics.Vector3.Dot(steer, side);
         float aimY = System.Numerics.Vector3.Dot(steer, roof);
@@ -390,6 +524,21 @@ public static class Tactics
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// The direction from a ship to somewhere else in the world, or a fallback if it is on top of it.
+    /// </summary>
+    private static System.Numerics.Vector3 DirectionTo(
+        int x,
+        int y,
+        int z,
+        System.Numerics.Vector3 target,
+        System.Numerics.Vector3 fallback)
+    {
+        var delta = new System.Numerics.Vector3(target.X - x, target.Y - y, target.Z - z);
+        float length = delta.Length();
+        return length < 1f ? fallback : delta / length;
     }
 
     /// <summary>

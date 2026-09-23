@@ -37,6 +37,15 @@ public sealed class ChartScene : IScene
 {
     private const int Columns = 32;
 
+    /// <summary>
+    /// How far across a system can be and still appear on the short-range chart: the original's
+    /// <c>CMP #20</c>, which the Master version relaxes to 29.
+    /// </summary>
+    private const int ShortRangeAcross = 20;
+
+    /// <summary>How far up or down a system can be and still appear: the original's <c>CMP #38</c>.</summary>
+    private const int ShortRangeDown = 38;
+
     /// <summary>The x coordinate of the centre of the chart, as the original has it.</summary>
     public const int ChartCentreX = 104;
 
@@ -198,51 +207,77 @@ public sealed class ChartScene : IScene
             : $"LONG RANGE CHART - GALAXY {_session.Commander.GalaxyNumber + 1}";
         _text.DrawCentred(spriteBatch, title, left + (width / 2), top, scale, Palette.White);
 
-        // The chart box, sized to the original's proportions
+        // The chart box. The original's charts are twice as wide as they are high — "the galaxy in
+        // Elite is rectangular rather than square, and is twice as wide (x-axis) as it is high
+        // (y-axis), so the chart is 256 pixels wide and 128 high" — and everything inside is scaled
+        // to fit it, so the box is 2:1 whatever it is drawn inside.
+        int boxWidth = Math.Min(width - (cellWidth * 2), cellWidth * 32);
         var box = new Rectangle(
             left + cellWidth,
             top + (cellHeight * 2),
-            Math.Min(width - (cellWidth * 2), cellWidth * 30),
-            cellHeight * 20);
+            boxWidth,
+            boxWidth / 2);
         DrawBox(spriteBatch, pixel, box, dim);
 
-        // Four pixels per galactic coordinate at the original's scale, so the box maps a span of
-        // coordinates across its width: the short-range chart covers about 26 each way, the long
-        // range covers the whole galaxy
-        int span = Range == ChartRange.Short ? 26 : 128;
-        float pixelsPerUnit = box.Width / (float)(span * 2);
-
-        // The long-range chart shrinks everything to fit the galaxy
-        if (Range == ChartRange.Long)
-        {
-            pixelsPerUnit = box.Width / 256f;
-        }
-
+        // A galactic coordinate is a small angle of a light year, and the original's two charts put
+        // it at different scales. The long-range chart draws the whole galaxy with the x coordinate
+        // as the pixel column and the y coordinate halved, so its content is 256 by 128. The
+        // short-range chart draws the nearby systems at four pixels across and two down, and shows
+        // those within 20 across and 38 down, so its content is 160 by 152.
         StarSystem current = _session.System;
+        bool isShort = Range == ChartRange.Short;
+
+        // How many of the original's chart pixels one of our screen pixels is worth
+        int contentWidth = isShort ? 160 : 256;
+        int contentHeight = isShort ? 152 : 128;
+        float unit = Math.Min(box.Width / (float)contentWidth, box.Height / (float)contentHeight);
+
+        // Where a system sits on the chart, in the original's own chart coordinates
+        (float X, float Y) ChartPoint(StarSystem system)
+        {
+            if (isShort)
+            {
+                // The centre of the original's chart is the current system, four pixels across and
+                // two down for each coordinate
+                return (
+                    box.Center.X + ((system.X - current.X) * 4 * unit),
+                    box.Center.Y - ((system.Y - current.Y) * 2 * unit));
+            }
+
+            // The long-range chart shows the whole galaxy in its own coordinates: x is the column,
+            // and y is halved because the galaxy is twice as wide as it is high
+            return (
+                box.Left + (system.X * unit),
+                box.Top + (system.Y * 0.5f * unit));
+        }
 
         // The fuel circle. A coordinate unit is four tenths of a light year (the original's
         // distance is four times its square root of the coordinate difference), so the reach of a
-        // tank in coordinate units is the fuel divided by four — which the original draws as a
-        // circle whose radius in its own chart pixels equals the fuel in tenths.
-        if (Range == ChartRange.Short)
+        // tank in coordinate units is the fuel divided by four — and at four chart pixels to the
+        // coordinate, the circle's radius in the original's chart pixels comes out as the fuel in
+        // tenths, which is why a full tank draws a circle of radius 70.
+        if (isShort)
         {
-            float radius = _session.Commander.Fuel / 4f * pixelsPerUnit;
+            float radius = _session.Commander.Fuel * unit;
             DrawCircle(spriteBatch, pixel, box.Center.X, box.Center.Y, radius, new Color(70, 76, 88), 64);
         }
 
         // Plot the systems
         foreach (StarSystem system in _galaxy)
         {
-            int dx = system.X - current.X;
-            int dy = system.Y - current.Y;
-
-            if (Range == ChartRange.Short && (Math.Abs(dx) > span || Math.Abs(dy) > span))
+            if (isShort)
             {
-                continue;
+                // The original's short-range chart shows a system if it is within 20 coordinates
+                // across and 38 down, which is not a circle: the chart is wider than it is tall
+                int dx = Math.Abs(system.X - current.X);
+                int dy = Math.Abs(system.Y - current.Y);
+                if (dx >= ShortRangeAcross || dy >= ShortRangeDown)
+                {
+                    continue;
+                }
             }
 
-            float x = box.Center.X + (dx * pixelsPerUnit);
-            float y = box.Center.Y - (dy * pixelsPerUnit);
+            (float x, float y) = ChartPoint(system);
             if (!box.Contains((int)x, (int)y))
             {
                 continue;
@@ -256,11 +291,9 @@ public sealed class ChartScene : IScene
             spriteBatch.Draw(pixel, new Rectangle((int)x, (int)y, size, size), colour);
         }
 
-        // The crosshairs sit on the selected system
-        int cursorDx = _session.SelectedSystem.X - current.X;
-        int cursorDy = _session.SelectedSystem.Y - current.Y;
-        float crossX = box.Center.X + (cursorDx * pixelsPerUnit);
-        float crossY = box.Center.Y - (cursorDy * pixelsPerUnit);
+        // The crosshairs sit on the selected system, which on the short-range chart is one of the
+        // nearby ones and on the long-range chart can be anywhere in the galaxy
+        (float crossX, float crossY) = ChartPoint(_session.SelectedSystem);
         DrawCrosshairs(spriteBatch, pixel, crossX, crossY, Math.Max(3f, scale * 2f), Palette.White);
 
         // The selected system's data, which the original shows on its own screen
