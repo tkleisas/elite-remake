@@ -1076,3 +1076,33 @@ than asking the predicate, so the two could disagree; it asks now.
 A test drives the flight simulation rather than the decision — in the Constrictor's system with the
 mission running it appears, and elsewhere or with no mission it does not — because the decision
 alone was already covered and was not where the fault was.
+
+## The equipment prices were the wrong version's
+
+Seven of the fourteen equipment prices were the **Elite-A** table's, not the BBC disc's. The two
+tables agree on the first seven items and on the names of the last two, which is what made it easy
+to miss:
+
+| # | item | disc | ours (before) |
+| --- | --- | --- | --- |
+| 7 | Escape Pod | 1000.0 Cr | 100.0 Cr |
+| 8 | Energy Bomb | 900.0 Cr | 90.0 Cr |
+| 9 | Energy Unit | 1500.0 Cr | 700.0 Cr |
+| 10 | Docking Computer | 1000.0 Cr | 700.0 Cr |
+| 11 | Galactic Hyperdrive | 5000.0 Cr | 3000.0 Cr |
+| 12 | Extra Military Lasers | 6000.0 Cr | 1900.0 Cr |
+| 13 | Extra Mining Lasers | 800.0 Cr | 250.0 Cr |
+
+The disc's PRXS table is the one at `library/common/main/variable/prxs.asm`, and its comments give
+the prices directly — the missile's `EQUW 300` is annotated "30.0 Cr", so the table holds tenths of
+a credit throughout. The two lasers are a separate block guarded by `_DISC_DOCKED` among others,
+which is why the disc has fourteen items where the cassette version has twelve.
+
+Fuel is the one entry that is not a price: PRXS holds a `1` for it because EQSHP works the price out
+as **twice the light years**, and its own comment spells out that the doubling is what converts the
+figure into the table's tenths ("a tank containing 7.0 light years of fuel would be 14.0 Cr, or a
+PRXS value of 140"). Our 2 Cr a light year was already right.
+
+The test that should have caught this was asserting the wrong numbers, in a sample of eight that
+happened to include four of the seven. It now pins the whole table by number, name and price, so a
+future mix-up with another platform's table cannot pass.

@@ -1308,17 +1308,43 @@ public class OutfittingTests
         Assert.False(Outfitting.IsStocked(SystemWithTechLevel(4), 7));
     }
 
+    /// <summary>
+    /// Every price is the disc version's own, taken from PRXS.
+    /// </summary>
+    /// <remarks>
+    /// The disc's PRXS table holds tenths of a credit, as its comments say outright — the missile's
+    /// 300 is "30.0 Cr". Seven of these entries used to be the Elite-A table's prices, which differ
+    /// a lot, so the whole table is pinned here rather than a sample: the two tables agree on the
+    /// first seven items and the two lasers' names, which is what made the difference easy to miss.
+    /// </remarks>
     [Fact]
-    public void PricesAreTheOriginals()
+    public void PricesAreTheDiscVersionsOwn()
     {
-        Assert.Equal(300, Outfitting.Items[1].Price);   // missile, 30.0 Cr
-        Assert.Equal(4000, Outfitting.Items[2].Price);  // large cargo bay, 400.0 Cr
-        Assert.Equal(6000, Outfitting.Items[3].Price);  // E.C.M., 600.0 Cr
-        Assert.Equal(5250, Outfitting.Items[6].Price);  // fuel scoops, 525.0 Cr
-        Assert.Equal(1000, Outfitting.Items[7].Price);  // escape pod, 100.0 Cr
-        Assert.Equal(7000, Outfitting.Items[9].Price);  // energy unit, 700.0 Cr
-        Assert.Equal(30000, Outfitting.Items[11].Price); // galactic hyperdrive, 3000.0 Cr
-        Assert.Equal(19000, Outfitting.Items[12].Price); // military lasers, 1900.0 Cr
+        (string Name, int Price)[] expected =
+        [
+            ("Fuel", 0),                    // priced per light year, at 2 Cr each
+            ("Missile", 300),               // 30.0 Cr
+            ("Large Cargo Bay", 4000),      // 400.0 Cr
+            ("E.C.M. System", 6000),        // 600.0 Cr
+            ("Extra Pulse Lasers", 4000),   // 400.0 Cr
+            ("Extra Beam Lasers", 10000),   // 1000.0 Cr
+            ("Fuel Scoops", 5250),          // 525.0 Cr
+            ("Escape Pod", 10000),          // 1000.0 Cr
+            ("Energy Bomb", 9000),          // 900.0 Cr
+            ("Energy Unit", 15000),         // 1500.0 Cr
+            ("Docking Computer", 10000),    // 1000.0 Cr
+            ("Galactic Hyperdrive", 50000), // 5000.0 Cr
+            ("Extra Military Lasers", 60000), // 6000.0 Cr
+            ("Extra Mining Lasers", 8000),  // 800.0 Cr
+        ];
+
+        Assert.Equal(expected.Length, Outfitting.Items.Length);
+        for (int i = 0; i < expected.Length; i++)
+        {
+            Assert.Equal(i, Outfitting.Items[i].Number);
+            Assert.Equal(expected[i].Name, Outfitting.Items[i].Name);
+            Assert.Equal(expected[i].Price, Outfitting.Items[i].Price);
+        }
     }
 
     [Fact]

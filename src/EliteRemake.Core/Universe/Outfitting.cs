@@ -29,23 +29,36 @@ public static class Outfitting
     /// <summary>The largest fuel tank, in light years.</summary>
     public const int MaxFuel = 70;
 
-    /// <summary>The equipment table, in the original's order.</summary>
+    /// <summary>
+    /// The equipment table, in the original's order, with the disc version's own prices.
+    /// </summary>
+    /// <remarks>
+    /// These are the disc's PRXS table. Its entries are tenths of a credit in the comment's own
+    /// terms — the missile's 300 is "30.0 Cr" — and fuel is the exception: PRXS holds a 1 there
+    /// because its price is worked out in EQSHP as twice the light years, and that doubling is what
+    /// turns it into the table's tenths.
+    ///
+    /// Seven of these used to hold the Elite-A table's prices instead, which differ substantially:
+    /// that build halves the escape pod, the docking computer and the galactic hyperdrive, cuts the
+    /// energy unit and the energy bomb by more than half, and prices the military lasers at less
+    /// than a third.
+    /// </remarks>
     public static readonly EquipmentItem[] Items =
     [
-        new(0, "Fuel", 0),                  // priced per light year
+        new(0, "Fuel", 0),                  // priced per light year, at 2 Cr each
         new(1, "Missile", 300),
         new(2, "Large Cargo Bay", 4000),
         new(3, "E.C.M. System", 6000),
         new(4, "Extra Pulse Lasers", 4000),
         new(5, "Extra Beam Lasers", 10000),
         new(6, "Fuel Scoops", 5250),
-        new(7, "Escape Pod", 1000),
-        new(8, "Energy Bomb", 900),
-        new(9, "Energy Unit", 7000),
-        new(10, "Docking Computer", 7000),
-        new(11, "Galactic Hyperdrive", 30000),
-        new(12, "Extra Military Lasers", 19000),
-        new(13, "Extra Mining Lasers", 2500),
+        new(7, "Escape Pod", 10000),
+        new(8, "Energy Bomb", 9000),
+        new(9, "Energy Unit", 15000),
+        new(10, "Docking Computer", 10000),
+        new(11, "Galactic Hyperdrive", 50000),
+        new(12, "Extra Military Lasers", 60000),
+        new(13, "Extra Mining Lasers", 8000),
     ];
 
     /// <summary>
