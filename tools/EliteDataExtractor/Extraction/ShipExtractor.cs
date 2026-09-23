@@ -35,37 +35,37 @@ internal sealed partial class ShipExtractor
     /// docked code, and notes what happened either way.
     /// </summary>
     /// <remarks>
-    /// The table is not in the ship sources, so it gets its own reader. A missing or ambiguous table
-    /// is a note rather than a failure: the blueprints are what this tool exists to extract, and the
-    /// caller can see from the note whether the flags came through.
+    /// The flags live in the ship blueprint files rather than in the ship sources, so they get their
+    /// own reader. A missing table is a note rather than a failure: the blueprints are what this tool
+    /// exists to extract, and the caller can see from the note whether the flags came through.
     /// </remarks>
     private List<NewbFlagEntry> ReadNewbFlags(List<string> notes)
     {
-        string path = Path.Combine(_libraryRoot, DockedBinaryFile);
-        byte[]? flags = File.Exists(path) ? NewbFlagExtractor.Read(path) : null;
+        string directory = Path.Combine(_libraryRoot, Path.GetDirectoryName(DockedBinaryFile)!);
+        NewbFlagExtractor.Entry[]? flags = NewbFlagExtractor.Read(directory, notes);
 
         if (flags is null)
         {
-            notes.Add("The E% NEWB flag table could not be located unambiguously in the docked code, "
-                + "so per-type flags are absent. The ship type numbers are unaffected.");
             return [];
         }
 
         var entries = new List<NewbFlagEntry>(flags.Length);
-        for (int type = 0; type < flags.Length; type++)
+        foreach (NewbFlagExtractor.Entry entry in flags)
         {
             entries.Add(new NewbFlagEntry
             {
-                Type = type,
-                Flags = flags[type],
-                Bits = Convert.ToString(flags[type], 2).PadLeft(8, '0'),
-                Cop = (flags[type] & NewbFlagExtractor.CopBit) != 0,
+                Type = entry.Type,
+                Flags = entry.Flags,
+                Bits = Convert.ToString(entry.Flags, 2).PadLeft(8, '0'),
+                Cop = (entry.Flags & NewbFlagExtractor.CopBit) != 0,
             });
         }
 
         int cops = entries.Count(e => e.Cop);
-        notes.Add($"E% NEWB flags read from the docked code: {entries.Count} ship types, "
-            + $"{cops} of them carrying the cop flag (types {string.Join(", ", entries.Where(e => e.Cop).Select(e => e.Type))}).");
+        int hostile = entries.Count(e => (e.Flags & 0x04) != 0);
+        notes.Add($"E% NEWB flags: {cops} of the {entries.Count} ship types are cops "
+            + $"({string.Join(", ", entries.Where(e => e.Cop).Select(e => e.Type))}) and {hostile} are hostile "
+            + $"({string.Join(", ", entries.Where(e => (e.Flags & 0x04) != 0).Select(e => e.Type))})");
         return entries;
     }
 

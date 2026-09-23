@@ -295,7 +295,13 @@ public static class SceneFactory
             // The default NEWB flags for this ship type, out of the disc's E% table. The flight loop
             // tests them to decide how much killing this ship raises our legal status, so they have
             // to be stamped on as the ship arrives rather than derived from its AI.
-            ship.NewbFlags = EliteRemake.Data.Ships.ShipData.NewbFlagsFor(ship.Type);
+            //
+            // NWSHP *or's* the table into the flags the ship already carries, having first cleared
+            // bits 4 and 7 — those two describe the ship's own state (it is docking, or it has been
+            // scooped) and are never taken from the table. Assigning instead of or-ing throws away
+            // the hostility a spawner set, so a ship sent out to pick a fight arrives peaceful.
+            byte defaults = EliteRemake.Data.Ships.ShipData.NewbFlagsFor(ship.Type);
+            ship.NewbFlags |= (byte)(defaults & 0b0110_1111);
             if (ship.Speed == 0)
             {
                 ship.Speed = (byte)Math.Min(blueprint.Header.MaxSpeed, 255);

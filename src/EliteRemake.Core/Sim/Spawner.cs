@@ -156,12 +156,16 @@ public static class Spawner
         {
             AiFlag = AiFlag(random),
 
-            // Both spawns are hostile — the original sets bit 2 of NEWB before either branch, with
-            // the comment "set bit 2 of the NEWB flags ... so the ship we are about to spawn is
-            // hostile" — and the flight loop decides whether to fight from that bit rather than from
-            // the AI flag alone. Leaving it clear meant nothing the spawner produced could attack:
-            // every pirate and bounty hunter arrived aggressive but peaceful.
-            NewbFlags = Ship.NewbHostile,
+            // The ship's personality, out of the disc's own E% byte for its type: a pirate hull is
+            // hostile and a Fer-de-lance is a bounty hunter that leaves a clean commander alone.
+            // NWSHP or's this into the ship's flags rather than assigning it, so anything the
+            // spawner set is kept.
+            //
+            // This used to be a flat NewbHostile, on the reading that the original marks both
+            // spawns hostile. It does — in the NES version. On the disc the hostility is the E%
+            // byte's job, and forcing the bit made bounty hunters attack commanders they are
+            // supposed to ignore.
+            NewbFlags = defaults.NewbFlags,
 
             // Everything the blueprint gives a new ship, as NWSHP copies it in: without these the
             // ship arrives inert and either cannot reach us or dies to the first hit
@@ -220,41 +224,42 @@ public readonly record struct BlueprintDefaults(
     byte MaxSpeed,
     byte VisibilityDistance,
     int TargetableArea,
-    int Bounty)
+    int Bounty,
+    byte NewbFlags)
 {
     /// <summary>The defaults for a ship type, or an all-zero set for a type the table does not cover.</summary>
     public static BlueprintDefaults For(int type) => type switch
     {
-        1 => new(44, 2, 44, 14, 1600, 0),   // missile
-        2 => new(0, 240, 0, 120, 25600, 0),   // coriolis
-        3 => new(8, 17, 8, 8, 256, 0),   // escape-pod
-        4 => new(16, 16, 16, 5, 100, 0),   // plate
-        5 => new(15, 17, 15, 12, 400, 0),   // canister
-        6 => new(30, 20, 30, 20, 900, 1),   // boulder
-        7 => new(30, 60, 30, 50, 6400, 5),   // asteroid
-        8 => new(10, 20, 10, 8, 256, 0),   // splinter
-        9 => new(8, 32, 8, 22, 2500, 0),   // shuttle
-        10 => new(10, 32, 10, 16, 2500, 0),   // transporter
-        11 => new(28, 150, 28, 50, 9025, 0),   // cobra-mk-3
-        12 => new(20, 250, 20, 40, 6400, 0),   // python
-        13 => new(24, 250, 24, 40, 4900, 0),   // boa
-        14 => new(14, 252, 14, 50, 10000, 0),   // anaconda
-        16 => new(32, 100, 32, 23, 5625, 0),   // viper
-        17 => new(37, 70, 37, 20, 4225, 50),   // sidewinder
-        18 => new(30, 90, 30, 25, 4900, 150),   // mamba
-        19 => new(30, 80, 30, 25, 3600, 100),   // krait
-        20 => new(24, 85, 24, 23, 2500, 40),   // adder
-        21 => new(30, 70, 30, 18, 9801, 55),   // gecko
-        22 => new(26, 90, 26, 19, 9801, 75),   // cobra-mk-1
-        23 => new(23, 30, 23, 19, 9801, 0),   // worm
-        24 => new(28, 150, 28, 50, 9025, 175),   // cobra-mk-3-p
-        25 => new(40, 150, 40, 40, 3600, 200),   // asp-mk-2
-        26 => new(20, 250, 20, 40, 6400, 200),   // python-p
-        27 => new(30, 160, 30, 40, 1600, 0),   // fer-de-lance
-        28 => new(25, 100, 25, 40, 900, 50),   // moray
-        29 => new(39, 240, 39, 55, 9801, 500),   // thargoid
-        30 => new(30, 20, 30, 20, 1600, 50),   // thargon
-        31 => new(36, 252, 36, 45, 4225, 0),   // constrictor
+        1 => new(44, 2, 44, 14, 1600, 0, 0x00),   // missile
+        2 => new(0, 240, 0, 120, 25600, 0, 0x00),   // coriolis
+        3 => new(8, 17, 8, 8, 256, 0, 0x01),   // escape-pod
+        4 => new(16, 16, 16, 5, 100, 0, 0x00),   // plate
+        5 => new(15, 17, 15, 12, 400, 0, 0x00),   // canister
+        6 => new(30, 20, 30, 20, 900, 1, 0x00),   // boulder
+        7 => new(30, 60, 30, 50, 6400, 5, 0x00),   // asteroid
+        8 => new(10, 20, 10, 8, 256, 0, 0x00),   // splinter
+        9 => new(8, 32, 8, 22, 2500, 0, 0x21),   // shuttle
+        10 => new(10, 32, 10, 16, 2500, 0, 0x61),   // transporter
+        11 => new(28, 150, 28, 50, 9025, 0, 0xA0),   // cobra-mk-3
+        12 => new(20, 250, 20, 40, 6400, 0, 0xA0),   // python
+        13 => new(24, 250, 24, 40, 4900, 0, 0xA0),   // boa
+        14 => new(14, 252, 14, 50, 10000, 0, 0xA1),   // anaconda
+        16 => new(32, 100, 32, 23, 5625, 0, 0xC2),   // viper
+        17 => new(37, 70, 37, 20, 4225, 50, 0x0C),   // sidewinder
+        18 => new(30, 90, 30, 25, 4900, 150, 0x8C),   // mamba
+        19 => new(30, 80, 30, 25, 3600, 100, 0x8C),   // krait
+        20 => new(24, 85, 24, 23, 2500, 40, 0x8C),   // adder
+        21 => new(30, 70, 30, 18, 9801, 55, 0x0C),   // gecko
+        22 => new(26, 90, 26, 19, 9801, 75, 0x8C),   // cobra-mk-1
+        23 => new(23, 30, 23, 19, 9801, 0, 0x04),   // worm
+        24 => new(28, 150, 28, 50, 9025, 175, 0x8C),   // cobra-mk-3-p
+        25 => new(40, 150, 40, 40, 3600, 200, 0x8C),   // asp-mk-2
+        26 => new(20, 250, 20, 40, 6400, 200, 0x8C),   // python-p
+        27 => new(30, 160, 30, 40, 1600, 0, 0x82),   // fer-de-lance
+        28 => new(25, 100, 25, 40, 900, 50, 0x0C),   // moray
+        29 => new(39, 240, 39, 55, 9801, 500, 0x0C),   // thargoid
+        30 => new(30, 20, 30, 20, 1600, 50, 0x04),   // thargon
+        31 => new(36, 252, 36, 45, 4225, 0, 0x04),   // constrictor
         _ => default,   // a type the table does not cover
     };
 }

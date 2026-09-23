@@ -3921,3 +3921,53 @@ game now uses point sampling: the text is crisp and the bars are gone.
   cursor and the save never ran. The modifier is tested before the bare key now.
 - The commander's save file is asked for through one property, so the start screen cannot offer a load
   that then fails for want of a file.
+
+## There were no pirates in the game
+
+**The fault**: the ship types' default NEWB flags were read from the wrong place. The player's sky was
+therefore almost entirely peaceful — a spawned Sidewinder, Mamba, Adder, Gecko, Cobra Mk I, Asp,
+Python (pirate) or Moray arrived with no hostile bit, so the AI's first question ("is this ship
+hostile?") was answered no and it flew off to the planet. Only the Krait and the Constrictor could ever
+pick a fight. **This is the largest gameplay fault found in the port so far**, and every test passed
+while it was there.
+
+**Where the flags actually live.** The loader says so itself:
+
+```
+XX21 = &5600    \ The address of the ship blueprints lookup table, where the chosen ship blueprints file is loaded
+E%   = &563E    \ The address of the default NEWB ship bytes within the loaded ship blueprints file
+```
+
+`E%` is at offset `&563E - &5600 = 62` **inside the ship blueprint file** — exactly where the 31 two-byte
+XX21 entries end — and `NWSHP` reads it as `LDA E%-1,Y`, so type *t* is at offset `62 + t - 1`. Sixteen
+blueprint files each carry a different handful of ships, so the flags for a type come from whichever
+files define it.
+
+**The old reader could not have failed.** It hunted for a distinctive byte pattern in the docked code,
+found one in `T.CODE`, and read 34 bytes from there. But the pattern had been *taken from the bytes it
+found* — it was a description of the answer, not a way of checking it — and the table it produced had
+zeroes for every pirate in the game. This is the same family as the earlier note that a check supplying
+its own inputs cannot find a fault in the thing that supplies them, and it is the most expensive
+instance of it yet.
+
+**The new reader takes the disc at its word** and reads the flags out of the blueprint files, taking
+each type from the files that define it and *checking that they agree*: all sixteen files agree on every
+type they share, covering 29 of the 31 types. The two it cannot cover are the missile, which is not in
+any blueprint file, and the rock hermit, which the disc does not have.
+
+**Two things had to follow it.** `NWSHP` *or's* the table into the flags a ship already carries, having
+first cleared bits 4 and 7, so `ApplyBlueprint` now does the same instead of assigning — assigning threw
+away the hostility a spawner had set. And the spawner was forcing every ship it made to be hostile, on
+the reading that the original marks both spawns that way: it does, **in the NES version**. On the disc
+the E% byte is what decides, which is why a Fer-de-lance (0x82) arrives as a bounty hunter that ignores
+a clean commander rather than as a plain hostile. The simulation's own defaults table now carries the
+disc's byte for each type, so a spawn is right even without the game layer's blueprint lookup.
+
+**Seventeen tests pin it**, thirteen of which fail if the pirate range goes back to zero, and they check
+the shape of the table rather than one number: every pirate hull is hostile, the Fer-de-lance is a
+bounty hunter and *not* hostile, the traders are traders, the two cops are cops and the pirates are not,
+and the simulation's own table agrees with the extracted data.
+
+**Measured after the fix**: flying clear of the station and sitting still, a pack of hostile ships —
+Cobra Mk III (pirate), Mambas, Gecko, Krait, Adder — spawns and closes in, and the energy banks go from
+255 to 1. Before the fix the same run ended at full energy with every ship in the sky marked peaceful.

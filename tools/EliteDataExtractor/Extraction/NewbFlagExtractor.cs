@@ -1,90 +1,162 @@
+using System.Buffers.Binary;
+
 namespace EliteDataExtractor.Extraction;
 
 /// <summary>
-/// Reads the <c>E%</c> table — the default NEWB flags for each ship type — out of the assembled
-/// docked code.
+/// Reads the <c>E%</c> table — the default NEWB flags for each ship type — out of the disc's ship
+/// blueprint files.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <c>E%</c> is a table in the disc's docked segment, and only that segment has it: the flight code
-/// keeps the flags it copies into <c>ROM_E%</c>. So it cannot be read from the ship sources the way
-/// the blueprints can, and its listing is not to be trusted either — the labels in
-/// <c>e_per_cent.asm</c> name the ship on the <em>next</em> row down, which is what made the table
-/// look like it had no entry for the Viper and one for the Splinter instead.
+/// The disc keeps a ship's default NEWB flags in the blueprint file it is loaded from, immediately
+/// after the XX21 lookup table, and the loader's own definitions say so:
+/// </para>
+/// <code>
+/// XX21 = &amp;5600    \ The address of the ship blueprints lookup table, where the chosen ship blueprints file is loaded
+/// E%   = &amp;563E    \ The address of the default NEWB ship bytes within the loaded ship blueprints file
+/// </code>
+/// <para>
+/// So <c>E%</c> is at offset <c>&amp;563E - &amp;5600 = 62</c> in the file, which is exactly where the
+/// 31 two-byte XX21 entries end, and <c>NWSHP</c> reads it as <c>LDA E%-1,Y</c> with Y the ship type —
+/// that is, offset <c>62 + type - 1</c>. There are sixteen blueprint files and each holds a different
+/// handful of ships, so the flags for a type are taken from whichever files actually define it; every
+/// file that defines a type agrees on its flags, which is a fact this reader checks rather than
+/// assumes.
 /// </para>
 /// <para>
-/// The bytes themselves are unambiguous, so this reads them out of the assembled binary instead of
-/// parsing the listing. The block is located by its own distinctive pattern — ten zero bytes then
-/// the Shuttle's <c>%00100001</c> — which occurs once in the docked code.
+/// <b>This used to read somewhere else entirely.</b> The first version of this reader hunted for a
+/// distinctive byte pattern in the docked code, found one, and read from there — but the pattern had
+/// been taken from the bytes it found, so it could never have failed, and the table it produced had
+/// zeroes for every pirate in the game. Nothing hostile could spawn, so the sky was almost entirely
+/// peaceful. The table is now read from the file the game reads it from, and the number of files
+/// consulted, and any disagreement between them, is reported.
 /// </para>
 /// </remarks>
 internal static class NewbFlagExtractor
 {
-    /// <summary>
-    /// The opening of the E% block: ten zero entries, then the Shuttle, Transporter and Cobra Mk III
-    /// flags. The first two bytes alone are not distinctive enough — the pattern has to be long
-    /// enough to occur exactly once in the docked code, which is what makes locating the block
-    /// without the listing's addresses safe.
-    /// </summary>
-    private static readonly byte[] Signature =
-    [
-        0x5E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x21, 0x61, 0xA0, 0xA0, 0x00, 0x00, 0x00, 0xC2, 0x00, 0x00, 0x8C,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    ];
+    /// <summary>The address the ship blueprints file is loaded at, from the loader's own source.</summary>
+    private const int ShipFileBase = 0x5600;
 
+    /// <summary>Where <c>E%</c> sits in the file: the base subtracted from <c>E%</c>'s address.</summary>
+    private const int TableOffset = 0x563E - ShipFileBase;
 
-    /// <summary>
-    /// How far into the signature the table itself begins. Its leading <c>0x5E</c> is the tail of
-    /// the previous slot's XX21 pointer, which is what makes the run distinctive; it happens to be
-    /// the byte the table is read from, because the verified base is the run's own start. The offset
-    /// is kept as a named constant so that changing the signature cannot silently shift the read.
-    /// </summary>
-    private const int SignaturePrefix = 0;
-
-    /// <summary>
-    /// How many entries to read. The disc registers ship types up to 31, and the table runs on to a
-    /// couple of bytes past that.
-    /// </summary>
+    /// <summary>How many ship types the disc registers; XX21 holds one two-byte entry each.</summary>
     public const int EntryCount = 34;
+
+    /// <summary>The highest type the disc's XX21 table covers.</summary>
+    private const int LastType = 31;
 
     /// <summary>The bit that marks a ship as a cop, which the flight loop tests before it decides
     /// how much a kill raises our legal status.</summary>
     public const byte CopBit = 0x40;
 
     /// <summary>
-    /// Finds the table and returns its entries, or null if the pattern is not there or is not unique.
+    /// One ship type's flags, and how many blueprint files agreed on them.
     /// </summary>
-    public static byte[]? Read(string binaryPath)
+    /// <param name="Type">The ship type number, from 1 to 31.</param>
+    /// <param name="Flags">The default NEWB flags for that type.</param>
+    /// <param name="Files">How many blueprint files define this type and carry these flags.</param>
+    public readonly record struct Entry(int Type, byte Flags, int Files);
+
+    /// <summary>
+    /// Reads the flags for every ship type out of the disc's blueprint files.
+    /// </summary>
+    /// <param name="shipFileDirectory">The directory holding the assembled <c>D.MO?</c> files.</param>
+    /// <param name="notes">Collects anything worth telling the caller about.</param>
+    /// <returns>
+    /// One entry per type from 0 to 33, or null if no blueprint file could be read. Types the disc
+    /// does not define come back with zero flags and no files.
+    /// </returns>
+    public static Entry[]? Read(string shipFileDirectory, List<string> notes)
     {
-        byte[] data = File.ReadAllBytes(binaryPath);
-
-        int found = -1;
-        for (int i = 0; i + Signature.Length <= data.Length; i++)
+        if (!Directory.Exists(shipFileDirectory))
         {
-            bool match = true;
-            for (int j = 0; j < Signature.Length; j++)
-            {
-                if (data[i + j] != Signature[j])
-                {
-                    match = false;
-                    break;
-                }
-            }
-
-            if (!match)
-            {
-                continue;
-            }
-
-            found = i;
-        }
-
-        if (found < 0 || found + SignaturePrefix + EntryCount > data.Length)
-        {
+            notes.Add($"The ship blueprint files are not at {shipFileDirectory}, so the default NEWB "
+                + "flags are absent. Ship type numbers are unaffected.");
             return null;
         }
 
-        return data[(found + SignaturePrefix)..(found + SignaturePrefix + EntryCount)];
+        string[] files = Directory.GetFiles(shipFileDirectory, "D.MO?.bin");
+        Array.Sort(files, StringComparer.Ordinal);
+        if (files.Length == 0)
+        {
+            notes.Add($"No D.MO? blueprint files in {shipFileDirectory}, so the default NEWB flags are "
+                + "absent. Ship type numbers are unaffected.");
+            return null;
+        }
+
+        var flags = new byte[LastType + 1];
+        var filesPerType = new int[LastType + 1];
+        var conflicting = new List<string>();
+
+        foreach (string path in files)
+        {
+            byte[] data = File.ReadAllBytes(path);
+            string name = Path.GetFileName(path);
+
+            for (int type = 1; type <= LastType; type++)
+            {
+                if ((type * 2) > data.Length)
+                {
+                    break;
+                }
+
+                int address = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan((type - 1) * 2, 2));
+
+                // An XX21 entry that points nowhere is how a file says "this ship is not one of mine"
+                int offset = address - ShipFileBase;
+                if (address == 0 || offset < 0 || offset > data.Length - 4)
+                {
+                    continue;
+                }
+
+                int position = TableOffset + type - 1;
+                if (position >= data.Length)
+                {
+                    continue;
+                }
+
+                byte value = data[position];
+                if (filesPerType[type] == 0)
+                {
+                    flags[type] = value;
+                }
+                else if (flags[type] != value)
+                {
+                    conflicting.Add($"type {type}: {flags[type]:X2} against {value:X2} in {name}");
+                }
+
+                filesPerType[type]++;
+            }
+        }
+
+        if (conflicting.Count > 0)
+        {
+            notes.Add("The blueprint files disagree about the default NEWB flags for "
+                + string.Join("; ", conflicting)
+                + ". The first file read wins; the table needs looking at.");
+        }
+
+        int defined = 0;
+        for (int type = 1; type <= LastType; type++)
+        {
+            if (filesPerType[type] > 0)
+            {
+                defined++;
+            }
+        }
+
+        notes.Add($"Default NEWB flags read from {files.Length} blueprint files at offset {TableOffset}, "
+            + $"covering {defined} of {LastType} ship types");
+
+        var entries = new Entry[EntryCount];
+        for (int type = 0; type < EntryCount; type++)
+        {
+            entries[type] = type <= LastType
+                ? new Entry(type, flags[type], filesPerType[type])
+                : new Entry(type, 0, 0);
+        }
+
+        return entries;
     }
 }
