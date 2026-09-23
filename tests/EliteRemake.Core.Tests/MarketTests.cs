@@ -554,6 +554,50 @@ public class CombatTests
         Assert.True(target.IsExploding, "a destroyed ship should be exploding");
     }
 
+    /// <summary>
+    /// A pulse laser fires five times a second, which is the original's rate and not the flight
+    /// loop's.
+    /// </summary>
+    /// <remarks>
+    /// LASCT, the pulse counter, is spent by the original's fifty-hertz interrupt rather than by its
+    /// main loop: "It gets decremented every vertical sync (in the LINSCN routine, which is called 50
+    /// times a second) ... so for pulse lasers with a value of 10, that means the laser fires once
+    /// every 10 vertical syncs (or 5 times a second)". Our simulation steps at the main loop's rate,
+    /// so the counter is spent four ticks at a time and the leftover ticks are carried between
+    /// intervals — without the carry, every gap rounds up to a whole iteration and a pulse laser
+    /// fires at four fifths of the original's rate.
+    /// </remarks>
+    [Fact]
+    public void APulseLaserFiresFiveTimesASecond()
+    {
+        var (sim, target) = CreateSim();
+        sim.Commander!.SetLaser(LaserMount.Front, LaserType.Pulse);
+        target.Energy = 255;
+
+        // Count the shots while the laser is still cool enough to fire at its own rate: once it has
+        // heated up it is the temperature that decides, not the pulse counter
+        var shots = new List<int>();
+        for (int i = 0; i < 40; i++)
+        {
+            sim.Step(new FlightInput(Fire: true));
+            if (sim.FiringLaserPower > 0)
+            {
+                shots.Add(i);
+            }
+        }
+
+        double seconds = 40 / FlightSim.IterationsPerSecond;
+        double perSecond = shots.Count / seconds;
+        Assert.InRange(perSecond, 4.5, 5.5);
+
+        // Five a second means one every two and a half iterations, so the gaps alternate three and
+        // two as the leftover ticks carry
+        for (int i = 2; i < shots.Count; i++)
+        {
+            Assert.InRange(shots[i] - shots[i - 1], 2, 3);
+        }
+    }
+
     [Fact]
     public void LasersOverheatAndThenStopFiring()
     {

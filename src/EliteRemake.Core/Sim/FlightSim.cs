@@ -1693,11 +1693,15 @@ public sealed class FlightSim
         LaserType laser = Commander?.GetLaser(ActiveMount) ?? LaserType.Pulse;
         int power = Combat.Power(laser);
 
-        if (input.Fire && power > 0 && LaserCooldown == 0 && LaserTemperature < Combat.OverheatTemperature)
+        // The pulse counter counts the original's fifty-hertz ticks, which do not divide evenly into
+        // our iterations, so what is left over is carried into the next interval rather than thrown
+        // away: a ten-tick laser is one shot every two and a half iterations, and rounding that to
+        // three or four would make it fire at four fifths of the original's rate.
+        if (input.Fire && power > 0 && LaserCooldown <= 0 && LaserTemperature < Combat.OverheatTemperature)
         {
             FiringLaserPower = power;
             LaserTemperature = Math.Min(255, LaserTemperature + Combat.HeatPerShot);
-            LaserCooldown = Combat.FireInterval(laser);
+            LaserCooldown += Combat.FireInterval(laser);
 
 
 
@@ -1746,7 +1750,12 @@ public sealed class FlightSim
 
         if (LaserCooldown > 0)
         {
-            LaserCooldown--;
+            // The pulse counter counts the original's fifty-hertz ticks, not iterations, so it is
+            // spent four at a time: a pulse laser fires five times a second whatever the flight
+            // loop is doing, which is what the original's LINSCN gives it. It is allowed to go
+            // negative — the overshoot is what carries the leftover ticks into the next interval,
+            // and clamping it here rounds every gap up to a whole iteration.
+            LaserCooldown -= Combat.LaserTicksPerIteration;
         }
 
         // The laser cools by one degree a frame, as the original's main game loop does

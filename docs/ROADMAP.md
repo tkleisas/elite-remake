@@ -4212,3 +4212,38 @@ twice — once as a tested helper and once written out by hand at the place that
 That last one corrects an earlier entry in this file. A previous round recorded Mvt6 as the cause of the
 station's wobble and "fixed" it there; since nothing calls it, that change cannot have been what improved
 the measurement — the integer rotation was. Mvt6 and its tests now say plainly that they are superseded.
+
+## The pulse laser fired at four fifths of the original's rate
+
+**The game does not have one clock, and this is the second place that matters.** The main loop runs at
+whatever the machine manages — about twelve and a half iterations a second on a BBC in ordinary flight —
+but the laser's pulse counter, `LASCT`, is spent by the **fifty-hertz video interrupt**:
+
+> "It gets decremented every vertical sync (in the LINSCN routine, which is called 50 times a second) ...
+> so for pulse lasers with a value of 10, that means the laser fires once every 10 vertical syncs (or 5
+> times a second)"
+
+Our simulation steps at the main loop's rate, so a counter of 10 spent one per iteration gave a shot
+every 10 iterations — 0.8 seconds, **1.25 shots a second instead of 5**.
+
+**The Electron version had already solved this problem in its own source**, and its solution is the
+right one for us: it decrements the same counter *"by 4 on each iteration around the main game loop"*,
+because its loop runs at a quarter of the sync rate. Ours is a quarter of it too, so the counter is now
+spent four ticks at a time.
+
+**And the leftover ticks have to be carried.** Ten ticks is two and a half iterations, which is not a
+whole number, so the counter is allowed to go *negative* and the overshoot is added to the next interval.
+Clamping it at zero — which is what the first attempt did — rounds every gap up to a whole iteration and
+gives a pulse laser a shot every four iterations, or three and a fifth a second. With the carry, the gaps
+come out as 3, 2, 3, 2 and the rate is exact.
+
+**Verified by counting shots**: forty iterations of held fire give a shot on iterations 0, 3, 5, 8, 10,
+13, 15, 18 — **five a second** — while a beam laser fires on every iteration until the temperature stops
+it. The heat of 8 a shot, the cooling of 1 an iteration and the 242-degree cut-off were already right,
+and are what decide the *sustained* rate: a beam laser runs hot after about thirty-five iterations and
+then fires only as fast as it cools.
+
+**A measurement of mine was wrong again on the way here**, which is why the fix looked like it had done
+nothing: counting shots over 250 iterations measures the temperature curve, not the pulse rate, and gave
+3.1 a second both before and after. Counting the first forty iterations, where the laser is still cool,
+is what shows the counter's own rate.

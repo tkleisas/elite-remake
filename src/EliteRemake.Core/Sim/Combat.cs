@@ -54,15 +54,31 @@ public static class Combat
     };
 
     /// <summary>
-    /// How many frames a laser must wait between shots. The original stores the laser power masked
-    /// with %11111010 in LASCT and refuses to fire while it is non-zero, which gives a pulse laser
-    /// a ten-frame gap and lets beam and military lasers fire continuously.
+    /// How long a laser must wait between shots, in ticks of the original's fifty-hertz clock.
     /// </summary>
+    /// <remarks>
+    /// The original stores the laser power masked with %11111010 in LASCT and refuses to fire while
+    /// it is non-zero, which gives a pulse laser a ten-tick gap and lets beam and military lasers
+    /// fire continuously. **LASCT is not a main loop counter**: it is decremented in LINSCN, which
+    /// runs on the vertical sync, "50 times a second" — so a pulse laser fires every 10/50 of a
+    /// second, five times a second, however fast or slow the flight loop is running. The Electron
+    /// version makes the same adaptation in its own source, decrementing it "by 4 on each iteration
+    /// around the main game loop" because its loop is a quarter of the sync rate.
+    /// </remarks>
     public static int FireInterval(LaserType type) => type switch
     {
         LaserType.Pulse => LaserRawByte(LaserType.Pulse) & 0b11111010,
         _ => 0,
     };
+
+    /// <summary>
+    /// How many ticks of the original's fifty-hertz clock pass in one iteration of the main loop.
+    /// </summary>
+    /// <remarks>
+    /// Fifty hertz divided by the loop rate. LASCT counts these ticks, so a counter that is spent one
+    /// per iteration — as ours was — makes a pulse laser fire four times too slowly.
+    /// </remarks>
+    public const int LaserTicksPerIteration = 4;
 
     /// <summary>The raw byte the original stores in the commander's LASER array for a laser type.</summary>
     public static int LaserRawByte(LaserType type) => type switch
