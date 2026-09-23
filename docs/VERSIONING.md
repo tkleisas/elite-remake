@@ -54,8 +54,8 @@ git push origin master --follow-tags
 |---|---|
 | `check` | a tag that is not `v<Version>` from `Directory.Build.props`, or a version with no `## [x.y.z]` section in the changelog |
 | `test` | a release whose tests are red |
-| `package` | a platform whose build does not publish: self-contained `linux-x64`, `win-x64`, `osx-x64`, `osx-arm64` |
-| `release` | — it creates (or updates) the GitHub release, attaches the four archives and a `SHA256SUMS` file, and takes the notes from that changelog section. A tag with a suffix, such as `v1.1.0-rc.1`, is published as a pre-release |
+| `package` | a platform whose build does not publish: self-contained `win-x64` and `linux-x64` |
+| `release` | — it creates (or updates) the GitHub release, attaches the two archives and a `SHA256SUMS` file, and takes the notes from that changelog section. A tag with a suffix, such as `v1.1.0-rc.1`, is published as a pre-release |
 
 The workflow can also be run by hand with `workflow_dispatch` and a tag name, which rebuilds an
 existing release rather than making a new one.

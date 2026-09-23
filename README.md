@@ -104,7 +104,8 @@ The engineering log, round by round, with the mistakes and how they were found, 
 Requirements:
 
 - **[.NET 10 SDK](https://dotnet.microsoft.com/download)** (built and tested with 10.0.112)
-- A GPU with OpenGL 3.0+ — MonoGame DesktopGL, on Windows, Linux or macOS
+- A GPU with OpenGL 3.0+ — MonoGame DesktopGL, on Windows or Linux (macOS builds and is tested in
+  CI, but no release artifact is published for it)
 - Nothing else: the ship data, the token tables and the font are embedded in the assemblies
 
 ```bash
@@ -116,8 +117,8 @@ dotnet test  tests/EliteRemake.Core.Tests        # 412 tests, about 20 seconds
 dotnet run --project src/EliteRemake.Game        # play
 ```
 
-Prefer a binary? Every release carries self-contained builds for Linux, Windows and macOS (Intel and
-Apple silicon) — no .NET installation needed:
+Prefer a binary? Every release carries self-contained builds for Windows and Linux — no .NET
+installation needed:
 
 <https://github.com/tkleisas/elite-remake/releases/latest>
 
@@ -290,7 +291,7 @@ The pipeline does the rest:
 | Workflow | When | What it does |
 |---|---|---|
 | [`ci.yml`](.github/workflows/ci.yml) | every push and pull request | builds and runs the 412 tests on Linux, Windows and macOS, then publishes the Linux build, runs the game under a virtual display and checks it reported its version and drew a frame |
-| [`release.yml`](.github/workflows/release.yml) | pushing a `v*` tag | checks the tag matches `<Version>` and that the changelog has an entry for it, runs the tests, builds self-contained artifacts for `linux-x64`, `win-x64`, `osx-x64` and `osx-arm64`, and publishes them to a GitHub release with a `SHA256SUMS` file |
+| [`release.yml`](.github/workflows/release.yml) | pushing a `v*` tag | checks the tag matches `<Version>` and that the changelog has an entry for it, runs the tests, builds self-contained artifacts for Windows (`win-x64`) and Linux (`linux-x64`), and publishes them to a GitHub release with a `SHA256SUMS` file |
 
 So a release is one command, after the version and the changelog are committed:
 
