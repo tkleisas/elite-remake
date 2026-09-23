@@ -269,6 +269,41 @@ public class GameLoopTests
     }
 
     /// <summary>
+    /// The simulation follows us from system to system, which the mission rules depend on.
+    /// </summary>
+    /// <remarks>
+    /// <c>Flight.System</c> was set in exactly one place — loading a commander — so after any jump the
+    /// simulation still believed it was in the system we had left. The mission rules read it when they
+    /// decide whether to put the Constrictor in the sky, so even with the galaxy right the Constrictor
+    /// would not appear in its own system after flying there.
+    /// </remarks>
+    [Fact]
+    public void TheSimulationFollowsUsFromSystemToSystem()
+    {
+        GameSession session = NewSession();
+        Assert.Equal(session.System.Name, session.Flight.System?.Name);
+
+        // Jump somewhere and check the simulation came too
+        StarSystem target = NearestReachable(session);
+        session.SelectedSystem = target;
+        Assert.True(session.StartHyperspace());
+        Assert.True(CompleteJump(session));
+
+        Assert.Equal(target.Name, session.System.Name);
+        Assert.Equal(target.Name, session.Flight.System?.Name);
+
+        // And a galactic jump, where both the system and the galaxy change
+        session.Commander.GalacticHyperdrive = true;
+        Assert.True(session.UseGalacticHyperdrive());
+
+        Assert.Equal(session.System.Name, session.Flight.System?.Name);
+        Assert.Equal(session.Commander.GalaxyNumber, session.Flight.GalaxyNumber);
+        Assert.Equal(
+            Galaxy.GalaxySeeds(session.Commander.GalaxyNumber),
+            session.Flight.GalaxySeeds);
+    }
+
+    /// <summary>
     /// The whole of mission 1, flown: offered, accepted, found, killed, and paid at the debriefing.
     /// </summary>
     /// <remarks>
@@ -469,6 +504,12 @@ public class GameLoopTests
     public void AReleasedWormJoinsTheBubble()
     {
         GameSession session = NewSession();
+
+        // The spawner off, so the only ship that can appear is the one the Anaconda releases. It has
+        // to be said explicitly now that the simulation knows which system it is in and will otherwise
+        // fill the sky with ordinary traffic as well.
+        session.Flight.SpawningEnabled = false;
+
         var anaconda = Ship.Create(Tactics.AnacondaType, "anaconda", "Anaconda", 0, 0, 0, 3000, 0);
         Assert.True(session.Flight.Spawn(anaconda));
 

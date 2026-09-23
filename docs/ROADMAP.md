@@ -3717,3 +3717,35 @@ system, which had been the most heavily tested area of the codebase.
 **What this says about the test suite, honestly.** There are 292 tests and the mission system has a
 dozen of them. The gap is structural rather than a matter of coverage: **a test that calls a rule's
 methods directly proves the rule and proves nothing about whether the game calls them.**
+
+## The simulation only followed us on a load, so the Constrictor would not appear after flying there
+
+Last round gave the simulation the missions and the galaxy. Auditing the same class of fault across
+every piece of `FlightSim`'s state found the third gap, and it is the one that would have kept mission 1
+broken *after* that fix.
+
+**`Flight.System` was set in exactly one place** — `Load`, when a commander is read from a save. So after
+a hyperspace jump the simulation still believed it was in the system we had left. The mission rules read
+`Flight.System` to decide whether to put the Constrictor in the sky, so even with the galaxy now right, a
+commander who *flew* to Orarra rather than loading a save there would find nothing.
+
+**Which is exactly what the mission test does** — it loads, so it passed. The kind of flight a player
+makes is the kind that was broken.
+
+**One method now keeps them in step**, called from the constructor, from `Load`, from a completed
+hyperspace jump and from a galactic jump, instead of three hand-written lines in one of four places. The
+audit found that three of the four exits from a system changed it; the fourth was the one that had been
+written.
+
+**The test walks all four**: it checks the simulation's system at the start, after a hyperspace jump, and
+after a galactic jump, along with the galaxy and its seeds. Reverting the jump sync fails it.
+
+**And one test needed the spawner turning off**, which is itself a sign the wiring is now real: with the
+simulation knowing its system, `AReleasedWormJoinsTheBubble` began filling the sky with ordinary traffic
+before the Anaconda could release anything, so the ship it found was a boulder. The test now says
+`SpawningEnabled = false` and is about what it was always about.
+
+**Six of the seven faults in this family have now been state that one part of the port set and another
+never received**, and all six were invisible to a suite of nearly three hundred tests. The pattern worth
+carrying forward: **when a class holds a reference to another class, ask who assigns it — and then ask
+everywhere the thing it refers to can change.**

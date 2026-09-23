@@ -83,6 +83,24 @@ public sealed class GameSession
         // was uncompletable in the game, though every mission test passed because they call the mission
         // rules directly rather than flying to the system.
         Flight.Missions = Missions;
+        SyncSimulationToUniverse();
+    }
+
+    /// <summary>
+    /// Tells the simulation which system and galaxy we are in.
+    /// </summary>
+    /// <remarks>
+    /// The mission rules are stated in terms of both — the Constrictor is in its own galaxy, the plans
+    /// and their delivery in another — and the simulation reads them when it decides whether to spawn a
+    /// mission ship. Keeping the two in step was being done by hand, in one place out of four: the
+    /// simulation kept the system it was loaded with, so after a jump the Constrictor would not appear
+    /// in its own system even once the galaxy was right.
+    /// </remarks>
+    private void SyncSimulationToUniverse()
+    {
+        Flight.System = System;
+        Flight.GalaxyNumber = Commander.GalaxyNumber;
+        Flight.GalaxySeeds = Universe.Galaxy.GalaxySeeds(Commander.GalaxyNumber);
     }
 
     /// <summary>The commander.</summary>
@@ -192,6 +210,7 @@ public sealed class GameSession
         System = SelectedSystem;
         Visit++;
         Market = Universe.Market.Build(System, _random.Next());
+        SyncSimulationToUniverse();
 
         // Arriving somewhere new improves our record: the original's SOLAR halves our legal status
         // with an LSR every time we arrive in a system, so a commander who lies low and keeps
@@ -323,8 +342,7 @@ public sealed class GameSession
         SelectedSystem = System;
 
         // The simulation has to follow, or the mission rules would still be looking in the old galaxy
-        Flight.GalaxyNumber = Commander.GalaxyNumber;
-        Flight.GalaxySeeds = Galaxy.GalaxySeeds(Commander.GalaxyNumber);
+        SyncSimulationToUniverse();
 
         Market = Universe.Market.Build(System, _random.Next());
         Message = $"Galactic hyperspace: arrived in galaxy {Commander.GalaxyNumber + 1}, {System.Name} system.";
@@ -478,9 +496,7 @@ public sealed class GameSession
         // are in another. This was never set anywhere, so the simulation always believed it was in
         // galaxy 1 and the Constrictor could never appear — mission 1 was uncompletable, which no test
         // covered because they set the mission state by hand rather than flying to the system.
-        Flight.System = System;
-        Flight.GalaxyNumber = commander.GalaxyNumber;
-        Flight.GalaxySeeds = Universe.Galaxy.GalaxySeeds(commander.GalaxyNumber);
+        SyncSimulationToUniverse();
     }
 
     /// <summary>Docks at the station.</summary>
