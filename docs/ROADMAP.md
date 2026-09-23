@@ -1857,8 +1857,20 @@ to a four-byte stride gives the Viper at 16, which also matches ours. The two re
 data on different entries, so they cannot both be right, and picking one to make the numbers line up
 would be exactly the kind of reasoning that has produced the last thirteen faults.
 
-**So it stays open**, with the Viper marked as the cop by type as a documented approximation. What
-would settle it is a disassembly of the disc's `ROM_E%` as the loader actually builds it, or the
-`E%` block read out of the disc image rather than out of the source listing — either of which is a
-better use of a round than guessing at the alignment. The remaining difference is narrow: only the
-Transporter's cop status and any ship not on the list at all.
+**Settled, and the answer was where the bytes are.** The table is read out of the assembled docked
+code by the extractor into `data/ships.json`, and where it starts was decided by the ship registry
+rather than by reading addresses out of the listing: trying every candidate offset and asking which
+one puts the source's own flag values on the type numbers `xx21.asm` registers them at gives
+**exactly one answer**, at 0x445A — the Shuttle at 9, Transporter at 10, Cobra Mk III at 11, Python at
+12, Viper at 16, Krait at 19 and Constrictor at 31 all landing together, which no neighbouring offset
+does. It also agrees with the disc's own symbol for the Viper, `COPS`.
+
+**The cops are the Transporter and the Viper**, and the game now tests that list. The earlier
+single-Viper approximation was right about the ship that comes after you and wrong about the other.
+
+**What took the time is worth recording.** The listing's labels really are offset from its values —
+the row that says "Transporter" carries the Shuttle's flags — so reading the labels as authoritative
+gives one answer and reading the values gives another, and the two agreed with our type numbers on
+different entries. Neither reading is trustworthy; the registry is. The lesson is the same one the
+faults have been teaching all session: when two sources disagree, find a third that can arbitrate
+rather than choosing the one that fits.

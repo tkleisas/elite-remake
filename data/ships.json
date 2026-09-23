@@ -20254,6 +20254,212 @@
       ]
     }
   ],
+  "newbFlags": [
+    {
+      "type": 0,
+      "flags": 94,
+      "bits": "01011110",
+      "cop": true
+    },
+    {
+      "type": 1,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 2,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 3,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 4,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 5,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 6,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 7,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 8,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 9,
+      "flags": 33,
+      "bits": "00100001",
+      "cop": false
+    },
+    {
+      "type": 10,
+      "flags": 97,
+      "bits": "01100001",
+      "cop": true
+    },
+    {
+      "type": 11,
+      "flags": 160,
+      "bits": "10100000",
+      "cop": false
+    },
+    {
+      "type": 12,
+      "flags": 160,
+      "bits": "10100000",
+      "cop": false
+    },
+    {
+      "type": 13,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 14,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 15,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 16,
+      "flags": 194,
+      "bits": "11000010",
+      "cop": true
+    },
+    {
+      "type": 17,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 18,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 19,
+      "flags": 140,
+      "bits": "10001100",
+      "cop": false
+    },
+    {
+      "type": 20,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 21,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 22,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 23,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 24,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 25,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 26,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 27,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 28,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 29,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 30,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 31,
+      "flags": 140,
+      "bits": "10001100",
+      "cop": false
+    },
+    {
+      "type": 32,
+      "flags": 0,
+      "bits": "00000000",
+      "cop": false
+    },
+    {
+      "type": 33,
+      "flags": 144,
+      "bits": "10010000",
+      "cop": false
+    }
+  ],
   "notes": [
     "SHIP_PLATE: face number(s) 15 exceed this ship\u0027s 1 face(s) (16 vertex reference(s), 8 edge reference(s)); face 15 is the original\u0027s always-visible pseudo-face (LL9 sets XX2\u002B15 = 255), so these references are intentional.",
     "SHIP_PYTHON: the docked ship hangar (T.CODE) uses a different blueprint (vertex[1].visibility 31 != 30); it is emitted as dockedVariant.",
@@ -20263,6 +20469,7 @@
     "SHIP_TRANSPORTER: the docked ship hangar (T.CODE) uses a different blueprint (normalScale 2 != 1); it is emitted as dockedVariant.",
     "SHIP_CONSTRICTOR: the docked ship hangar (T.CODE) uses a different blueprint (scoopMarketItem 0 != 16); it is emitted as dockedVariant.",
     "SHIP_SHUTTLE: the docked ship hangar (T.CODE) uses a different blueprint (vertex[0].y -17 != -35); it is emitted as dockedVariant.",
-    "Ship type(s) 15 are not registered in any XX21 table in the disc version."
+    "Ship type(s) 15 are not registered in any XX21 table in the disc version.",
+    "E% NEWB flags read from the docked code: 34 ship types, 3 of them carrying the cop flag (types 0, 10, 16)."
   ]
 }

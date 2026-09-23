@@ -17,7 +17,30 @@ internal sealed class ShipDataDocument
 
     public List<ShipDocument> Ships { get; init; } = [];
 
+    /// <summary>
+    /// The disc's <c>E%</c> table: the default NEWB flags of each ship type, read from the assembled
+    /// docked code. Kept as raw bytes with a note explaining the bits, because the bits are what the
+    /// flight code tests and the table is short.
+    /// </summary>
+    public List<NewbFlagEntry> NewbFlags { get; init; } = [];
+
     public List<string> Notes { get; init; } = [];
+}
+
+/// <summary>One ship type's default NEWB flags from the disc's <c>E%</c> table.</summary>
+internal sealed class NewbFlagEntry
+{
+    /// <summary>The ship type number the entry is indexed by.</summary>
+    public required int Type { get; init; }
+
+    /// <summary>The flags byte.</summary>
+    public required int Flags { get; init; }
+
+    /// <summary>The flags as eight binary digits, which is how the original's comments show them.</summary>
+    public required string Bits { get; init; }
+
+    /// <summary>True when this type carries the cop flag, so killing one makes us a fugitive.</summary>
+    public required bool Cop { get; init; }
 }
 
 internal sealed class ShipDataSource

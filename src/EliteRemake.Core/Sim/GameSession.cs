@@ -486,14 +486,23 @@ public sealed class GameSession
     }
 
     /// <summary>
-    /// The one ship type that carries the original's cop flag, whose kill makes us a fugitive.
+    /// The ship types carrying the original's cop flag, whose destruction makes us a fugitive.
     /// </summary>
     /// <remarks>
-    /// The original takes this from bit 6 of the ship's NEWB flags rather than from a list of types,
-    /// and the flag comes from the E% table that only the docked segment can reach. The Viper is the
-    /// ship the table marks as a cop and the one the station sends after us, so it is the type that
-    /// matters here; the full table would be the better source and is recorded as an open item.
+    /// <para>
+    /// The original takes this from bit 6 of a ship's NEWB flags, whose defaults are the disc's
+    /// <c>E%</c> table. That table is read out of the assembled docked code by the data extractor
+    /// into <c>data/ships.json</c>, and the two types it marks are the Transporter and the Viper —
+    /// which agrees with the disc's own symbol for the Viper, <c>COPS</c>.
+    /// </para>
+    /// <para>
+    /// The list is written out here rather than looked up because the core has no dependency on the
+    /// data files; the extractor's output is what it was checked against.
+    /// </para>
     /// </remarks>
+    public static readonly int[] CopTypes = [10, 16];
+
+    /// <summary>The first cop type, for callers that want a single number: the Viper.</summary>
     public const int CopType = 16;
 
     /// <summary>True once the commander has been killed.</summary>
@@ -529,7 +538,7 @@ public sealed class GameSession
         // killing a cop raises our legal status to at least 64 with an ORA, which makes us a
         // fugitive at once, and any other kill adds exactly 1 — so it takes fifty innocent kills to
         // become a fugitive by degrees, where a single cop does it outright.
-        if (destroyed.Type == CopType)
+        if (CopTypes.Contains(destroyed.Type))
         {
             Commander.LegalStatus = Math.Min(255, Commander.LegalStatus | Commander.CopKillStatus);
         }
