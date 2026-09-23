@@ -111,12 +111,7 @@ public sealed class TextRenderer : IDisposable
         int availableWidth,
         Color colour)
     {
-        int width = Measure(text, scale).X;
-        if (width > availableWidth && width > 0)
-        {
-            scale = Math.Max(1, (scale * availableWidth) / width);
-        }
-
+        scale = EliteRemake.Core.Text.HintLine.Fit(text.Length, scale, CellWidth(scale), availableWidth);
         Draw(spriteBatch, text, x, y, scale, colour);
     }
 

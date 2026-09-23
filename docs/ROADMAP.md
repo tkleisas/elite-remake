@@ -1351,3 +1351,32 @@ fixes it; the helper is there so a long hint in future cannot silently clip.
 
 The `O CONTROLS` hint on the status screen was also missing from its footer, which is how the
 settings screen is reached, so that was added while the line was being rewritten.
+
+## Every ship model rendered and looked at
+
+The docked screens were swept at a small window size and one fault turned up, so the 3D models were
+swept the same way: all **31 blueprints** rendered in the ship viewer at a fixed heading and pitch,
+laid out as a contact sheet, and looked at.
+
+**There are no faults to report.** Every blueprint draws as a solid body; none is blank, inverted or
+collapsed, and the sizes vary the way the blueprints do — the missile and the splinter are slivers,
+the Coriolis and the Dodo are the two big polyhedra, the Thargoid and the Thargon are recognisably
+themselves. The viewer frames each ship by scaling its distance to the model's radius, so the sheet is
+comparing shapes rather than sizes, which is what makes a collapsed or inverted face stand out.
+
+This is a weak form of check — a contact sheet at 320x240 cannot judge fine geometry — but it is the
+check that would catch a blueprint whose faces had stopped reconstructing, which is the failure the
+mesh builder is most exposed to and the one no unit test covers.
+
+## The hint-fitting rule moved to the core, and got tests
+
+The scaling rule behind last round's footer fix was arithmetic in the renderer, where nothing could
+reach it. It is `HintLine.Fit` in the core now, with four tests: a hint that fits is left alone, one
+that does not is scaled to the largest size that does, one that cannot fit at any scale stays at one
+rather than vanishing, and degenerate inputs do not divide by zero.
+
+The floor of one is the interesting part and is now recorded where the rule lives: a line too small
+to read is *worse* than one that is cut off, because a cut-off line can still be recognised. Keeping
+the floor means the real answer to a hint that does not fit is to write a shorter hint, which is what
+the screens now do — the helper exists so that a future long hint cannot clip silently, not so that
+hints can be as long as they like.

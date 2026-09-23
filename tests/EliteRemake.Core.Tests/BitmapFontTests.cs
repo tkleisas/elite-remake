@@ -104,6 +104,57 @@ public class BitmapFontTests
 /// you may be told something different — so these tests check the machinery and the vocabulary
 /// rather than pinning an exact sentence.
 /// </remarks>
+/// <summary>
+/// The rule that keeps a footer line of key hints inside the view.
+/// </summary>
+public class HintLineTests
+{
+    /// <summary>A hint that already fits is left at the scale it asked for.</summary>
+    [Fact]
+    public void AHintThatFitsIsNotShrunk()
+    {
+        // 40 characters at 16 pixels a cell is 640 pixels, in 640
+        Assert.Equal(2, HintLine.Fit(length: 40, scale: 2, cellWidth: 16, availableWidth: 640));
+        Assert.Equal(3, HintLine.Fit(length: 20, scale: 3, cellWidth: 24, availableWidth: 640));
+    }
+
+    /// <summary>One that does not fit is scaled down to the largest scale that does.</summary>
+    [Fact]
+    public void AHintThatDoesNotFitIsShrunkToTheLargestScaleThatDoes()
+    {
+        // 84 characters is the market screen's hint, which is what prompted this: at 16 pixels a
+        // cell that is 1344 pixels, more than twice the 640 it has, so it halves
+        Assert.Equal(1, HintLine.Fit(length: 84, scale: 2, cellWidth: 16, availableWidth: 640));
+
+        // A gentler overrun keeps more of the scale
+        Assert.Equal(2, HintLine.Fit(length: 50, scale: 3, cellWidth: 24, availableWidth: 1000));
+    }
+
+    /// <summary>
+    /// A hint that cannot fit at any scale stays at one rather than vanishing or going to zero.
+    /// </summary>
+    /// <remarks>
+    /// The floor is deliberate. A line too small to read is worse than one that is cut off, because
+    /// a cut-off line can still be recognised - and keeping the floor means the answer to a hint
+    /// that does not fit is to write a shorter hint, which is what the screens now do.
+    /// </remarks>
+    [Fact]
+    public void AHintThatCannotFitStaysAtScaleOne()
+    {
+        Assert.Equal(1, HintLine.Fit(length: 200, scale: 2, cellWidth: 16, availableWidth: 640));
+        Assert.Equal(1, HintLine.Fit(length: 84, scale: 4, cellWidth: 32, availableWidth: 400));
+    }
+
+    /// <summary>Degenerate inputs give a usable scale rather than dividing by zero.</summary>
+    [Fact]
+    public void EmptyInputsDoNotDivideByZero()
+    {
+        Assert.Equal(2, HintLine.Fit(length: 0, scale: 2, cellWidth: 16, availableWidth: 640));
+        Assert.Equal(2, HintLine.Fit(length: 40, scale: 2, cellWidth: 0, availableWidth: 640));
+        Assert.Equal(2, HintLine.Fit(length: 40, scale: 2, cellWidth: 16, availableWidth: 0));
+    }
+}
+
 public class DescriptionTests
 {
     [Fact]
