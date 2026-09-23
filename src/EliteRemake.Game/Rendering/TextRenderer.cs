@@ -93,6 +93,33 @@ public sealed class TextRenderer : IDisposable
         }
     }
 
+    /// <summary>
+    /// Draws a footer line of key hints, shrinking it to fit the view if it would overrun.
+    /// </summary>
+    /// <remarks>
+    /// The original's screens put their key hints across the bottom in a fixed 256-pixel width, and
+    /// this remake's hints are longer than the original's because there are more of them. Scaling to
+    /// fit keeps them all readable at a small window instead of running the last few off the edge,
+    /// which is what they used to do.
+    /// </remarks>
+    public void DrawHintLine(
+        SpriteBatch spriteBatch,
+        string text,
+        int x,
+        int y,
+        int scale,
+        int availableWidth,
+        Color colour)
+    {
+        int width = Measure(text, scale).X;
+        if (width > availableWidth && width > 0)
+        {
+            scale = Math.Max(1, (scale * availableWidth) / width);
+        }
+
+        Draw(spriteBatch, text, x, y, scale, colour);
+    }
+
     /// <summary>Draws a string centred horizontally within the given width.</summary>
     public void DrawCentred(SpriteBatch spriteBatch, string text, int centreX, int y, int scale, Color colour) =>
         Draw(spriteBatch, text, centreX - (Measure(text, scale).X / 2), y, scale, colour);

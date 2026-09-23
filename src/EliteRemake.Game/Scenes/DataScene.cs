@@ -195,12 +195,13 @@ public sealed class DataScene : IScene
         y += cellHeight * 2;
         _text.Draw(spriteBatch, _session.Message, left + cellWidth, y, scale, Palette.Cyan);
         y += cellHeight;
-        _text.Draw(
+        _text.DrawHintLine(
             spriteBatch,
-            "F1 SHORT CHART   F2 LONG CHART   H HYPERSPACE   ESC BACK",
+            "F1/F2 CHARTS   H HYPERSPACE   ESC BACK",
             left + cellWidth,
             y,
             scale,
+            (int)Camera.ViewportWidth - (left + cellWidth) - 8,
             dim);
 
         spriteBatch.End();

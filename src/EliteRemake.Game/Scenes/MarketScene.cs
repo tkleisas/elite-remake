@@ -187,7 +187,7 @@ public sealed class MarketScene : IScene
         y += cellHeight;
         _text.Draw(spriteBatch, _session.Message, left, y, scale, Palette.Cyan);
         y += cellHeight;
-        _text.Draw(spriteBatch, "1-0 SELECT  B BUY  S SELL  E EQUIPMENT  F1/F2 CHARTS  F3 DATA  F8 STATUS  ESC LAUNCH", left, y, scale, new Color(120, 128, 140));
+        _text.DrawHintLine(spriteBatch, "1-0 SELECT  B BUY  S SELL  E EQUIP  F1-F3 SCREENS  F8 STATUS  ESC LAUNCH", left, y, scale, (int)Camera.ViewportWidth - left - 8, new Color(120, 128, 140));
 
         spriteBatch.End();
     }

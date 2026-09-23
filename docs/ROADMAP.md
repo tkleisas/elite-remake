@@ -1330,3 +1330,24 @@ from a line height, and the glyphs then did not fit inside the line height that 
 line height now follows from the scale — `CellHeight(scale)` plus a little leading — rather than the
 other way round. Both were caught by rendering the screen at 640x480 and looking at it, which is the
 only way either would have been noticed: neither is a fault any test would reach for.
+
+## A sweep of every docked screen at a small window
+
+The settings screen had two faults that only showed at 640x480 — it ran off the top, and then its
+rows overlapped — so every other docked screen was rendered at that size and looked at. Seven of
+them: the market, the equipment shop, the status and inventory, Data on System, both charts, and the
+settings screen itself.
+
+**They were all laid out soundly.** The heading, the data and the footer sit inside the view at
+640x480 on every one, and the short-range chart's fuel circle scales with the window as it should.
+
+**One fault was shared.** Every screen's footer line of key hints ran off the right edge, because
+this remake's hints are longer than the original's — the market's ran to eighty-four characters,
+which cannot be drawn legibly at 640 pixels whatever scale is chosen, so a scaling helper alone
+would have shrunk it to unreadable rather than fixing it. Two things were done instead: the hints
+are now as terse as the original's own ("F1-F3 SCREENS" rather than naming each screen), and
+`TextRenderer.DrawHintLine` scales a hint down if it still overruns. The terse text is what actually
+fixes it; the helper is there so a long hint in future cannot silently clip.
+
+The `O CONTROLS` hint on the status screen was also missing from its footer, which is how the
+settings screen is reached, so that was added while the line was being rewritten.
