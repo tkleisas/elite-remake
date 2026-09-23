@@ -265,6 +265,28 @@ public sealed class FlightSim
     /// <summary>The missions, which decide whether the Constrictor or extra Thargoids appear.</summary>
     public Missions? Missions { get; set; }
 
+    /// <summary>
+    /// Spawns a ship of a given type ahead of us, as the original's GTHG does for the Thargoids that
+    /// wait in witchspace.
+    /// </summary>
+    /// <param name="type">The ship type, as the original's XX21 table numbers it.</param>
+    /// <param name="blueprintId">The blueprint id to draw it with.</param>
+    /// <param name="name">Its name, for the status line.</param>
+    /// <returns>The ship, or null if there was no room for it.</returns>
+    public Ship? SpawnAhead(int type, string blueprintId, string name)
+    {
+        var ship = Ship.Create(type, blueprintId, name, 0, 0, Spawner.SpawnDistance, 0, 0);
+        ship.AiFlag = 0xF8;   // as aggressive as the original's Thargoids
+
+        if (!Spawn(ship))
+        {
+            return null;
+        }
+
+        LastSpawn = SpawnKind.Pirates;
+        return ship;
+    }
+
     /// <summary>The galaxy we are in, which the missions need to find their systems.</summary>
     public int GalaxyNumber { get; set; }
 

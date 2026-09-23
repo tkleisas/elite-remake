@@ -1180,3 +1180,38 @@ seven equipment prices had. Worth noting for the remaining work: the equipment p
 items rule were the only two faults this audit found in the hand-written tables, and both were in
 tables that had a *sibling* table for another platform to be confused with. The combat constants
 have no such sibling, which is likely why they were right.
+
+## Witchspace: the mis-jump, which was missing entirely
+
+Witchspace was not implemented at all — no mis-jump, no Thargoid ambush, and no way to see either.
+It is a signature part of the game and the disc version has it, so this round added it.
+
+**The trigger.** TT18 rolls a random byte as the jump completes and mis-jumps on 253 or more, which
+its own comment gives as a 0.78% chance — three rolls in 256:
+
+```
+ JSR DORND              \ Set A and X to random numbers
+ CMP #253               \ If A >= 253 (0.78% chance) then jump to MJP to trigger
+ BCS MJP                \ a mis-jump into witchspace
+```
+
+The disc branch is the one that says `< 253 jumps to the destination`: the same test in the cassette
+and advanced versions sits alongside a CTRL-held manual mis-jump, which the disc also has but which
+depends on the author-names flag being configured, so the accidental one is the part that matters.
+
+**What MJP does.** It loads the Thargoid blueprints, shows the hyperspace tunnel a second time with
+its sound, resets the flight variables, sets its `MJ` flag, and then spawns **four Thargoids, each
+with a Thargon in attendance** — the disc's loop is `LDA #3 / CMP MANY+THG / BCS MJP1`, so it keeps
+going until there are four, where the Master settles for three. There is no planet and no sun: the
+sky is empty but for the Thargoids. The fuel for the jump is spent either way, because the jump did
+happen; it simply did not arrive.
+
+**What went in.** `GameSession` gained `InWitchspace`, the `MisjumpThreshold` of 253 with an
+`IsMisjump` test, and the roll inside `CompleteHyperspace` — which now leaves the commander where he
+was rather than moving him, while still spending the fuel. `FlightScene.ArriveInWitchspace` clears
+the bubble, suppresses the station, and spawns the four Thargoids and their Thargons through a new
+`FlightSim.SpawnAhead`. Two tests pin the threshold's boundaries and the 3-in-256 chance across the
+whole byte range, so the rule cannot drift into an approximation of itself.
+
+Still to do here, and deliberately left for its own round: the tunnel *animation* is played as a
+sound rather than drawn, and the manual CTRL mis-jump is not wired to a key.

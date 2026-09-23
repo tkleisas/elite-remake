@@ -136,6 +136,7 @@ public sealed class GameSession
             return false;
         }
 
+        InWitchspace = false;     // a jump out of witchspace is an ordinary one
         HyperspaceCountdown = 20; // the original counts down before the jump
         Message = $"Hyperspace to {SelectedSystem.Name} ({FormatTenths(distance)} light years).";
         return true;
@@ -159,6 +160,17 @@ public sealed class GameSession
         }
 
         Commander.Fuel -= distance;
+
+        // The jump can go wrong. The fuel is spent either way, but a mis-jump leaves us in
+        // witchspace rather than at the destination, which is what the caller's arrival then has to
+        // deal with.
+        InWitchspace = IsMisjump(_random.Next());
+        if (InWitchspace)
+        {
+            Message = "Hyperspace malfunction! You have been thrown into witchspace.";
+            return true;
+        }
+
         Commander.CurrentSystem = SelectedSystem;
         System = SelectedSystem;
         Visit++;
@@ -166,6 +178,27 @@ public sealed class GameSession
         Message = $"Arrived in the {System.Name} system.";
         return true;
     }
+
+    /// <summary>
+    /// True when the last jump went wrong and we are in witchspace.
+    /// </summary>
+    /// <remarks>
+    /// The disc version rolls a random byte as it jumps and mis-jumps on 253 or more, which its own
+    /// comment gives as a 0.78% chance. A mis-jump leaves us where we were: MJP loads the Thargoid
+    /// blueprints, shows the tunnel again, resets the flight variables, sets its MJ flag and spawns
+    /// four Thargoids, each with a Thargon in attendance, and there is no planet or sun to be seen.
+    /// </remarks>
+    public bool InWitchspace { get; private set; }
+
+    /// <summary>The random byte at or above which a jump mis-jumps: the original's <c>CMP #253</c>.</summary>
+    public const int MisjumpThreshold = 253;
+
+    /// <summary>
+    /// Decides whether a jump mis-jumps, as the disc version does with a random byte compared
+    /// against 253.
+    /// </summary>
+    /// <param name="randomByte">The random byte, which the original gets from DORND.</param>
+    public static bool IsMisjump(int randomByte) => (randomByte & 0xFF) >= MisjumpThreshold;
 
     /// <summary>Advances the hyperspace countdown, returning true when the jump completes.</summary>
     public bool TickHyperspace()

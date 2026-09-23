@@ -1903,6 +1903,43 @@ public class SaveTests
 /// Checks the two missions: their status bits, the Constrictor's hiding place, the Thargoids that
 /// come after the plans, and the rewards.
 /// </summary>
+/// <summary>
+/// The mis-jump into witchspace, which the disc version triggers from a random byte.
+/// </summary>
+public class WitchspaceTests
+{
+    /// <summary>
+    /// A jump mis-jumps on a random byte of 253 or more, as the disc version's <c>CMP #253</c>
+    /// does, which its own comment gives as a 0.78% chance.
+    /// </summary>
+    [Fact]
+    public void AJumpMisjumpsOnTheOriginalsThreshold()
+    {
+        Assert.Equal(253, GameSession.MisjumpThreshold);
+
+        for (int roll = 0; roll < 253; roll++)
+        {
+            Assert.False(GameSession.IsMisjump(roll), $"a roll of {roll} should be an ordinary jump");
+        }
+
+        foreach (int roll in new[] { 253, 254, 255 })
+        {
+            Assert.True(GameSession.IsMisjump(roll), $"a roll of {roll} should mis-jump");
+        }
+    }
+
+    /// <summary>
+    /// Across the whole byte range, the chance is the 3 in 256 the source describes, so the
+    /// threshold is boundaries and not an approximation of them.
+    /// </summary>
+    [Fact]
+    public void TheMisjumpChanceIsThreeIn256()
+    {
+        int misjumps = Enumerable.Range(0, 256).Count(GameSession.IsMisjump);
+        Assert.Equal(3, misjumps);
+    }
+}
+
 public class MissionTests
 {
     private static StarSystem ConstrictorSystem()
