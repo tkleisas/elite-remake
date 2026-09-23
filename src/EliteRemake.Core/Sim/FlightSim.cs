@@ -894,6 +894,12 @@ public sealed class FlightSim
 
     private const int HalvedAngleLimit = 7;
 
+    /// <summary>Angle units one frame of MVS5's turn is worth in the world rotation.</summary>
+    private const int StepsPerCounter = 16;
+
+    /// <summary>The largest angle the world rotation can be given in one go.</summary>
+    private const int MaxAngle = 31;
+
     /// <summary>
     /// The angle the original would turn a ship through for a rotation counter, and the sign.
     /// </summary>
@@ -918,7 +924,12 @@ public sealed class FlightSim
         // 0x82 moves it up.
         bool rateBelowCentre = pitchSignInverted ? negative : !negative;
 
-        return ((byte)magnitude, (byte)(rateBelowCentre ? 0x00 : 0x80));
+        // A counter of m is m frames of MVS5's fixed 1/16 radian step, so the turn it asks for is m
+        // steps. One step is sixteen of the world rotation's angle units, and the rotation cannot
+        // be given more than 31 of them at once, so a larger counter is clamped here and the rest
+        // of its steps are turned in the ship loop.
+        int angle = Math.Min(magnitude * StepsPerCounter, MaxAngle);
+        return ((byte)angle, (byte)(rateBelowCentre ? 0x00 : 0x80));
     }
 
     /// <summary>

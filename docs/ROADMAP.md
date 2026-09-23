@@ -917,14 +917,44 @@ present behaviour with their own `alp2 ^ 0x80` and sign juggling, so fixing `Mvt
 direction of every turn and breaks the missile homing test, the counter direction test and the
 docking test together.
 
-**What the fix therefore is, in order:**
+**Fixed, in one step rather than three.** The rewrite turned out to need only `Mvt6` itself. The
+callers were already passing the sign of the value being added, exactly as the original's do - the
+`alp2 ^ 0x80` I had taken for compensation is the original's own pre-complemented `ALP2+1`, which
+MVEIT part 5 really does use for that one call and not for the others. With the arithmetic corrected
+and the sign convention matched to the source's - bit 7 of `A` is the delta's sign, the return is the
+result's sign with `A`'s bits 0-6 preserved - everything downstream agreed at once:
 
-1. Rewrite `Mvt6` to the exact 16-bit form and make it honour `A`'s sign bit, returning the sign of
-   the result.
-2. Fix the three call sites to pass the sign of the value being added *without* pre-complementing it,
-   and to take the coordinate's bit 16 from the returned sign byte.
-3. Re-derive the counter directions, which are measured in
-   `RotationCountersTurnTheShipTheWayTheOriginalDoes`, and re-run the docking harness.
+| check | before | after |
+| --- | --- | --- |
+| `0 + (-62)` | -319 | **-62** |
+| `0 + (-255)`, `(-256)`, `(-257)` | 0, 1, 514 | **-255, -256, -257** |
+| one step of roll, one way | 18.54° | **3.50°** |
+| the same step, the other way | -3.55° | **-3.55°** |
 
-Steps 1 and 3 are mechanical; step 2 is the one that needs care, because it is where the present
-compensation lives and where getting it wrong reverses every turn in the game.
+The two directions of a roll are finally **mirrored**, and a step is the 1/16 radian MVS5 applies.
+
+**And the counter scale then worked.** With the rotation symmetric, `StepsPerCounter = 16` - the
+faithful scale that had to be pulled two rounds ago - stopped fighting the autopilot and started
+helping it. Measured: a counter of 1 turns 3.50 degrees and a counter of 2 turns 6.89, against the
+3.58 and 7.16 the source implies. The departure recorded in the previous note is gone, and the test
+that pinned it now pins the faithful behaviour instead.
+
+**The docking computer works from every angle tried.** Nine of ten approaches dock, including every
+case that used to fly away or park:
+
+| approach | before | now |
+| --- | --- | --- |
+| dead ahead | docks, frame 367 | docks, frame 367 |
+| off to one side (400, 300, 3000) | flew away for ever | **docks, frame 392** |
+| the other side (-600, 200, 2500) | flew away for ever | **docks, frame 385** |
+| well off to the right (900, 0, 4000) | docks, frame 1695 | **docks, frame 465** |
+| far lower right (1500, -900, 5000) | docks, frame 1243 | **docks, frame 542** |
+| 107 / 200 / 300 units off the slot axis | parked ~105 off, collided | **docks, frames 368-380** |
+| below and close (0, -400, 1800) | collided | **docks, frame 285** |
+| far upper left (-1200, 800, 6000) | collided | collides, at a 0.9% margin |
+
+The one that still fails fails at the last moment and by the smallest of margins: its slot faces us
+at 0.890 against the 0.8988 (26 degrees) the check wants, because the station is halfway through its
+roll as the ship arrives. That is the original's own tolerance being genuinely tight rather than a
+control fault, and the approach is otherwise perfect - lateral offset 1 unit at contact. It stays
+open as a tuning question rather than a bug.

@@ -532,36 +532,41 @@ public static class EliteMath
     /// <returns>The sign byte of the result.</returns>
     public static byte Mvt6(Span<byte> coordinate, int offset, byte a, ref byte p1, ref byte p2)
     {
-        if (((a ^ coordinate[offset + 2]) & 0x80) == 0)
+        // Bit 7 of A is the sign of the value in (P+2, P+1); bits 0-6 of A carry nothing and are
+        // preserved. The coordinate is a 23-bit magnitude whose sign is bit 7 of its third byte.
+        bool coordinateNegative = (coordinate[offset + 2] & 0x80) != 0;
+        bool deltaNegative = (a & 0x80) != 0;
+
+        // The result's sign bit, with bits 0-6 of A preserved
+        byte sign = (byte)((a & 0x7F) | (coordinateNegative ? 0x80 : 0x00));
+
+        // The low 16 bits of the coordinate's magnitude, as one value, so the subtraction below can
+        // borrow from bit 16 properly. Doing it a byte at a time and negating afterwards, which is
+        // what this used to do, gets the small inputs wrong: adding -62 to a coordinate of 0 came
+        // out as -319.
+        int value = coordinate[offset] | (coordinate[offset + 1] << 8);
+        int delta = p1 | (p2 << 8);
+
+        if (coordinateNegative == deltaNegative)
         {
-            // Same signs, so add the magnitudes
-            int low = p1 + coordinate[offset];
-            p1 = (byte)low;
-            int high = p2 + coordinate[offset + 1] + (low > 0xFF ? 1 : 0);
-            p2 = (byte)high;
-            return a;
+            // Both the same sign, so add the magnitudes
+            int sum = value + delta;
+            p1 = (byte)(sum & 0xFF);
+            p2 = (byte)((sum >> 8) & 0xFF);
+            return sign;
         }
 
-        // Different signs, so subtract
-        int lowDiff = coordinate[offset] - p1;
-        p1 = (byte)lowDiff;
-        bool borrow = lowDiff < 0;
-
-        int highDiff = coordinate[offset + 1] - p2 - (borrow ? 1 : 0);
-        p2 = (byte)highDiff;
-        borrow = highDiff < 0;
-
-        if (!borrow)
+        // Opposite signs, so subtract the smaller magnitude from the larger and keep that one's sign
+        int difference = value - delta;
+        if (difference < 0)
         {
-            return (byte)(a ^ 0x80);
+            difference = -difference;
+            sign ^= 0x80;
         }
 
-        // The subtraction underflowed, so negate the result with two's complement
-        int negLow = 1 - p1; // the carry is clear here, so SBC subtracts one more
-        p1 = (byte)negLow;
-        int negHigh = 0 - p2 - (negLow < 0 ? 0 : 1);
-        p2 = (byte)negHigh;
-        return a;
+        p1 = (byte)(difference & 0xFF);
+        p2 = (byte)((difference >> 8) & 0xFF);
+        return sign;
     }
 
     // ---------------------------------------------------------------------------------------------

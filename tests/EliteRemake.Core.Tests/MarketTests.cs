@@ -2313,11 +2313,13 @@ public class DockingComputerControlTests
             return (x, y);
         }
 
-        // 0x82 is a roll to the right, so the station moves to the left
-        Assert.True(Turn(0x82, 0x80).X < -100, "a roll counter of 0x82 should roll us to the right");
-
-        // 0x02 is a roll to the left, so the station moves to the right
-        Assert.True(Turn(0x02, 0x80).X > 0, "a roll counter of 0x02 should roll us to the left");
+        // 0x82 is a roll to the right, so the station moves to the left, and 0x02 is the same
+        // turn the other way. Measured: the two are equal and opposite, within a unit or two.
+        (int rightX, _) = Turn(0x82, 0x80);
+        (int leftX, _) = Turn(0x02, 0x80);
+        Assert.True(rightX < -5, $"a roll counter of 0x82 should roll us to the right, but x was {rightX}");
+        Assert.True(leftX > 5, $"a roll counter of 0x02 should roll us to the left, but x was {leftX}");
+        Assert.InRange(Math.Abs(rightX + leftX), 0, 3);
 
         // 0x82 brings a station above the centre line down to it, and 0x02 pushes it away
         Assert.True(Turn(0x80, 0x82).Y < 290, "a pitch counter of 0x82 should bring the station down");
@@ -2331,34 +2333,38 @@ public class DockingComputerControlTests
     }
 
     /// <summary>
-    /// The scale the counters turn at, pinned deliberately.
+    /// A rotation counter turns the ship by whole MVS5 steps.
     /// </summary>
     /// <remarks>
-    /// A counter is a number of frames of MVS5's fixed 1/16 radian step, which would be sixteen
-    /// world-rotation units a step. We ship one unit a step instead: it is sixteen times too small
-    /// against the source, but the faithful scale makes the autopilot's fixed ±2 counters sixteen
-    /// times more powerful than its control loop expects and docking regresses badly. This test
-    /// exists so that the departure is a decision rather than an accident - see the counter scale
-    /// note in docs/ROADMAP.md for the measurements.
+    /// MVEIT part 8 calls MVS5 once whenever the counter is non-zero and MVS5 turns by a fixed
+    /// 1/16 radian, so a counter of m is m frames of turning - about 3.58 degrees a step. Measured
+    /// on a station 1000 units to the side: a counter of 1 turns it 3.50 degrees and a counter of 2
+    /// turns it 6.89, against the 3.58 and 7.16 the source implies.
+    ///
+    /// The turn is clamped at 31 of the world rotation's angle units, which is one step, so
+    /// counters beyond 2 all turn the same amount for now. Lifting that needs the world rotation to
+    /// be applied once per step; the docking computer only ever uses 2, so nothing depends on it.
     /// </remarks>
     [Fact]
-    public void TheCounterScaleIsTheDeliberateOne()
+    public void ARotationCounterTurnsByWholeMvs5Steps()
     {
-        // A station 1000 units to the right turns towards the centre line; a counter of 2 is one
-        // small step of that turn, not the 7 degrees the source's MVS5 would give it
-        var player = new Ship(11, "cobra-mk-3", "Cobra Mk III");
-        var sim = new FlightSim(player) { SpawningEnabled = false, Commander = Commander.CreateDefault() };
-        var station = Ship.Create(Combat.SpaceStationType, "coriolis", "Coriolis space station", 0, 0, 0, 0, 3000);
-        station.SetPosition(1000, 0, 3000);
-        sim.Spawn(station);
+        static double Turned(byte counter)
+        {
+            var player = new Ship(11, "cobra-mk-3", "Cobra Mk III");
+            var sim = new FlightSim(player) { SpawningEnabled = false, Commander = Commander.CreateDefault() };
+            var station = Ship.Create(Combat.SpaceStationType, "coriolis", "Coriolis space station", 0, 0, 0, 0, 3000);
+            station.SetPosition(1000, 0, 3000);
+            sim.Spawn(station);
 
-        sim.SetRotationCounters(0x82, 0x80);
-        sim.Step();
-        (_, int y, _) = station.GetPosition();
+            sim.SetRotationCounters(counter, 0x80);
+            sim.Step();
+            (_, int y, _) = station.GetPosition();
 
-        // 1000 * sin(0.45 degrees) is about 8 units of y, well under the 120 the faithful
-        // scale's 7 degrees would give
-        Assert.InRange(Math.Abs(y), 4, 30);
+            return Math.Abs(Math.Asin(Math.Clamp(-y / 1000.0, -1, 1)) * 180 / Math.PI);
+        }
+
+        Assert.InRange(Turned(0x81), 3.2, 3.9);   // one step, 3.58 degrees
+        Assert.InRange(Turned(0x82), 6.5, 7.5);   // two steps, 7.16 degrees
     }
 }
 
