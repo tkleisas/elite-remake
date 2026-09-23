@@ -2218,3 +2218,38 @@ attached, rather than described as a fix for the reported symptom.
 galaxy-number false alarm, the `E%` signature, and the basis test's vector encoding. This round added
 a fifth lesson of the same family: a change can be correct and still not be the change that matters,
 and the difference is only visible if the before/after is measured rather than assumed.
+
+## The rigidity fix now has evidence, and my earlier "unproven" was a broken measurement
+
+Last round ended with the basis fix committed but marked unproven, because the station's silhouette
+measured identically before and after. That conclusion was itself wrong, and the reason is worth
+recording: **`--viewer-distance` is honoured, but the ship viewer auto-frames**, so the station renders
+at the same size whatever distance is passed. Every "before" and "after" screenshot I compared was of
+a constant. I was measuring my own scaling, not the shear.
+
+**What replaced it.** The rebuild moved into `Core.Maths.RigidFrame`, where it can be reached by tests
+rather than living inside a MonoGame renderer, and `RigidFrameTests` measures the thing that was
+actually wrong: it rolls a ship for four hundred and eighty frames through `Mvs5` and `Tidy` — the real
+fixed-point arithmetic, not a simulation of it — and checks after every tidy that all three vectors are
+unit length, that all three pairs are at right angles, and that the determinant is 1.
+
+**And the test is known to be capable of failing.** Restoring the old behaviour — normalising each
+vector independently — makes two of its three cases fail immediately. A test that cannot fail is worth
+nothing, so that check is part of the work now.
+
+**The measurement, then and now:**
+
+| | before, over a long roll | after |
+| --- | --- | --- |
+| vector lengths | 0.90 to 1.00 | 1.0000 |
+| angles between them | out by up to 2.3% | right angles |
+| determinant | 0.82 to 0.98 | 1.0000 |
+
+So the defect was real, the fix addresses it, and the evidence is a test that fails without the fix
+rather than a screenshot I could not tell apart from its control.
+
+**The lesson, which is now the fifth of its kind this session.** Two rounds ago a probe of mine was
+wrong about a value; last round a probe was wrong about an encoding; this round a probe was wrong about
+what it was even varying. The defence that actually works is not care but **a control**: the test above
+was checked against the old behaviour before being trusted, and the screenshot comparison would have
+been caught immediately by asking what it was supposed to differ from.
