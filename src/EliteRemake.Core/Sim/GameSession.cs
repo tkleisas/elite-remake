@@ -486,23 +486,10 @@ public sealed class GameSession
     }
 
     /// <summary>
-    /// The ship types carrying the original's cop flag, whose destruction makes us a fugitive.
+    /// The Viper's ship type, which the disc's <c>E%</c> table marks as a cop along with the
+    /// Transporter. Kept for callers that want a single type; the flight loop tests each ship's own
+    /// <see cref="Ship.NewbFlags"/> instead, because that is what the original does.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// The original takes this from bit 6 of a ship's NEWB flags, whose defaults are the disc's
-    /// <c>E%</c> table. That table is read out of the assembled docked code by the data extractor
-    /// into <c>data/ships.json</c>, and the two types it marks are the Transporter and the Viper —
-    /// which agrees with the disc's own symbol for the Viper, <c>COPS</c>.
-    /// </para>
-    /// <para>
-    /// The list is written out here rather than looked up because the core has no dependency on the
-    /// data files; the extractor's output is what it was checked against.
-    /// </para>
-    /// </remarks>
-    public static readonly int[] CopTypes = [10, 16];
-
-    /// <summary>The first cop type, for callers that want a single number: the Viper.</summary>
     public const int CopType = 16;
 
     /// <summary>True once the commander has been killed.</summary>
@@ -534,15 +521,18 @@ public sealed class GameSession
         Commander.Cash += bounty;
         Commander.RegisterKill();
 
-        // Shooting up the innocent makes us wanted. The original's rule is not a fixed increase:
-        // killing a cop raises our legal status to at least 64 with an ORA, which makes us a
-        // fugitive at once, and any other kill adds exactly 1 — so it takes fifty innocent kills to
-        // become a fugitive by degrees, where a single cop does it outright.
-        if (CopTypes.Contains(destroyed.Type))
+        // Shooting up the innocent makes us wanted, and the original decides both halves of this
+        // from the ship's own NEWB flags rather than from its type or its AI: bit 6 marks a cop,
+        // whose destruction raises our legal status to at least 64 with an ORA and makes us a
+        // fugitive at once, and bit 5 marks an innocent, which adds exactly 1. Fifty innocents are
+        // therefore what it takes to become a fugitive by degrees.
+        // The flags come from the disc's E% table, which the data extractor reads out of the
+        // assembled docked code and the game stamps onto each ship as it spawns.
+        if ((destroyed.NewbFlags & Ship.NewbCop) != 0)
         {
             Commander.LegalStatus = Math.Min(255, Commander.LegalStatus | Commander.CopKillStatus);
         }
-        else if (destroyed.AiFlag < 0x80)
+        else if ((destroyed.NewbFlags & Ship.NewbInnocent) != 0)
         {
             Commander.LegalStatus = Math.Min(255, Commander.LegalStatus + 1);
         }

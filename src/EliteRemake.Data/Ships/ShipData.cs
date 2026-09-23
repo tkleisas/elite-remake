@@ -63,6 +63,28 @@ public static class ShipData
     /// <summary>The ship with the given id (e.g. "cobra-mk-3"), or null.</summary>
     public static ShipBlueprint? ById(string id) => LazyLookup.Value.ById.GetValueOrDefault(id);
 
+    /// <summary>
+    /// The default NEWB flags for a ship type, from the disc's <c>E%</c> table, or 0 for a type the
+    /// table does not cover.
+    /// </summary>
+    /// <remarks>
+    /// A type with no entry gets no flags rather than a guess: the table leaves most types at zero,
+    /// and inventing flags for the others would be exactly the kind of inference that has been wrong
+    /// everywhere else in this port.
+    /// </remarks>
+    public static byte NewbFlagsFor(int type)
+    {
+        foreach (NewbFlagEntry entry in LazyDocument.Value.NewbFlags)
+        {
+            if (entry.Type == type)
+            {
+                return (byte)entry.Flags;
+            }
+        }
+
+        return 0;
+    }
+
     /// <summary>The ship set with the given id ("D.MOA" ... "D.MOP" or "docked"), or null.</summary>
     public static ShipSet? ShipSetById(string id)
     {

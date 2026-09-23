@@ -257,6 +257,11 @@ public static class SceneFactory
             ship.Energy = ship.MaxEnergy;
             ship.VisibilityDistance = blueprint.Header.VisibilityDistance;
             ship.MaxSpeed = blueprint.Header.MaxSpeed;
+
+            // The default NEWB flags for this ship type, out of the disc's E% table. The flight loop
+            // tests them to decide how much killing this ship raises our legal status, so they have
+            // to be stamped on as the ship arrives rather than derived from its AI.
+            ship.NewbFlags = EliteRemake.Data.Ships.ShipData.NewbFlagsFor(ship.Type);
             if (ship.Speed == 0)
             {
                 ship.Speed = (byte)Math.Min(blueprint.Header.MaxSpeed, 255);

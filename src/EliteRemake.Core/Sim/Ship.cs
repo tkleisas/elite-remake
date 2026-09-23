@@ -148,6 +148,28 @@ public sealed class Ship
     }
 
     /// <summary>The ship's AI flag (INWK+32).</summary>
+    /// <summary>
+    /// The ship's NEWB flags: whether it is a trader, innocent, cop or hostile, and so on.
+    /// </summary>
+    /// <remarks>
+    /// The defaults per ship type are the disc's <c>E%</c> table, which the data extractor reads out
+    /// of the assembled docked code. The flight loop tests bit 6 of these to decide how much killing
+    /// a ship raises our legal status, and bit 5 to decide whether it counts as an innocent.
+    /// </remarks>
+    public byte NewbFlags { get; set; }
+
+    /// <summary>Bit 6: a cop, whose destruction makes us a fugitive at once.</summary>
+    public const byte NewbCop = 0x40;
+
+    /// <summary>Bit 5: an innocent, whose destruction raises our legal status by one.</summary>
+    public const byte NewbInnocent = 0x20;
+
+    /// <summary>True when this ship is a cop.</summary>
+    public bool IsCop => (NewbFlags & NewbCop) != 0;
+
+    /// <summary>True when this ship counts as an innocent.</summary>
+    public bool IsInnocent => (NewbFlags & NewbInnocent) != 0;
+
     public byte AiFlag
     {
         get => _data[ShipDataBlock.Ai];

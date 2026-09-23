@@ -1874,3 +1874,30 @@ gives one answer and reading the values gives another, and the two agreed with o
 different entries. Neither reading is trustworthy; the registry is. The lesson is the same one the
 faults have been teaching all session: when two sources disagree, find a third that can arbitrate
 rather than choosing the one that fits.
+
+## The E% flags now drive the legal status, as they do in the original
+
+The table extracted last round is wired in. `Ship` carries its `NewbFlags`, the game stamps each ship
+with its type's flags from the disc's `E%` table as it spawns, and the flight loop tests **bit 6** for
+a cop and **bit 5** for an innocent — which is exactly the original's rule, replacing the
+`AiFlag < 0x80` heuristic that had been standing in for it.
+
+Read back from the extracted data, the flags make sense of ships we already knew:
+
+| type | ship | flags | meaning |
+| --- | --- | --- | --- |
+| 9 | Shuttle | `0x21` | trader, innocent |
+| 10 | **Transporter** | `0x61` | trader, innocent, **cop** |
+| 11 | Cobra Mk III | `0xA0` | innocent, escape pod |
+| 12 | Python | `0xA0` | innocent, escape pod |
+| 16 | **Viper** | `0xC2` | bounty hunter, **cop**, escape pod |
+| 19 | Krait | `0x8C` | hostile, pirate, escape pod |
+| 31 | Constrictor | `0x8C` | hostile, pirate, escape pod |
+
+The Krait and the Constrictor being hostile pirates with **no** innocent bit is the part that matters:
+under the old heuristic a hostile ship was one we could shoot with impunity, which happened to be
+right, but the reason was wrong and the rule did not distinguish a hostile pirate from a hostile cop.
+Now a Viper that comes after us and a Krait that does are treated differently, as they should be.
+
+**A test covers both halves**: one cop makes us a fugitive at once and an innocent is worth one point,
+and a hostile ship with neither flag changes nothing however hostile it is.

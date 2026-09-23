@@ -1331,28 +1331,54 @@ public class BountyTests
     public void ShootingInnocentsMakesUsWanted()
     {
         GameSession session = CreateSession();
-        var trader = new Ship(12, "python", "Python") { AiFlag = 0x10 };
+
+        // An innocent, per the disc's E% table: Python is type 12 and carries bit 5
+        var trader = new Ship(12, "python", "Python") { NewbFlags = Ship.NewbInnocent };
 
         session.RegisterKill(trader);
 
-        Assert.True(session.Commander.LegalStatus > 0, "shooting a trader should make us an offender");
+        Assert.True(session.Commander.LegalStatus > 0, "shooting an innocent should make us an offender");
         Assert.Equal("Offender", session.Commander.LegalStatusName);
 
-        // Exactly one point for an ordinary kill, and it takes fifty of them to be a fugitive:
-        // the original's STATUS chooses on CPY #50
+        // Exactly one point, and it takes fifty of them to be a fugitive: STATUS chooses on CPY #50
         Assert.Equal(1, session.Commander.LegalStatus);
 
         for (int i = 0; i < 48; i++)
         {
-            session.RegisterKill(new Ship(12, "python", "Python") { AiFlag = 0x10 });
+            session.RegisterKill(new Ship(12, "python", "Python") { NewbFlags = Ship.NewbInnocent });
         }
 
         Assert.Equal(49, session.Commander.LegalStatus);
         Assert.Equal("Offender", session.Commander.LegalStatusName);
 
-        session.RegisterKill(new Ship(12, "python", "Python") { AiFlag = 0x10 });
+        session.RegisterKill(new Ship(12, "python", "Python") { NewbFlags = Ship.NewbInnocent });
         Assert.Equal(50, session.Commander.LegalStatus);
         Assert.Equal("Fugitive", session.Commander.LegalStatusName);
+    }
+
+    /// <summary>
+    /// One cop and we are a fugitive outright, however clean we were.
+    /// </summary>
+    /// <remarks>
+    /// The original's flight loop tests bit 6 of the ship's NEWB flags and does an <c>ORA #64</c>,
+    /// which sets the highest clear bit: a commander with a status of 3 becomes 67, and one who was
+    /// clean becomes 64. Either way he is a fugitive at once, where an innocent is worth only 1.
+    /// </remarks>
+    [Fact]
+    public void ShootingACopMakesUsAFugitiveAtOnce()
+    {
+        GameSession session = CreateSession();
+        session.Commander.LegalStatus = 3;
+
+        session.RegisterKill(new Ship(16, "viper", "Viper") { NewbFlags = Ship.NewbCop });
+
+        Assert.Equal(3 | 64, session.Commander.LegalStatus);
+        Assert.Equal("Fugitive", session.Commander.LegalStatusName);
+
+        // And a ship with neither flag changes nothing, however hostile it is
+        GameSession other = CreateSession();
+        other.RegisterKill(new Ship(19, "krait", "Krait") { NewbFlags = 0x8C, AiFlag = 0x10 });
+        Assert.Equal(0, other.Commander.LegalStatus);
     }
 
     [Fact]
