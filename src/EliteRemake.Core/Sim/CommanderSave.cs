@@ -71,8 +71,14 @@ public sealed class CommanderSave
     /// <summary>Whether an energy bomb is carried.</summary>
     public bool EnergyBomb { get; set; }
 
-    /// <summary>Whether an energy unit is fitted.</summary>
-    public bool EnergyUnit { get; set; }
+    /// <summary>
+    /// The energy unit fitted: none, a standard unit from the shop, or the navy unit mission 2
+    /// awards. Saved under the original's own name for the field, and read as a number — an older
+    /// save carries a plain true/false for the standard unit, which is read as 1 or 0.
+    /// </summary>
+    [JsonPropertyName("EnergyUnit")]
+    [JsonConverter(typeof(EnergyUnitLevelConverter))]
+    public int EnergyUnitLevel { get; set; }
 
     /// <summary>Whether a docking computer is fitted.</summary>
     public bool DockingComputer { get; set; }
@@ -98,6 +104,25 @@ public sealed class CommanderSave
         DefaultIgnoreCondition = JsonIgnoreCondition.Never,
     };
 
+    /// <summary>
+    /// Reads the energy unit as either a number (this version) or a boolean (an older save, whose
+    /// true is the standard unit), and writes a number.
+    /// </summary>
+    private sealed class EnergyUnitLevelConverter : JsonConverter<int>
+    {
+        public override int Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+            reader.TokenType switch
+            {
+                JsonTokenType.True => Commander.StandardEnergyUnit,
+                JsonTokenType.False => Commander.NoEnergyUnit,
+                JsonTokenType.Number => reader.GetInt32(),
+                _ => throw new JsonException("The energy unit entry is neither a number nor a boolean."),
+            };
+
+        public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options) =>
+            writer.WriteNumberValue(value);
+    }
+
     /// <summary>Captures a commander's state.</summary>
     public static CommanderSave FromCommander(Commander commander)
     {
@@ -118,7 +143,7 @@ public sealed class CommanderSave
             Ecm = commander.Ecm,
             FuelScoops = commander.FuelScoops,
             EnergyBomb = commander.EnergyBomb,
-            EnergyUnit = commander.EnergyUnit,
+            EnergyUnitLevel = commander.EnergyUnitLevel,
             DockingComputer = commander.DockingComputer,
             GalacticHyperdrive = commander.GalacticHyperdrive,
             EscapePod = commander.EscapePod,
@@ -158,7 +183,7 @@ public sealed class CommanderSave
             Ecm = Ecm,
             FuelScoops = FuelScoops,
             EnergyBomb = EnergyBomb,
-            EnergyUnit = EnergyUnit,
+            EnergyUnitLevel = Math.Clamp(EnergyUnitLevel, Commander.NoEnergyUnit, Commander.NavalEnergyUnit),
             DockingComputer = DockingComputer,
             GalacticHyperdrive = GalacticHyperdrive,
             EscapePod = EscapePod,
@@ -168,7 +193,12 @@ public sealed class CommanderSave
 
         for (int mount = 0; mount < 4 && mount < Lasers.Length; mount++)
         {
-            commander.SetLaser((LaserMount)mount, (LaserType)Math.Clamp(Lasers[mount], 0, 3));
+            // A saved laser is validated rather than clamped, so a mining laser survives the round
+            // trip: clamping into 0-3 silently turned one into a military laser, which is a more
+            // expensive weapon than the one the commander saved
+            int saved = Lasers[mount];
+            LaserType type = Enum.IsDefined(typeof(LaserType), saved) ? (LaserType)saved : LaserType.None;
+            commander.SetLaser((LaserMount)mount, type);
         }
 
         for (int item = 0; item < 17 && item < Cargo.Length; item++)

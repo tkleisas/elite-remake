@@ -456,8 +456,9 @@ public class CombatTests
 
         Assert.Equal(Combat.MiningLaserPower, sim.FiringLaserPower);
         Assert.Same(rock, sim.LaserTarget);
-        Assert.Equal(Debris.Splinter, sim.DropsThisFrame.Type);
-        Assert.InRange(sim.DropsThisFrame.Count, 1, 3);
+        var drop = Assert.Single(sim.DropReports);
+        Assert.Equal(Debris.Splinter, drop.Type);
+        Assert.InRange(drop.Count, 1, 3);
     }
 
     [Fact]
@@ -571,7 +572,7 @@ public class CombatTests
 
         // A pulse laser does 15 a shot with a ten-frame gap, so two shots finish a Sidewinder
         int shots = 0;
-        for (int i = 0; i < 40 && sim.DestroyedThisFrame is null; i++)
+        for (int i = 0; i < 40 && sim.KillReports.Count == 0; i++)
         {
             sim.Step(new FlightInput(Fire: true));
             if (sim.FiringLaserPower > 0)
@@ -581,7 +582,7 @@ public class CombatTests
         }
 
         Assert.Equal(2, shots);
-        Assert.Same(target, sim.DestroyedThisFrame);
+        Assert.Same(target, Assert.Single(sim.DrainKillReports()));
         Assert.Equal(0, target.Energy);
         Assert.True(target.IsExploding, "a destroyed ship should be exploding");
     }
@@ -1206,7 +1207,7 @@ public class DamageTests
     }
 
     [Fact]
-    public void EnergyRechargesAFrameAndDoublesWithAnEnergyUnit()
+    public void EnergyRechargesAFrameAndTheUnitsRaiseTheRate()
     {
         Ship ship = CreateShip();
         ship.Energy = 100;
@@ -1214,9 +1215,14 @@ public class DamageTests
         Combat.RechargeEnergy(ship);
         Assert.Equal(101, ship.Energy);
 
-        ship.HasEnergyUnit = true;
+        ship.EnergyUnitLevel = Commander.StandardEnergyUnit;
         Combat.RechargeEnergy(ship);
         Assert.Equal(103, ship.Energy);
+
+        // The navy unit that mission 2's debriefing awards recharges by 3, which is ENGY + 1 at 2
+        ship.EnergyUnitLevel = Commander.NavalEnergyUnit;
+        Combat.RechargeEnergy(ship);
+        Assert.Equal(106, ship.Energy);
 
         // And it stops at the maximum
         ship.Energy = 255;
@@ -1969,6 +1975,37 @@ public class BountyTests
         Assert.Equal("Elite", session.Commander.Rating);
         Assert.Equal(6400 * 500, session.Commander.Cash - 1000);
     }
+
+    /// <summary>
+    /// Every victim of the energy bomb is paid its own bounty: the bomb's victims used to flow
+    /// through one destroyed-this-frame flag, which the last victim overwrote, so only the last
+    /// was ever paid.
+    /// </summary>
+    [Fact]
+    public void TheEnergyBombPaysEveryVictimItDestroys()
+    {
+        GameSession session = CreateSession();
+
+        var first = new Ship(17, "sidewinder", "Sidewinder");
+        var second = new Ship(17, "sidewinder", "Sidewinder");
+        Assert.True(session.Flight.Spawn(first));
+        Assert.True(session.Flight.Spawn(second));
+        session.Commander.EnergyBomb = true;
+        session.Commander.Kills = 0;
+
+        Assert.True(session.Flight.FireEnergyBomb());
+        session.Flight.Step();
+
+        int cash = session.Commander.Cash;
+        foreach (Ship wreck in session.Flight.DrainKillReports())
+        {
+            session.RegisterKill(wreck);
+        }
+
+        // The reports are drained, not cleared at the end of an iteration, so both came through
+        Assert.Equal(2, session.Commander.Kills);
+        Assert.Equal(2 * 500, session.Commander.Cash - cash);
+    }
 }
 
 /// <summary>
@@ -2111,7 +2148,7 @@ public class OutfittingTests
         Assert.True(commander.FuelScoops);
 
         Assert.NotNull(Outfitting.Buy(commander, system, 9)); // energy unit
-        Assert.True(commander.EnergyUnit);
+        Assert.Equal(Commander.StandardEnergyUnit, commander.EnergyUnitLevel);
         Assert.Contains("already", Outfitting.Buy(commander, system, 9)!);
 
         // A large cargo bay takes the hold to 37 tonnes, which is what the original's EQSHP sets
@@ -2196,9 +2233,9 @@ public class OutfittingTests
         var session = new GameSession(commander, new FlightSim(player));
         session.Dock();
 
-        Assert.False(session.Flight.Player.HasEnergyUnit);
+        Assert.Equal(Commander.NoEnergyUnit, session.Flight.Player.EnergyUnitLevel);
         session.BuyEquipment(9);
-        Assert.True(session.Flight.Player.HasEnergyUnit);
+        Assert.Equal(Commander.StandardEnergyUnit, session.Flight.Player.EnergyUnitLevel);
     }
 }
 
@@ -2520,7 +2557,7 @@ public class SaveTests
         commander.Ecm = true;
         commander.FuelScoops = true;
         commander.EscapePod = true;
-        commander.EnergyUnit = true;
+        commander.EnergyUnitLevel = Commander.NavalEnergyUnit;
         commander.SetLaser(LaserMount.Front, LaserType.Beam);
         commander.SetLaser(LaserMount.Rear, LaserType.Pulse);
         commander.AddCargo(3, 5);
@@ -2531,11 +2568,43 @@ public class SaveTests
         return commander;
     }
 
+    /// <summary>
+    /// A mining laser survives the round trip. The reader used to clamp every saved laser into
+    /// 0-3, which silently turned the mining laser — the fourth type — into a military one, a more
+    /// expensive weapon than the one the commander saved.
+    /// </summary>
+    [Fact]
+    public void AMiningLaserSurvivesTheRoundTrip()
+    {
+        var original = Commander.CreateDefault();
+        original.SetLaser(LaserMount.Rear, LaserType.Mining);
+
+        Commander restored = CommanderSave.FromJson(CommanderSave.FromCommander(original).ToJson()).ToCommander();
+
+        Assert.Equal(LaserType.Mining, restored.GetLaser(LaserMount.Rear));
+        Assert.Equal(LaserType.Pulse, restored.GetLaser(LaserMount.Front));
+    }
+
+    /// <summary>
+    /// A save that carries the older boolean for the energy unit reads as the standard unit, and
+    /// the navy unit reads as 2: the format is the original's ENGY byte.
+    /// </summary>
+    [Fact]
+    public void TheEnergyUnitReadsTheOlderBooleanAndTheNavalLevel()
+    {
+        CommanderSave legacy = CommanderSave.FromJson(
+            """{"Version":1,"EnergyUnit":true,"Lasers":[1,0,0,0],"Cargo":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}""");
+        Assert.Equal(Commander.StandardEnergyUnit, legacy.EnergyUnitLevel);
+
+        CommanderSave naval = CommanderSave.FromJson(
+            """{"Version":1,"EnergyUnit":2,"Lasers":[1,0,0,0],"Cargo":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}""");
+        Assert.Equal(Commander.NavalEnergyUnit, naval.EnergyUnitLevel);
+    }
+
     [Fact]
     public void ACommanderSurvivesTheRoundTrip()
     {
-        Commander original = TradingCommander();
-        CommanderSave save = CommanderSave.FromCommander(original);
+        Commander original = TradingCommander();        CommanderSave save = CommanderSave.FromCommander(original);
 
         Commander restored = CommanderSave.FromJson(save.ToJson()).ToCommander();
 
@@ -2550,7 +2619,7 @@ public class SaveTests
         Assert.Equal(original.Ecm, restored.Ecm);
         Assert.Equal(original.FuelScoops, restored.FuelScoops);
         Assert.Equal(original.EscapePod, restored.EscapePod);
-        Assert.Equal(original.EnergyUnit, restored.EnergyUnit);
+        Assert.Equal(original.EnergyUnitLevel, restored.EnergyUnitLevel);
         Assert.Equal(original.GalacticHyperdrive, restored.GalacticHyperdrive);
 
         // Lasers and cargo come back mount by mount, item by item
@@ -2744,6 +2813,33 @@ public class MissionTests
     private static StarSystem PlansSystem() =>
         Galaxy.GenerateGalaxy(Galaxy.GalaxySeeds(Missions.PlansGalaxy))
             .First(s => s.X == Missions.PlansX && s.Y == Missions.PlansY);
+
+    /// <summary>
+    /// The disc gates mission 2's offer on four things, and two of them were missing: the third
+    /// galaxy, and 5 in the tally's high byte — a rank partway from Dangerous to Deadly.
+    /// </summary>
+    [Fact]
+    public void MissionTwoNeedsItsGalaxyAndItsRank()
+    {
+        var missions = new Missions { Mission1Complete = true };
+        var commander = Commander.CreateDefault();
+        commander.Kills = Missions.Mission2KillRank;
+
+        // The disc's DOENTRY only offers it in the third galaxy: "LDA GCNT / CMP #2"
+        Assert.False(missions.OfferMission2(commander));
+        commander.GalaxyNumber = Missions.PlansGalaxy;
+        Assert.True(missions.OfferMission2(commander));
+
+        // 5 in the high byte is 1280 kills, and one short is a rank that is not enough
+        commander.Kills = Missions.Mission2KillRank - 1;
+        Assert.False(missions.OfferMission2(commander));
+        commander.Kills = Missions.Mission2KillRank;
+        Assert.True(missions.OfferMission2(commander));
+
+        // And mission 1 still being in progress disqualifies: bits 0-3 of TP must be exactly %0010
+        missions.Mission1Active = true;
+        Assert.False(missions.OfferMission2(commander));
+    }
 
     [Fact]
     public void TheStatusByteIsTheOriginals()
@@ -3015,7 +3111,7 @@ public class EnergyBombTests
         Assert.True(pirate.IsExploding, "the pirate should be destroyed");
         Assert.False(station.IsExploding, "energy bombs are useless against space stations");
         Assert.False(station.IsKilled, "energy bombs are useless against space stations");
-        Assert.Equal(1, sim.BombKillsThisFrame);
+        Assert.Equal([pirate], sim.DrainKillReports());
 
         // And the cloud takes it away in its own time
         for (int i = 0; i < 80; i++)
@@ -3505,6 +3601,28 @@ public class CollisionTests
         Assert.True(other.AiFlag >= 0x80, "the ship we collided with should be hostile");
     }
 
+    /// <summary>
+    /// A kill reported in one iteration is still there for the game to pay after the next: the
+    /// game layer drains the reports once per drawn frame, and up to ten iterations can run
+    /// inside one frame, so a kill cleared at the end of every iteration would lose most of them.
+    /// </summary>
+    [Fact]
+    public void KillsStackAcrossIterationsUntilTheGameDrainsThem()
+    {
+        var (sim, first) = SetUp(20, 0, 20);
+        first.Energy = 10;
+        var second = Ship.Create(17, "sidewinder", "Sidewinder", 0, 0, 0, 0, 2000);
+        second.Energy = 10;
+        second.SetPosition(20, 0, 20);
+        second.Speed = 0;
+        sim.Spawn(second);
+
+        sim.Step();
+        sim.Step();
+
+        Assert.Equal([first, second], sim.DrainKillReports());
+    }
+
     [Fact]
     public void AShipFarAwayIsNotACollision()
     {
@@ -3524,7 +3642,7 @@ public class CollisionTests
         sim.Step();
 
         Assert.True(other.IsExploding, "a weak ship should be destroyed by the collision");
-        Assert.Same(other, sim.DestroyedThisFrame);
+        Assert.Same(other, Assert.Single(sim.DrainKillReports()));
     }
 }
 

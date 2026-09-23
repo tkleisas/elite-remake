@@ -66,7 +66,9 @@ public sealed class MarketScene : IScene
                 _session.Buy(Selected, 1);
             }
 
-            if (IsNewPress(keys, Keys.S))
+            // S sells, but only on its own: CTRL-S saves the commander from the shell, and the two
+            // would both answer the same press if the control key were not excluded here
+            if (IsNewPress(keys, Keys.S) && !ControlHeld(keys))
             {
                 _session.Sell(Selected, 1);
             }
@@ -117,12 +119,8 @@ public sealed class MarketScene : IScene
             _session.Screen = DockedScreen.Status;
         }
 
-        // The original saves the commander from the docked screens
-        if (IsNewPress(keys, Keys.S) && (keys.IsKeyDown(Keys.LeftControl) || keys.IsKeyDown(Keys.RightControl)))
-        {
-            _session.Save();
-        }
-
+        // The original saves the commander from the docked screens; the shell handles CTRL-S, so
+        // nothing is done here but a plain S still means sell
         if (IsNewPress(keys, Keys.Escape))
         {
             _session.Launch();
@@ -130,6 +128,10 @@ public sealed class MarketScene : IScene
 
         _previousKeys = keys;
     }
+
+    /// <summary>True while a control key is down, which changes what a letter means.</summary>
+    internal static bool ControlHeld(KeyboardState keys) =>
+        keys.IsKeyDown(Keys.LeftControl) || keys.IsKeyDown(Keys.RightControl);
 
     /// <summary>True if the key went down since the last frame.</summary>
     private bool IsNewPress(KeyboardState keys, Keys key) =>

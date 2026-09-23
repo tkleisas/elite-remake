@@ -5,6 +5,66 @@ All notable changes to this project are recorded here. The format follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html) — see [`docs/VERSIONING.md`](docs/VERSIONING.md)
 for what the three numbers mean for a faithful port.
 
+## [Unreleased]
+
+A sweep of the flight loop's bookkeeping against the disc sources: every fix below was found by
+comparing the port with the disc version's own routines, and each carries a test that pins the rule.
+
+### Fixed
+
+* **The station appeared the moment you arrived, in every system, again.** The hyperspace arrival
+  and the galactic jump still called the flight scene's `ArriveInSystem` without a station distance,
+  so its development default of 3,000 units ahead pre-empted the ported part 14 and the station sat
+  3,000 units ahead of us for ever. The default is zero, which is the original's rule: the station
+  appears when you reach the planet.
+* **A ship that had started to explode could still be collided with, and re-killed.** The original's
+  part 7 ORs the exploding bit into its distance test, so a wreck is past colliding with and past
+  scooping the moment it starts to blow up; the port only skipped the killed bit, so an exploding
+  wreck could be rammed and killed a second time, paying a second bounty.
+* **The energy bomb's victims were not all paid.** Their kills flowed through one
+  destroyed-this-frame flag, which the last victim overwrote: only the last ship's bounty was paid,
+  and the scene's compensation counted kills without bounties or legal status. Kills and drops are
+  now collected until the game drains them, so every victim of a bomb or a crowded frame is paid
+  its own bounty, counted, and read for innocence.
+* **Kills from the earlier iterations of a frame were lost.** Up to ten iterations run between two
+  drawn frames, and the kill and drop flags were cleared at the end of every iteration; the drain
+  fixes that too.
+* **A mining laser became a military laser across a save and load.** The reader clamped every saved
+  laser into 0–3, and the mining laser is the fourth; it is now validated rather than clamped.
+* **Mission 2's reward is the disc's own.** DEBRIEF2 fits the special navy energy unit — ENGY = 2,
+  which recharges the banks by 3 a tick instead of 2 — and awards 256 kill points; the port paid
+  1,000 credits instead, an invention of its own. The shop refuses to sell an energy unit while any
+  is fitted, as the original does, and the energy unit is the original's ENGY byte throughout.
+* **Mission 2's offer has the disc's own gates.** DOENTRY offers it only when mission 1 is complete
+  and out of progress, the kill tally's high byte is 5 or more (1,280 kills), and we are in the
+  third galaxy; the port offered it at any rank in any galaxy.
+* **The missile lock survives its own launch and arrival.** RES2 clears the missile target — "Reset
+  MSTG, the missile target, to &FF" — at every launch, arrival and mis-jump; a lock that survived
+  pointed at a ship that was no longer in the bubble.
+* **Dying with an escape pod fitted is game over.** The disc's DEATH is fatal however the ship was
+  lost: the pod is launched by its own key while the ship is still there to press it, and DEATH
+  never reaches it. The port's death used to consult the pod and rescue the commander, and quietly
+  refilled the replacement ship's energy — a rule the disc does not have, in a place the port's own
+  comment says the cassette version's RES4 does it.
+* **The death sound played, then nothing heard it.** The shell cleared the died flag before the
+  flight scene ran, so the scene — whose job is that sound — never saw it. The death is now
+  resolved after the scene's update.
+* **CTRL-S both saved and sold.** Saving from the market with an item selected also sold one unit;
+  CTRL-S is now answered once, in the shell, from every docked screen — as the disc's own docked
+  save works from whichever screen is up — and plain S still sells.
+* **The compass dot never pointed at the station.** The disc's COMPAS shows the station inside the
+  safe zone and the planet otherwise; the port preferred the planet whenever it was in the bubble.
+* **The E.C.M.'s invented range is gone.** The port destroyed missiles only within 20,000 units;
+  the disc's E.C.M. destroys every missile in the local bubble.
+* ESCAPE docked now launches from the station, as the disc's own docked key does, instead of
+  quitting; F10 still quits from anywhere, and ESCAPE quits from the title screen and game over.
+
+### Changed
+
+* The energy unit is the original's ENGY byte: none, standard, or navy, where it used to be a
+  boolean. Save files written by the previous build read unchanged — a saved `true` reads as the
+  standard unit.
+
 ## [1.0.0] — 2026-09-23
 
 The first release: BBC Micro disc Elite, rebuilt from its own 6502 sources, flying and trading end to

@@ -111,10 +111,37 @@ public sealed class FlightSim
     public Ship? LaserTarget { get; private set; }
 
     /// <summary>
-    /// Set for one frame when a shot destroys a ship, so the caller can pay the bounty. The game
-    /// clears it once it has done so.
+    /// Every ship destroyed since the game last drained the kill reports, from lasers, missiles,
+    /// collisions and the energy bomb alike. The game pays each one its own bounty, counts its kill
+    /// and reads its legal status, so they are collected rather than overwritten — a bomb or a busy
+    /// frame destroys several, and the last would have swallowed the rest.
     /// </summary>
-    public Ship? DestroyedThisFrame { get; set; }
+    public IReadOnlyList<Ship> KillReports => _killReports;
+
+    private readonly List<Ship> _killReports = [];
+
+    /// <summary>Reports a destroyed ship, for the game to pay when it drains the reports.</summary>
+    private void ReportKill(Ship destroyed) => _killReports.Add(destroyed);
+
+    /// <summary>Reports what a destroyed ship left behind, for the game to spawn when it drains.</summary>
+    private void ReportDrops(Ship destroyed, (int Type, int Count) drops)
+    {
+        if (drops.Count > 0)
+        {
+            _dropReports.Add((destroyed, drops.Type, drops.Count));
+        }
+    }
+
+    /// <summary>
+    /// Returns every ship destroyed since the last drain and empties the report. Draining is the
+    /// game layer's job, once per drawn frame: the simulation reports, the game pays.
+    /// </summary>
+    public List<Ship> DrainKillReports()
+    {
+        List<Ship> drained = [.. _killReports];
+        _killReports.Clear();
+        return drained;
+    }
 
     /// <summary>
     /// Which space view we are looking through, which is the original's VIEW, and so which laser
@@ -166,7 +193,16 @@ public sealed class FlightSim
     /// Throws the whole bubble away, which is what the original's RES2 does to the flight variables
     /// and workspaces when we launch or arrive somewhere new.
     /// </summary>
-    public void ClearBubble() => _bubble.Clear();
+    /// <remarks>
+    /// RES2 also clears the missile target: "Reset MSTG, the missile target, to &amp;FF (no target)".
+    /// Without this a lock survived the launch it was reset by and pointed at a ship that is no
+    /// longer in the bubble, so the next missile flew at nothing.
+    /// </remarks>
+    public void ClearBubble()
+    {
+        _bubble.Clear();
+        MissileLock = null;
+    }
 
     /// <summary>Removes every ship whose status has marked it for removal.</summary>
     /// <summary>
@@ -519,7 +555,6 @@ public sealed class FlightSim
         UpdateSunHeatAndScooping();
 
         // The energy bomb, if it is going off, kills everything in reach
-        BombKillsThisFrame = 0;
         UpdateEnergyBomb();
 
         // Missiles home in, and the E.C.M. swats them down
@@ -575,9 +610,22 @@ public sealed class FlightSim
     public int LastJunkSpawned { get; private set; }
 
     /// <summary>
-    /// What a destroyed ship left behind this frame: the type and how many, for the game to spawn.
+    /// What destroyed ships have left behind since the game last drained the reports: the wreck
+    /// they came from, the type of thing dropped and how many, so the game can spawn them beside
+    /// the wreck they came from. Collected rather than overwritten, for the same reason the kills
+    /// are.
     /// </summary>
-    public (int Type, int Count) DropsThisFrame { get; private set; }
+    public IReadOnlyList<(Ship Destroyed, int Type, int Count)> DropReports => _dropReports;
+
+    private readonly List<(Ship Destroyed, int Type, int Count)> _dropReports = [];
+
+    /// <summary>Returns every drop since the last drain and empties the report.</summary>
+    public List<(Ship Destroyed, int Type, int Count)> DrainDropReports()
+    {
+        List<(Ship Destroyed, int Type, int Count)> drained = [.. _dropReports];
+        _dropReports.Clear();
+        return drained;
+    }
 
     /// <summary>Scooped cargo this frame, if any, for the game to report.</summary>
     public (int Item, int Amount)? ScoopedThisFrame { get; private set; }
@@ -784,6 +832,9 @@ public sealed class FlightSim
     {
         InWitchspace = true;
 
+        // RES2 is what MJP runs to set the ambush up, and it clears the missile target as it goes
+        MissileLock = null;
+
         foreach (Ship ship in _bubble.ToArray())
         {
             Remove(ship);
@@ -979,13 +1030,9 @@ public sealed class FlightSim
             // part 5 sets the killed bit and lets LL9 start the cloud as it draws; either way the
             // player sees the ship blow up rather than vanish.
             ship.StartExplosion();
-            DestroyedThisFrame = ship;
-            BombKillsThisFrame++;
+            ReportKill(ship);
         }
     }
-
-    /// <summary>How many ships the energy bomb destroyed this frame.</summary>
-    public int BombKillsThisFrame { get; private set; }
 
     /// <summary>
     /// The planet's radius in the units the altitude check works in. The original's planet radius
@@ -1328,7 +1375,7 @@ public sealed class FlightSim
     }
 
     /// <summary>True while a space station is in the local bubble, which is the original's SSPR.</summary>
-    private bool StationIsPresent
+    public bool StationIsPresent
     {
         get
         {
@@ -1388,8 +1435,12 @@ public sealed class FlightSim
         foreach (Ship ship in _bubble)
         {
             // The station has its own docking checks, and a missile reaching us is a detonation
-            // rather than a collision, which the missile code handles
+            // rather than a collision, which the missile code handles. The exploding-or-killed bits
+            // are ORed into the distance test in the original, so a wreck is past colliding with
+            // the moment it starts to blow up — "either the ship is far away, or it is already
+            // exploding, or has been flagged as being killed"
             if (ship.IsKilled ||
+                ship.IsExploding ||
                 IsCelestial(ship.Type) ||
                 ship.Type == Combat.SpaceStationType ||
                 Missiles.IsMissile(ship.Type))
@@ -1417,8 +1468,8 @@ public sealed class FlightSim
             if (Combat.ApplyHit(ship, CollisionDamageToThem))
             {
                 ship.StartExplosion();
-                DestroyedThisFrame = ship;
-                DropsThisFrame = Debris.DestructionDrops(ship.Type, 0, Random);
+                ReportKill(ship);
+                ReportDrops(ship, Debris.DestructionDrops(ship.Type, 0, Random));
             }
 
             // Which shield takes it comes from the ship's own z_sign, as OOPS does for any attacker:
@@ -1544,27 +1595,25 @@ public sealed class FlightSim
                 continue;
             }
 
-            // The E.C.M. destroys missiles within range
+            // The E.C.M. destroys every missile in the local bubble, which is the original's own
+            // wording: "it will destroy any missiles which are currently in the local bubble". There
+            // is no range on it, and the port's 20,000-unit limit was an invention of its own.
             if (EcmActive)
             {
                 (int ex, int ey, int ez) = missile.GetPosition();
-                double ecmDistance = Math.Sqrt(((double)ex * ex) + ((double)ey * ey) + ((double)ez * ez));
-                if (ecmDistance < Missiles.EcmRange)
+                missile.IsKilled = true;
+
+                // And if it went off right beside us it hurts: "the missile just got destroyed
+                // near us, so call OOPS to damage the ship by 80, which is nowhere near as bad as
+                // the 250 damage from a missile slamming straight into us". The test is the
+                // original's own, and it is almost always false — see Missiles.IsBesideUs.
+                if (Missiles.IsBesideUs(ex, ey, ez) &&
+                    Combat.TakeDamage(Player, Missiles.NearbyDamage, fromBehind: ez < 0))
                 {
-                    missile.IsKilled = true;
-
-                    // And if it went off right beside us it hurts: "the missile just got destroyed
-                    // near us, so call OOPS to damage the ship by 80, which is nowhere near as bad as
-                    // the 250 damage from a missile slamming straight into us". The test is the
-                    // original's own, and it is almost always false — see Missiles.IsBesideUs.
-                    if (Missiles.IsBesideUs(ex, ey, ez) &&
-                        Combat.TakeDamage(Player, Missiles.NearbyDamage, fromBehind: ez < 0))
-                    {
-                        PlayerDied = true;
-                    }
-
-                    continue;
+                    PlayerDied = true;
                 }
+
+                continue;
             }
 
             // Chase the target: an enemy ship for our missiles, us for theirs
@@ -1586,8 +1635,8 @@ public sealed class FlightSim
                     if (Combat.ApplyHit(hit, Missiles.DirectHitDamage))
                     {
                         hit.StartExplosion();
-                        DestroyedThisFrame = hit;
-                        DropsThisFrame = Debris.DestructionDrops(hit.Type, 0, Random);
+                        ReportKill(hit);
+                        ReportDrops(hit, Debris.DestructionDrops(hit.Type, 0, Random));
                     }
                 }
                 else
@@ -1623,7 +1672,9 @@ public sealed class FlightSim
 
         foreach (Ship ship in _bubble)
         {
-            if (!Debris.IsScoopable(ship.Type) || ship.IsKilled)
+            // The same gate as the collisions: the exploding-or-killed bits are ORed into the
+            // distance test in the original, so a canister that is blowing up is past scooping
+            if (!Debris.IsScoopable(ship.Type) || ship.IsKilled || ship.IsExploding)
             {
                 continue;
             }
@@ -2056,8 +2107,6 @@ public sealed class FlightSim
     {
         FiringLaserPower = 0;
         LaserTarget = null;
-        DestroyedThisFrame = null;
-        DropsThisFrame = (0, 0);
         ScoopedThisFrame = null;
 
         LaserType laser = Commander?.GetLaser(ActiveMount) ?? LaserType.Pulse;
@@ -2110,10 +2159,10 @@ public sealed class FlightSim
                     {
                         // The hit destroyed it, so start its explosion and report the kill
                         ship.StartExplosion();
-                        DestroyedThisFrame = ship;
+                        ReportKill(ship);
 
                         // Rocks and ships leave something behind when they are destroyed
-                        DropsThisFrame = Debris.DestructionDrops(ship.Type, power, Random);
+                        ReportDrops(ship, Debris.DestructionDrops(ship.Type, power, Random));
                     }
 
                     break;

@@ -92,8 +92,18 @@ public sealed class Commander
     /// <summary>Whether an energy bomb is carried.</summary>
     public bool EnergyBomb { get; set; }
 
-    /// <summary>Whether an energy unit is fitted, which doubles the recharge rate.</summary>
-    public bool EnergyUnit { get; set; }
+    /// <summary>
+    /// The energy unit fitted, which sets how fast the banks recharge: none, the standard unit
+    /// from the equipment shop, or the special navy unit that mission 2's debriefing awards.
+    /// </summary>
+    /// <remarks>
+    /// This is the original's ENGY byte: part 13 of the flight loop adds ENGY + 1 to ENERGY every
+    /// recharge, so no unit recharges by 1, a standard unit by 2 and the navy unit by 3. The shop
+    /// refuses to sell one while any unit is fitted ("Energy Unit Present"), and DEBRIEF2 overwrites
+    /// whatever is fitted with the navy unit — "Set ENGY to 2 so our energy banks recharge at a
+    /// faster rate, as our mission reward is a special navy energy unit".
+    /// </remarks>
+    public int EnergyUnitLevel { get; set; }
 
     /// <summary>Whether the docking computer is fitted.</summary>
     public bool DockingComputer { get; set; }
@@ -211,6 +221,15 @@ public sealed class Commander
 
     /// <summary>The legal status at which the original calls us a fugitive: <c>CPY #50</c>.</summary>
     public const int FugitiveStatus = 50;
+
+    /// <summary>No energy unit is fitted, so the banks recharge by 1 a tick.</summary>
+    public const int NoEnergyUnit = 0;
+
+    /// <summary>A standard energy unit from the equipment shop, which recharges the banks by 2.</summary>
+    public const int StandardEnergyUnit = 1;
+
+    /// <summary>The navy energy unit that mission 2's debriefing awards, which recharges by 3.</summary>
+    public const int NavalEnergyUnit = 2;
 
     /// <summary>
     /// The legal status a cop sets when we destroy one: the original's <c>ORA #64</c>, which makes

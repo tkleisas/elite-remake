@@ -391,8 +391,14 @@ public sealed class GameSession
         if (Missions.DeliverPlans(System, Commander.GalaxyNumber))
         {
             Commander.MissionStatus = Missions.StatusByte;
-            Commander.Cash += 10000;
-            Message = "The plans are delivered. The Navy pays 1,000 credits.";
+
+            // DEBRIEF2 pays nothing in credits: "LDA #2 / STA ENGY" fits the special navy energy
+            // unit, which recharges the banks by 3 a tick instead of 2, over whatever unit was
+            // fitted; "INC TALLY+1" awards 256 kill points; and token 223 is the thank-you message
+            Commander.EnergyUnitLevel = Commander.NavalEnergyUnit;
+            Flight.Player.EnergyUnitLevel = Commander.EnergyUnitLevel;
+            Commander.Kills += Missions.DebriefKillPoints;
+            Message = "The plans are delivered. The Navy fits a naval energy unit.";
             return;
         }
 
@@ -400,7 +406,7 @@ public sealed class GameSession
         {
             Message = "A Navy officer offers you a mission: hunt down a Constrictor in galaxy 2.";
         }
-        else if (Missions.OfferMission2())
+        else if (Missions.OfferMission2(Commander))
         {
             Message = "A Navy officer asks you to carry documents for them.";
         }
@@ -417,7 +423,7 @@ public sealed class GameSession
             return true;
         }
 
-        if (Missions.OfferMission2())
+        if (Missions.OfferMission2(Commander))
         {
             Missions.AcceptMission2();
             Commander.MissionStatus = Missions.StatusByte;
@@ -535,7 +541,7 @@ public sealed class GameSession
     {
         Commander = commander;
         Flight.Commander = commander;
-        Flight.Player.HasEnergyUnit = commander.EnergyUnit;
+        Flight.Player.EnergyUnitLevel = commander.EnergyUnitLevel;
 
         System = commander.CurrentSystem;
         SelectedSystem = System;
@@ -682,38 +688,39 @@ public sealed class GameSession
             return false;
         }
 
-        HandlePlayerDeath();
+        // The original's ESCAPE routine does four things before it hands us to the station: it
+        // empties all seventeen cargo slots, clears our criminal record, spends the pod, and refills
+        // the tank to 70.0 — "STA QQ14 ... set the current fuel level to 70". The fuel matters —
+        // being rescued with an empty tank and no cargo to sell would strand a commander with no
+        // way to earn.
+        for (int item = 0; item < 17; item++)
+        {
+            Commander.RemoveCargo(item, Commander.GetCargo(item));
+        }
+
+        Commander.LegalStatus = 0;
+        Commander.EscapePod = false;
+        Commander.Fuel = Outfitting.MaxFuel;
+
+        Dock();
+        Message = "Escape pod launched: cargo lost, but you were picked up at the station.";
         return true;
     }
 
     /// <summary>
-    /// Handles the destruction of our ship. With an escape pod fitted the commander survives, loses
-    /// the cargo and wakes up in the station, as the original does; without one it is game over,
-    /// and the commander is rebuilt from scratch (until save and load arrive, this stands in for
-    /// reloading the last saved commander).
+    /// Handles the destruction of our ship, which is game over: the commander is rebuilt from
+    /// scratch (until save and load arrive, this stands in for reloading the last saved commander).
     /// </summary>
+    /// <remarks>
+    /// The original's DEATH is fatal however the ship was lost, and it consults nothing else first:
+    /// an escape pod fitted to the wreck buys nothing, because the pod is launched by its own key
+    /// while the ship is still there to press it — the disc's ESCAPE is never reached by DEATH at
+    /// all. The commander's shields and banks go with the wreck: there is no refill here, because
+    /// on the disc the only full recharge is RESET, which runs when a new game starts or a dead
+    /// commander is replaced.
+    /// </remarks>
     public void HandlePlayerDeath()
     {
-        if (Commander.EscapePod)
-        {
-            // The original's ESCAPE routine does four things before it hands us to the station: it
-            // empties all seventeen cargo slots, clears our criminal record, spends the pod, and
-            // delivers a replacement ship with a full tank. The fuel matters — being rescued with an
-            // empty tank and no cargo to sell would strand a commander with no way to earn.
-            for (int item = 0; item < 17; item++)
-            {
-                Commander.RemoveCargo(item, Commander.GetCargo(item));
-            }
-
-            Commander.LegalStatus = 0;
-            Commander.EscapePod = false;
-            Commander.Fuel = Outfitting.MaxFuel;
-
-            Dock();
-            Message = "Escape pod launched: cargo lost, but you were picked up at the station.";
-            return;
-        }
-
         GameOver = true;
         Message = "GAME OVER - press ESC or F10 to leave, or N for a new commander";
     }
@@ -778,7 +785,7 @@ public sealed class GameSession
         Message = result ?? string.Empty;
 
         // A few items change how our ship behaves in flight
-        Flight.Player.HasEnergyUnit = Commander.EnergyUnit;
+        Flight.Player.EnergyUnitLevel = Commander.EnergyUnitLevel;
         return result;
     }
 

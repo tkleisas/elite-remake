@@ -222,12 +222,18 @@ public static class Combat
     }
 
     /// <summary>
-    /// Recharges the energy banks. The original adds ENGY + 1 a frame, so an energy unit doubles
-    /// the rate.
+    /// Recharges the energy banks. The original adds ENGY + 1 a frame, so a standard energy unit
+    /// recharges by 2 and the navy unit by 3.
     /// </summary>
     public static void RechargeEnergy(Ship ship)
     {
-        int rate = ship.HasEnergyUnit ? 2 : 1;
+        int rate = ship.EnergyUnitLevel switch
+        {
+            Commander.NavalEnergyUnit => Commander.NavalEnergyUnit + 1, // the navy unit recharges by 3
+            Commander.StandardEnergyUnit => Commander.StandardEnergyUnit + 1, // a standard unit by 2
+            _ => Commander.NoEnergyUnit + 1, // and nothing at all by 1
+        };
+
         ship.Energy = (byte)Math.Min(255, ship.Energy + rate);
     }
 

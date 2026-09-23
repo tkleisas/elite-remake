@@ -265,7 +265,7 @@ public static class Outfitting
         6 when commander.FuelScoops => "Fuel scoops are already fitted.",
         7 when commander.EscapePod => "An escape pod is already fitted.",
         8 when commander.EnergyBomb => "An energy bomb is already fitted.",
-        9 when commander.EnergyUnit => "An energy unit is already fitted.",
+        9 when commander.EnergyUnitLevel != Commander.NoEnergyUnit => "An energy unit is already fitted.",
         10 when commander.DockingComputer => "A docking computer is already fitted.",
         11 when commander.GalacticHyperdrive => "A galactic hyperdrive is already fitted.",
         _ => null,
@@ -298,7 +298,7 @@ public static class Outfitting
                 commander.EnergyBomb = true;
                 break;
             case 9:
-                commander.EnergyUnit = true;
+                commander.EnergyUnitLevel = Commander.StandardEnergyUnit;
                 break;
             case 10:
                 commander.DockingComputer = true;

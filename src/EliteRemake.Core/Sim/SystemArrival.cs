@@ -156,6 +156,10 @@ public static class SystemArrival
         // clearing of MJ as the hyperspace routines hand over to the arrival
         sim.InWitchspace = false;
 
+        // RES2 is what TT110 runs as we arrive, and it clears the missile target with the rest of
+        // the flight variables
+        sim.MissileLock = null;
+
         AddSystemBodies(sim, system, statusCarry);
 
         if (stationDistance > 0)

@@ -332,10 +332,7 @@ public class GameLoopTests
         for (int frame = 0; frame < 4_000 && kills == 0; frame++)
         {
             sim.Step(new FlightInput(Fire: true));
-            if (sim.DestroyedThisFrame is not null)
-            {
-                kills++;
-            }
+            kills += sim.DrainKillReports().Count;
         }
 
         Assert.True(kills > 0, "a pirate held in the crosshairs should be destroyed");
@@ -408,13 +405,19 @@ public class GameLoopTests
         var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III")) { Commander = commander };
         var session = new GameSession(commander, sim);
 
-        // Mission 1 complete, so mission 2 is on offer
-        commander.Kills = Missions.CompetentKills;
+        // Mission 1 complete, so mission 2 is on offer — the disc gates the offer on the third
+        // galaxy and a kill tally of 1280, which is 5 in the tally's high byte
+        commander.Kills = Missions.Mission2KillRank;
         commander.MissionStatus = 2;
+        commander.GalaxyNumber = Missions.PlansGalaxy;
+        commander.CurrentSystem = Galaxy
+            .GenerateGalaxy(Galaxy.GalaxySeeds(Missions.PlansGalaxy))
+            .First(s => !Missions.IsPlansSystem(s, Missions.PlansGalaxy) &&
+                        !Missions.IsDeliverySystem(s, Missions.PlansGalaxy));
         session.Load(commander);
         session.Dock();
 
-        Assert.True(session.Missions.OfferMission2(), session.Message);
+        Assert.True(session.Missions.OfferMission2(commander), session.Message);
         session.Missions.AcceptMission2();
         Assert.True(session.Missions.Mission2Active);
 
@@ -444,11 +447,14 @@ public class GameLoopTests
             .First(s => s.X == Missions.DeliveryX && s.Y == Missions.DeliveryY);
         session.Load(commander);
 
-        int cash = commander.Cash;
+        int kills = commander.Kills;
         session.Dock();
 
         Assert.False(session.Missions.CarryingPlans, session.Message);
-        Assert.True(commander.Cash > cash, "delivering the plans should pay");
+
+        // DEBRIEF2 pays no cash: the reward is the special navy energy unit and 256 kill points
+        Assert.Equal(Commander.NavalEnergyUnit, commander.EnergyUnitLevel);
+        Assert.Equal(kills + Missions.DebriefKillPoints, commander.Kills);
     }
 
     /// <summary>
@@ -842,13 +848,14 @@ public class GameLoopTests
     }
 
     /// <summary>
-    /// Dying with an escape pod fitted means being picked up, not game over.
+    /// Pressing the escape pod's key means being picked up at the station, minus the cargo.
     /// </summary>
     /// <remarks>
     /// The original's ESCAPE routine empties all seventeen cargo slots, clears the criminal record,
-    /// spends the pod, and delivers a replacement ship with a full tank. The fuel is the part that
-    /// matters most: a commander rescued with an empty tank and nothing to sell would have no way to
-    /// earn, so the rescue has to leave him able to fly.
+    /// spends the pod, and refills the tank to 70.0. The fuel is the part that matters most: a
+    /// commander rescued with an empty tank and nothing to sell would have no way to earn, so the
+    /// rescue has to leave him able to fly. It is the key's own routine, and DEATH never reaches it:
+    /// dying is fatal even with a pod fitted, because there is no one left to press the key.
     /// </remarks>
     [Fact]
     public void AnEscapePodRescuesTheCommanderWithAFullTank()
@@ -864,7 +871,7 @@ public class GameLoopTests
         commander.EscapePod = true;
 
         session.Launch();
-        session.HandlePlayerDeath();
+        Assert.True(session.LaunchEscapePod());
 
         Assert.False(session.GameOver, "an escape pod should save the commander");
         Assert.Equal(GameMode.Docked, session.Mode);
@@ -1031,8 +1038,9 @@ public class GameLoopTests
 }
 
 /// <summary>
-/// Checks what happens after we are killed: the wreck is the end of the commander unless they were
-/// carrying an escape pod, and asking for a new commander gives a fresh ship rather than the wreck.
+/// Checks what happens after we are killed: the wreck is the end of the commander — a fitted escape
+/// pod buys nothing, because DEATH never reaches the pod's own key — and asking for a new commander
+/// gives a fresh ship rather than the wreck.
 /// </summary>
 public class DeathAndRestartTests
 {
@@ -1058,20 +1066,34 @@ public class DeathAndRestartTests
     }
 
     [Fact]
-    public void DeathWithAPodPutsUsBackAtTheStationMinusTheCargo()
+    public void DeathIsGameOverEvenWithAPodFitted()
     {
+        // The disc's DEATH is fatal however the ship was lost, and it consults nothing first: the
+        // pod is launched by its own key while the ship is still there to press it, so the wreck's
+        // pod buys nothing
         GameSession session = Fly();
         session.Commander.EscapePod = true;
-        session.Commander.AddCargo(5, 10);
-        session.Commander.Fuel = 12;
 
         session.HandlePlayerDeath();
 
-        Assert.False(session.GameOver);
-        Assert.Equal(GameMode.Docked, session.Mode);
-        Assert.False(session.Commander.EscapePod);
-        Assert.Equal(0, session.Commander.GetCargo(5));
-        Assert.Equal(Universe.Outfitting.MaxFuel, session.Commander.Fuel);
+        Assert.True(session.GameOver);
+        Assert.True(session.Commander.EscapePod, "the pod is not spent by a death");
+    }
+
+    [Fact]
+    public void LaunchingClearsTheMissileLock()
+    {
+        // TT110's RES2 clears the missile target — "Reset MSTG, the missile target, to &FF" — so a
+        // lock never survives the launch it was reset by and points at a ship that has gone
+        GameSession session = Fly();
+        session.Commander.EscapePod = true;
+        var target = new Ship(17, "sidewinder", "Sidewinder");
+        session.Flight.Spawn(target);
+        session.Flight.MissileLock = target;
+
+        session.Launch();
+
+        Assert.Null(session.Flight.MissileLock);
     }
 
     [Fact]

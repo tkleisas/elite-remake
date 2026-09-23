@@ -420,19 +420,33 @@ public sealed class HudRenderer
 
         DrawCircle(spriteBatch, pixel, cx, cy, radius, Frame, 24);
 
-        // Find the planet, or failing that the station, and plot where it is
+        // The compass shows the station while we are inside its safe zone — the original's SSPR is
+        // the count of stations in our bubble, and it is what COMPAS branches on: "If we are inside
+        // the space station safe zone, jump to SP1 to draw the space station on the compass" — and
+        // the planet otherwise. Preferring the planet whenever it was in the bubble meant the dot
+        // never guided us to the station, which is the one thing a pilot needs it for.
         Ship? body = null;
-        foreach (Ship ship in sim.Bubble)
+        if (sim.StationIsPresent)
         {
-            if (ship.Type is 128 or 130)
+            foreach (Ship ship in sim.Bubble)
             {
-                body = ship;
-                break;
+                if (ship.Type == Combat.SpaceStationType)
+                {
+                    body = ship;
+                    break;
+                }
             }
+        }
 
-            if (ship.Type == Combat.SpaceStationType && body is null)
+        if (body is null)
+        {
+            foreach (Ship ship in sim.Bubble)
             {
-                body = ship;
+                if (ship.Type is 128 or 130)
+                {
+                    body = ship;
+                    break;
+                }
             }
         }
 

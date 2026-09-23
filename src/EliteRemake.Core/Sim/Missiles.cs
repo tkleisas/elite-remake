@@ -44,9 +44,6 @@ public static class Missiles
     /// <summary>How close a missile must get to its target to go off.</summary>
     public const int ImpactRange = 120;
 
-    /// <summary>How near a missile must be for the E.C.M. to catch it.</summary>
-    public const int EcmRange = 20000;
-
     /// <summary>True if a ship is a missile.</summary>
     public static bool IsMissile(int shipType) => shipType == MissileType;
 

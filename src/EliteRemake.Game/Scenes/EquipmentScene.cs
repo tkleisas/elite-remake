@@ -165,12 +165,7 @@ public sealed class EquipmentScene : IScene
             _session.Screen = DockedScreen.Status;
         }
 
-        // The original saves the commander from the docked screens
-        if (IsNewPress(keys, Keys.S) && (keys.IsKeyDown(Keys.LeftControl) || keys.IsKeyDown(Keys.RightControl)))
-        {
-            _session.Save();
-        }
-
+        // The shell handles CTRL-S from every docked screen, so nothing is done here
         if (IsNewPress(keys, Keys.Escape))
         {
             _session.Launch();
@@ -286,7 +281,7 @@ public sealed class EquipmentScene : IScene
             6 => commander.FuelScoops,
             7 => commander.EscapePod,
             8 => commander.EnergyBomb,
-            9 => commander.EnergyUnit,
+            9 => commander.EnergyUnitLevel != Commander.NoEnergyUnit,
             10 => commander.DockingComputer,
             11 => commander.GalacticHyperdrive,
             _ => false,

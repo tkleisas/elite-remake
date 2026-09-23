@@ -226,8 +226,36 @@ public sealed class Missions
     /// <summary>Accepts mission 1.</summary>
     public void AcceptMission1() => Mission1Active = true;
 
-    /// <summary>Offers mission 2, which the original gives once mission 1 is done.</summary>
-    public bool OfferMission2() => Mission1Complete && !Mission2Active && !CarryingPlans;
+    /// <summary>
+    /// Offers mission 2, which the disc's DOENTRY gates on four things: mission 1 is complete and
+    /// no longer in progress (bits 0-3 of TP are exactly %0010), the kill tally's high byte is 5 or
+    /// more — a rank partway from Dangerous to Deadly — and we are in the third galaxy.
+    /// </summary>
+    /// <remarks>
+    /// The original's checks, in order:
+    ///
+    /// <code>
+    /// LDA TP / AND #%00001111 / CMP #%00000010   \ mission 1 done and out of progress
+    /// LDA TALLY+1 / CMP #5 / BCC EN4             \ 5 in the high byte is 1280 kills
+    /// LDA GCNT / CMP #2 / BNE EN4                \ the third galaxy, 0-based
+    /// </code>
+    ///
+    /// The rank gate sits between Dangerous and Deadly: 1280 kills is 5 * 256, the tally the
+    /// original reads in its two bytes.
+    /// </remarks>
+    public bool OfferMission2(Commander commander) =>
+        Mission1Complete &&
+        !Mission1Active &&
+        !Mission2Active &&
+        !CarryingPlans &&
+        commander.Kills >= Mission2KillRank &&
+        commander.GalaxyNumber == PlansGalaxy;
+
+    /// <summary>
+    /// The kill tally mission 2 needs: the original compares the tally's high byte against 5, which
+    /// is 1280 kills — three eighths of the way from Dangerous (256) to Deadly (2560).
+    /// </summary>
+    public const int Mission2KillRank = 5 * 256;
 
     /// <summary>Accepts mission 2, which sets bit 2: on our way to collect the plans.</summary>
     public void AcceptMission2() => Mission2Active = true;

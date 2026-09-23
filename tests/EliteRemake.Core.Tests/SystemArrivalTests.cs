@@ -71,6 +71,23 @@ public class SystemArrivalTests
     }
 
     /// <summary>
+    /// Arriving clears the missile lock, which is RES2's own work: "Reset MSTG, the missile target,
+    /// to &amp;FF (no target)". TT110 runs RES2 at every launch and arrival, so a lock never
+    /// survived the journey it was reset by.
+    /// </summary>
+    [Fact]
+    public void Arriving_ClearsTheMissileLock()
+    {
+        FlightSim sim = CreateSim();
+        StarSystem[] systems = TwoSystems();
+
+        sim.MissileLock = new Ship(17, "sidewinder", "Sidewinder");
+        SystemArrival.ArriveInSystem(sim, systems[0]);
+
+        Assert.Null(sim.MissileLock);
+    }
+
+    /// <summary>
     /// The station is spawned one planetary radius above the surface, along the planet's own nose
     /// vector: the planet's centre plus twice the 96-scaled nose vector, doubled into a 16-bit value.
     /// The planet's nose points back at us, so the station is 49152 units nearer to us than the

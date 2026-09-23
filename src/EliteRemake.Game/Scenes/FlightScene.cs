@@ -145,7 +145,7 @@ public sealed class FlightScene : IScene
             Sounds.Play(Core.Audio.SoundEffect.LaserHit);
         }
 
-        if (_sim.DestroyedThisFrame is not null && Session is not null)
+        if (_killsThisFrame.Count > 0 && Session is not null)
         {
             Sounds.Play(Core.Audio.SoundEffect.Explosion);
         }
@@ -386,8 +386,13 @@ public sealed class FlightScene : IScene
     /// different.
     /// </summary>
     /// <param name="system">The system we have arrived in.</param>
-    /// <param name="stationDistance">How far ahead to place the station, in the original's units.</param>
-    public void ArriveInSystem(EliteRemake.Core.Universe.StarSystem system, int stationDistance = 3000)
+    /// <param name="stationDistance">
+    /// How far ahead to place a station, in the original's units. Zero — the default, and the
+    /// original's own rule — means no station on arrival: it appears when we reach the planet, by
+    /// part 14 of the flight loop. A distance is a development shortcut for a test flight that
+    /// wants a station to fly at without crossing a system.
+    /// </param>
+    public void ArriveInSystem(EliteRemake.Core.Universe.StarSystem system, int stationDistance = 0)
     {
         // The Coriolis turns from the moment it appears, as the original's does: NWSPS gives it a
         // roll counter of 255, a full anti-clockwise roll that never damps. It matters for docking,
@@ -750,6 +755,13 @@ public sealed class FlightScene : IScene
     private float _messageLeft;
     private float _lastElapsed;
 
+    /// <summary>
+    /// The kills and drops the simulation reported since last frame, drained once and kept for the
+    /// frame: paying them is the Session block's business, and the sounds read them later.
+    /// </summary>
+    private List<Ship> _killsThisFrame = [];
+    private List<(Ship Destroyed, int Type, int Count)> _dropsThisFrame = [];
+
     /// <summary>The session this scene is flying in, so docking can be requested.</summary>
     public GameSession? Session { get; set; }
 
@@ -940,17 +952,16 @@ public sealed class FlightScene : IScene
                 Session.Message = ItemName(scoopedItem.Item);
             }
 
-            // Destroying a ship pays its bounty and counts the kill, and the energy bomb's
-            // victims count too
-            if (_sim.DestroyedThisFrame is { } wreck)
+            // Every ship destroyed since the last frame is paid here, from lasers, missiles,
+            // collisions and the energy bomb alike: each gets its own bounty, kill count and legal
+            // reading. The simulation collects them rather than overwriting one flag, so a bomb or
+            // a crowded frame destroys several and none is swallowed by the last. The drained
+            // reports are kept for this frame, because the sounds read them later in the same pass.
+            _killsThisFrame = _sim.DrainKillReports();
+            _dropsThisFrame = _sim.DrainDropReports();
+            foreach (Ship wreck in _killsThisFrame)
             {
                 Session.RegisterKill(wreck);
-                _sim.DestroyedThisFrame = null;
-            }
-
-            for (int i = 1; i < _sim.BombKillsThisFrame; i++)
-            {
-                Session.Commander.RegisterKill(); // the rest of the bomb's victims
             }
         }
 
@@ -1016,19 +1027,22 @@ public sealed class FlightScene : IScene
         // The dust is turned by the same angles the ships are, so the sky swings when we steer
         _starfield.Update(_sim.Speed * steps, Signed(_sim.RollAngle, _sim.RollSign), Signed(_sim.PitchAngleValue, _sim.PitchSign));
 
-        // Spawn whatever the last destroyed ship left behind
-        if (_sim.DropsThisFrame.Count > 0 && Session is not null)
+        // Spawn whatever destroyed ships have left behind, beside the wreck each came from. The
+        // reports were drained once, up in the Session block, so drops from every iteration of the
+        // frame reach here.
+        if (Session is not null && _dropsThisFrame.Count > 0)
         {
-            for (int i = 0; i < _sim.DropsThisFrame.Count; i++)
+            for (int i = 0; i < _dropsThisFrame.Count; i++)
             {
-                var drop = new Ship(_sim.DropsThisFrame.Type, string.Empty, $"Type {_sim.DropsThisFrame.Type}");
-                if (_sim.DestroyedThisFrame is { } wreck)
-                {
-                    (int x, int y, int z) = wreck.GetPosition();
-                    drop.SetPosition(x + (i * 64), y, z);
-                }
+                (Ship wreck, int type, int count) = _dropsThisFrame[i];
+                (int x, int y, int z) = wreck.GetPosition();
 
-                _sim.Spawn(drop);
+                for (int j = 0; j < count; j++)
+                {
+                    var drop = new Ship(type, string.Empty, $"Type {type}");
+                    drop.SetPosition(x + (j * 64), y, z);
+                    _sim.Spawn(drop);
+                }
             }
         }
     }

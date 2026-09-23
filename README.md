@@ -86,7 +86,7 @@ missions, die. What is left is the long tail, and it is listed rather than hidde
 | Hyperspace, galactic hyperdrive, witchspace and Thargoids | complete |
 | Missions: offer rules, hints, briefings and debriefings **as text** | complete |
 | Missions: the briefing *screens* (incoming message, rotating ship, key waits) | text and the actions they ask for are done; the game layer does not stage them yet |
-| Rendering: close-ship detail edges, authentic dial geometry | not yet |
+| Rendering: authentic dial geometry | not yet (the close-ship detail edges are) |
 | Death sequence, some rare-state behaviour | not yet |
 | Audio | flight effects and title music; the full sound table has not been audited |
 
@@ -145,11 +145,11 @@ at all — you reset the machine.
 | `J` | in-system jump | `ESC` | launch |
 | `H` | hyperspace | arrow keys | move the chart crosshairs |
 | `F1`–`F4` | front, rear, left, right view | | |
-| `ESCAPE` | escape pod (in flight), quit (docked) | | |
+| `ESCAPE` | escape pod (in flight), launch (docked), quit (title and game over) | | |
 | `F10` | quit, from anywhere | | |
 
-A gamepad works in flight as well: the left stick steers, the triggers are the throttle, and the
-buttons map to fire, missile lock and fire, E.C.M., the views and the docking computer.
+A gamepad works in flight as well: the left stick steers, `A` and `B` are the throttle, and the right
+shoulder button fires. The remaining flight keys have no gamepad mapping yet.
 
 ## Command line options
 
@@ -183,7 +183,7 @@ dotnet run --project src/EliteRemake.Game -- --dock status --fully-equipped --ex
 | `--fully-equipped`, `--empty`, `--new-commander` | starting states |
 | `--sim-rate <hz>` | run the simulation faster than real time (used by the smoke tests) |
 | `--sim-warmup <n>`, `--hold`, `--stress <n>`, `--jump` | development hooks |
-| `--viewer` | the ship viewer: every blueprint, turning, with its statistics |
+| `--viewer` | the ship viewer: the named ship, turning, with its statistics |
 | `--font-sheet` | print the bitmap font, for checking the glyphs |
 | `--help` | the list, from the source rather than from this table |
 

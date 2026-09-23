@@ -224,26 +224,19 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
 
     protected override void Update(GameTime gameTime)
     {
-        // ESCAPE leaves the game except in flight, where the original launches an escape pod with it
-        // and a faithful remake has to let it; F10 leaves from anywhere, and the game-over screen
-        // still answers to ESCAPE because there is no ship left to leave.
+        // ESCAPE leaves the game from the title screen and the game-over screen; docked, each
+        // screen's own ESCAPE handler answers it, and in flight it launches an escape pod, which is
+        // the original's own use of the key. F10 leaves from anywhere.
         KeyboardState pressed = Microsoft.Xna.Framework.Input.Keyboard.GetState();
         bool inFlight = _session.Mode == GameMode.Flying && !_session.GameOver;
+        bool docked = _session.Mode == GameMode.Docked;
         if (pressed.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.F10) ||
-            (pressed.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !inFlight))
+            (pressed.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !inFlight && !docked))
         {
             Exit();
         }
 
         UpdateCameraToViewport();
-
-        // Being destroyed resolves to the station (with an escape pod) or to game over
-        if (_session.Flight.PlayerDied && _session.Mode == GameMode.Flying)
-        {
-            _session.Flight.PlayerDied = false;
-            _session.Flight.Player.Energy = 150;
-            _session.HandlePlayerDeath();
-        }
 
         // The start screen's quit option leaves the game
         if (_titleScene is { QuitRequested: true })
@@ -295,6 +288,17 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
         if (!_options.Paused && !(_session.GameOver && _session.Mode == GameMode.Flying))
         {
             _scene.Update((float)gameTime.ElapsedGameTime.TotalSeconds);
+        }
+
+        // Being destroyed is resolved after the scene has had its update, so the scene can see the
+        // death before the shell clears it: it used to be cleared here, before the scene ran, and
+        // the flight scene — whose job is the death's sound — never saw the flag at all. The
+        // commander died in silence, exactly as before the sound was written. The energy is left
+        // where the wreck left it: on the disc nothing refills a ship that has died.
+        if (_session.Flight.PlayerDied && _session.Mode == GameMode.Flying)
+        {
+            _session.Flight.PlayerDied = false;
+            _session.HandlePlayerDeath();
         }
 
         _updateTicks += updateClock.ElapsedTicks;
@@ -372,6 +376,14 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
         if (IsNewPress(keys, Keys.F3))
         {
             _session.Screen = DockedScreen.Equipment;
+        }
+
+        // The original saves the commander from the docked screens — its SVE routine saves from
+        // whichever screen is up — so CTRL-S is answered here once, for all of them, rather than in
+        // whichever scenes happened to remember it
+        if (IsNewPress(keys, Keys.S) && MarketScene.ControlHeld(keys))
+        {
+            _session.Save();
         }
 
         _dockedKeys = keys;

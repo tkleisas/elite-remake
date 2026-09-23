@@ -119,7 +119,7 @@ public sealed class SettingsScene : IScene
         {
             _selected = (_selected + rows - 1) % rows;
         }
-        else if (IsNewPress(keys, Keys.Down) || IsNewPress(keys, Keys.S))
+        else if (IsNewPress(keys, Keys.Down) || (IsNewPress(keys, Keys.S) && !MarketScene.ControlHeld(keys)))
         {
             _selected = (_selected + 1) % rows;
         }
@@ -138,10 +138,6 @@ public sealed class SettingsScene : IScene
         {
             _waitingForKey = true;
             _message = "Press the key to bind, or ESCAPE to cancel.";
-        }
-        else if (IsNewPress(keys, Keys.S) && (keys.IsKeyDown(Keys.LeftControl) || keys.IsKeyDown(Keys.RightControl)))
-        {
-            _message = _settings.Save();
         }
         else if (IsNewPress(keys, Keys.R))
         {

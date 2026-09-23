@@ -249,10 +249,13 @@ public sealed class Ship
     public byte AftShield { get; set; } = 255;
 
     /// <summary>
-    /// Whether an energy unit is fitted, which doubles the rate the energy banks recharge at (the
-    /// original's ENGY).
+    /// The energy unit fitted, which sets how fast the banks recharge (the original's ENGY: none,
+    /// a standard unit, or the navy unit).
     /// </summary>
-    public bool HasEnergyUnit { get; set; }
+    /// <remarks>
+    /// For our ship this follows the commander's own fitting; a blue-print ship carries none.
+    /// </remarks>
+    public int EnergyUnitLevel { get; set; }
 
     /// <summary>
     /// The blueprint's visibility distance: beyond this many multiples of 256 units (the original

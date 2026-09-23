@@ -157,7 +157,15 @@ public sealed class StatusScene : IScene
         }
         Line("ECM", Fitted(commander.Ecm), normal);
         Line("FUEL SCOOPS", Fitted(commander.FuelScoops), normal);
-        Line("ENERGY UNIT", Fitted(commander.EnergyUnit), normal);
+
+        // The original's STATUS shows one "ENERGY UNIT" line whichever unit is fitted; the navy
+        // unit that mission 2 awards says so, which is the only way to see the difference
+        Line("ENERGY UNIT", commander.EnergyUnitLevel switch
+        {
+            Commander.NavalEnergyUnit => "NAVAL UNIT",
+            Commander.StandardEnergyUnit => Fitted(true),
+            _ => Fitted(false),
+        }, normal);
         Line("ESCAPE POD", Fitted(commander.EscapePod), normal);
         Line("ENERGY BOMB", Fitted(commander.EnergyBomb), normal);
         Line("DOCKING COMPUTER", Fitted(commander.DockingComputer), normal);

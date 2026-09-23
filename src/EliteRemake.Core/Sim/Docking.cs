@@ -32,8 +32,11 @@ public enum DockingResult
 /// space station.
 /// </summary>
 /// <remarks>
-/// The original's ISDK routine applies five tests before it lets us dock, and the disc version shows
-/// the launch tunnel and resets the shields and energy banks when they all pass:
+/// The original's ISDK routine applies five tests before it lets us dock, and the disc version then
+/// runs RES2 to clear the flight variables, draws the launch tunnel and shows the ship hangar. It
+/// refills nothing: the shields and the banks are not touched, because the disc's full recharge is
+/// RESET, which runs when a new game starts or a dead commander is replaced — the cassette version's
+/// GOIN is the one that calls RES4 to recharge.
 ///
 /// <list type="number">
 /// <item>the station must not be hostile</item>
