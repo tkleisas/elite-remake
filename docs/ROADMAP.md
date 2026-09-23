@@ -2432,3 +2432,38 @@ only a person can see, or something in the simulation rather than the renderer.
 a hole in the middle; this round the obvious instrument — how many faces are drawn — is blind to
 everything on screen, and the count's alarm was an artefact of parallel faces. Measuring a feature
 means measuring the thing the player sees, which for a renderer is pixels.
+
+## The wobble: what has now been ruled out, and two more of my own errors
+
+Three rounds of hunting the reported wobble have eliminated every mechanism I can measure. Recorded
+together, because the list is the useful artefact:
+
+| candidate | how it was tested | verdict |
+| --- | --- | --- |
+| distorted model geometry | rendered the station at every heading | solid and correct |
+| projection or scale | area scales as 1/z² exactly | correct |
+| near-plane clipping | near plane is 4 units; the station clips at ~24 000 | never engages |
+| face culling forced on | changed it; the render was byte-identical | not the cause |
+| a non-rigid basis | measured: lengths swung 0.90 to 1.00, determinant 0.82 to 0.98 | **real, fixed** |
+| faces flickering at boundaries | every 2 degrees, pixel diff smooth across a face-count jump | no flicker |
+| the docking slot missing | it was culled at every distance | **real, fixed** |
+
+The two real faults found along the way are both fixed and both were worth finding on their own terms.
+What remains for the reported symptom is either something only a person can see, or something in the
+**simulation** rather than the renderer.
+
+**And two more probe errors of mine, taking the count to nine.** The first was structural: I called
+`Mvs5(o, Orientation.Nosev, 0x00, ...)` when its parameters take a *component* offset, so my "x" and
+"y" were the nose vector and the roof vector. The numbers it produced — a nose component climbing past
+1.0 while its neighbour never moved — looked exactly like a rotation fault and were entirely an
+artefact of the call. Reading the production call sites, which all pass `Orientation.Roofv +
+Orientation.X`, would have prevented it in one look.
+
+The second was a misreading: a step size printed as `93,583` and read as ninety-three, when the same
+program's own filtered list showed no step above 7.9. The decimal comma in a locale-formatted number
+looked like a thousands separator.
+
+**Both were caught by cross-checking one measurement against another rather than by care.** That is now
+the ninth time, and the pattern is stable enough to state as a rule for any future diagnostic work
+here: a probe that has not been checked against a second, independent view of the same quantity is not
+evidence.
