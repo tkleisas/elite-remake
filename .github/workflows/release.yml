@@ -1,0 +1,205 @@
+name: Release
+
+# Pushing a tag like v1.2.3 builds the four desktop artifacts, checks that the tag agrees with the
+# version in Directory.Build.props, and publishes a GitHub release with them attached. The tag is the
+# release: nothing here bumps a version or commits anything back.
+on:
+  push:
+    # a glob, not a regular expression: v, a digit, and anything after it. The check job below is
+    # what insists on vMAJOR.MINOR.PATCH and on it agreeing with Directory.Build.props
+    tags: ['v[0-9]*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build and release, for example v1.0.0'
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  check:
+    name: The tag and the build agree
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the tag and the version, and check they match
+        id: version
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          version=$(grep -oP '(?<=<Version>)[^<]+' Directory.Build.props | head -1)
+          echo "tag:     $tag"
+          echo "version: $version"
+          if [ "$tag" != "v$version" ]; then
+            echo "::error::the tag $tag does not match <Version>$version</Version> in Directory.Build.props."
+            echo "::error::Bump the version and commit it before tagging — see docs/VERSIONING.md."
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Is there a changelog entry for it?
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          if ! grep -q "^## \[$version\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no \"## [$version]\" section for this release."
+            exit 1
+          fi
+          grep -m1 "^## \[$version\]" CHANGELOG.md
+
+  test:
+    name: Tests before anything is published
+    runs-on: ubuntu-latest
+    needs: check
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Test
+        run: dotnet test tests/EliteRemake.Core.Tests -c Release
+
+  package:
+    name: Package ${{ matrix.rid }}
+    runs-on: ${{ matrix.os }}
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: linux-x64
+            os: ubuntu-latest
+          - rid: win-x64
+            os: windows-latest
+          - rid: osx-x64
+            os: macos-latest
+          - rid: osx-arm64
+            os: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Self-contained, so a release runs on a machine that has never seen .NET. MonoGame's native
+      # libraries (SDL2, OpenAL) come from its own package and land next to the binary
+      - name: Publish
+        run: >
+          dotnet publish src/EliteRemake.Game -c Release -r ${{ matrix.rid }} --self-contained true
+          -p:DebugType=none -p:Version=${{ needs.check.outputs.version }}
+          -o dist/elite-remake-${{ needs.check.outputs.version }}-${{ matrix.rid }}
+
+      - name: Add the documents that belong with a release
+        shell: bash
+        run: |
+          set -euo pipefail
+          folder="dist/elite-remake-${{ needs.check.outputs.version }}-${{ matrix.rid }}"
+          cp README.md NOTICE.md LICENSE CHANGELOG.md "$folder/"
+
+      - name: Package (Linux and macOS)
+        if: matrix.os != 'windows-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          name="elite-remake-${{ needs.check.outputs.version }}-${{ matrix.rid }}"
+          chmod +x "$name/EliteRemake" || true
+          tar -czf "$name.tar.gz" "$name"
+          # macOS has shasum rather than sha256sum
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+          else
+            shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
+          fi
+
+      - name: Package (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $name = "elite-remake-${{ needs.check.outputs.version }}-${{ matrix.rid }}"
+          Set-Location dist
+          Compress-Archive -Path $name -DestinationPath "$name.zip"
+          (Get-FileHash "$name.zip" -Algorithm SHA256).Hash.ToLower() + "  $name.zip" |
+            Set-Content "$name.zip.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.rid }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
+
+  release:
+    name: Publish the release
+    runs-on: ubuntu-latest
+    needs: [check, package]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Assemble the assets
+        run: |
+          set -euo pipefail
+          cd dist
+          ls -lh
+          cat ./*.sha256 > SHA256SUMS
+          rm -f ./*.sha256
+          echo "--- SHA256SUMS ---"
+          cat SHA256SUMS
+
+      - name: Take this release's notes out of the changelog
+        run: |
+          set -euo pipefail
+          version="${{ needs.check.outputs.version }}"
+          awk -v heading="## [$version]" '
+            index($0, heading) == 1 { printing = 1; next }
+            printing && index($0, "## [") == 1 { exit }
+            printing { print }
+          ' CHANGELOG.md > notes.md
+          printf '\n---\n\n**Full changelog:** https://github.com/%s/blob/master/CHANGELOG.md\n' \
+            "$GITHUB_REPOSITORY" >> notes.md
+          wc -l notes.md
+
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ needs.check.outputs.tag }}"
+          prerelease=""
+          case "$tag" in *-*) prerelease="--prerelease";; esac
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "the release exists: updating its notes and assets"
+            gh release edit "$tag" --title "$tag" --notes-file notes.md $prerelease
+          else
+            gh release create "$tag" --title "$tag" --notes-file notes.md $prerelease
+          fi
+
+          gh release upload "$tag" dist/* --clobber
+          gh release view "$tag" --json url,assets --jq '"release: " + .url, (.assets[] | "  " + .name + "  " + (.size|tostring) + " bytes")'

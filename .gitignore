@@ -6,3 +6,5 @@ obj/
 *.png.tmp
 /artifacts/
 /screenshots/
+/build/
+/dist/

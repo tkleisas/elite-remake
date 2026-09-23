@@ -1,5 +1,9 @@
 # Elite Remake
 
+[![CI](https://github.com/tkleisas/elite-remake/actions/workflows/ci.yml/badge.svg)](https://github.com/tkleisas/elite-remake/actions/workflows/ci.yml)
+[![Release](https://github.com/tkleisas/elite-remake/actions/workflows/release.yml/badge.svg)](https://github.com/tkleisas/elite-remake/actions/workflows/release.yml)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+
 **BBC Micro disc Elite, rebuilt from its own 6502 sources in C# on .NET 10 with MonoGame.**
 
 Not a reimagining and not a clone from memory: the universe, the flight model, the ship blueprints,
@@ -111,6 +115,11 @@ dotnet build EliteRemake.slnx
 dotnet test  tests/EliteRemake.Core.Tests        # 412 tests, about 20 seconds
 dotnet run --project src/EliteRemake.Game        # play
 ```
+
+Prefer a binary? Every release carries self-contained builds for Linux, Windows and macOS (Intel and
+Apple silicon) — no .NET installation needed:
+
+<https://github.com/tkleisas/elite-remake/releases/latest>
 
 The game starts on the title screen: `START` flies, `NEW COMMANDER` starts from the original's
 default commander, `SETTINGS` shows the controls and turns the music off, `QUIT` leaves. A commander
@@ -275,6 +284,19 @@ status line that the screenshot harness prints.
 Releases are git tags `vMAJOR.MINOR.PATCH` with an entry in [`CHANGELOG.md`](CHANGELOG.md). What the
 three numbers mean for a faithful port — and why a fidelity fix is a PATCH rather than a feature — is
 in [`docs/VERSIONING.md`](docs/VERSIONING.md).
+
+The pipeline does the rest:
+
+| Workflow | When | What it does |
+|---|---|---|
+| [`ci.yml`](.github/workflows/ci.yml) | every push and pull request | builds and runs the 412 tests on Linux, Windows and macOS, then publishes the Linux build, runs the game under a virtual display and checks it reported its version and drew a frame |
+| [`release.yml`](.github/workflows/release.yml) | pushing a `v*` tag | checks the tag matches `<Version>` and that the changelog has an entry for it, runs the tests, builds self-contained artifacts for `linux-x64`, `win-x64`, `osx-x64` and `osx-arm64`, and publishes them to a GitHub release with a `SHA256SUMS` file |
+
+So a release is one command, after the version and the changelog are committed:
+
+```bash
+git tag -a v1.0.1 -m "v1.0.1" && git push origin master --follow-tags
+```
 
 ## Documentation
 

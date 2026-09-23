@@ -35,14 +35,34 @@ Two consequences worth stating plainly:
 
 ## Releases
 
-```
-# the version has already been bumped in Directory.Build.props, tests are green, changelog written
-git tag -a v1.0.0 -m "v1.0.0"
+A release is a tag; the pipeline does the work. The order matters, because the workflow refuses a tag
+that does not agree with the build:
+
+1. Bump `<Version>` in `Directory.Build.props` and commit it.
+2. Write the `## [x.y.z]` section in `CHANGELOG.md` and commit it.
+3. `dotnet test` locally if you like — the pipeline runs it anyway, before it publishes anything.
+4. Tag and push:
+
+```bash
+git tag -a v1.0.1 -m "v1.0.1"
 git push origin master --follow-tags
 ```
+
+[`.github/workflows/release.yml`](../.github/workflows/release.yml) then runs four jobs:
+
+| Job | What it refuses to let through |
+|---|---|
+| `check` | a tag that is not `v<Version>` from `Directory.Build.props`, or a version with no `## [x.y.z]` section in the changelog |
+| `test` | a release whose tests are red |
+| `package` | a platform whose build does not publish: self-contained `linux-x64`, `win-x64`, `osx-x64`, `osx-arm64` |
+| `release` | — it creates (or updates) the GitHub release, attaches the four archives and a `SHA256SUMS` file, and takes the notes from that changelog section. A tag with a suffix, such as `v1.1.0-rc.1`, is published as a pre-release |
+
+The workflow can also be run by hand with `workflow_dispatch` and a tag name, which rebuilds an
+existing release rather than making a new one.
 
 A release should be able to say, of its own build:
 
 * `dotnet test` green, with the count in the changelog;
-* the screenshot harness runs (`dotnet run --project src/EliteRemake.Game -- --title --screenshot ...`);
+* the CI's `game-runs` job green, which means the published binary started, drew a frame and reported
+  its version;
 * a flight smoke test runs (see the README's "Verifying a build").
