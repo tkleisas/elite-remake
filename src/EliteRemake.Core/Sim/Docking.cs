@@ -65,9 +65,6 @@ public static class Docking
     /// </remarks>
     public const int ContactRange = 128;
 
-    /// <summary>How close we must be to actually dock, which is inside the slot itself.</summary>
-    public const int SlotRange = 120;
-
     /// <summary>The cosine of 26 degrees: the station's slot must face us this squarely.</summary>
     public const double SlotFacingCosine = 0.8988;
 

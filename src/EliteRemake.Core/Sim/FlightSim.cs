@@ -1552,6 +1552,17 @@ public sealed class FlightSim
                 if (ecmDistance < Missiles.EcmRange)
                 {
                     missile.IsKilled = true;
+
+                    // And if it went off right beside us it hurts: "the missile just got destroyed
+                    // near us, so call OOPS to damage the ship by 80, which is nowhere near as bad as
+                    // the 250 damage from a missile slamming straight into us". The test is the
+                    // original's own, and it is almost always false — see Missiles.IsBesideUs.
+                    if (Missiles.IsBesideUs(ex, ey, ez) &&
+                        Combat.TakeDamage(Player, Missiles.NearbyDamage, fromBehind: ez < 0))
+                    {
+                        PlayerDied = true;
+                    }
+
                     continue;
                 }
             }
@@ -2064,10 +2075,11 @@ public sealed class FlightSim
 
 
 
-            // Deplete our energy, as firing does in the original
+            // Deplete our energy, as firing does in the original: LASLI ends with a call to DENGY,
+            // which takes a unit off the energy banks
             if (Player.Energy > 0)
             {
-                Player.Energy--;
+                Player.Energy -= Combat.EnergyPerShot;
             }
 
             // Find the first ship in the crosshairs, which is the one we hit. The test is on the

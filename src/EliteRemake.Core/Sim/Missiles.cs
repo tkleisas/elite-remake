@@ -26,6 +26,21 @@ public static class Missiles
     /// <summary>The damage a missile does when it is destroyed close to us.</summary>
     public const int NearbyDamage = 80;
 
+    /// <summary>
+    /// Whether a missile that has just been destroyed counts as being beside us, which the original
+    /// tests by ORing the three *low* bytes of its position: they must all be zero.
+    /// </summary>
+    /// <remarks>
+    /// This is TA35 as written, and it is almost always false — a missile has to sit exactly on a
+    /// 256-unit lattice point in all three axes for the 80 damage to land, which is one position in
+    /// sixteen million. The comment beside it reads as though the authors meant "close to us", and
+    /// the same three bytes are tested with bit 7 set in the collision code to mean "further than
+    /// 127"; TA35 tests them for zero, and that is what this reproduces. It is in DIVERGENCES.md
+    /// with the other faithful quirks rather than quietly corrected.
+    /// </remarks>
+    public static bool IsBesideUs(int x, int y, int z) =>
+        (x & 0xFF) == 0 && (y & 0xFF) == 0 && (z & 0xFF) == 0;
+
     /// <summary>How close a missile must get to its target to go off.</summary>
     public const int ImpactRange = 120;
 

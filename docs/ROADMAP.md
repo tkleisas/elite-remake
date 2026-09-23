@@ -4750,3 +4750,39 @@ Two notes on the original that this turned up, and that we do *not* reproduce: a
 screen when a kill is made suppresses the bounty — the source's own comment calls this "a bug in all
 versions" — and the bounty is paid when the cloud finishes rather than when the ship dies. Ours pays
 at once, which is recorded in `DIVERGENCES.md`.
+
+## The messages the flight loop prints
+
+**Four of the original's in-flight messages were missing**, and two of them were the fault this
+project keeps finding: a value computed and never read.
+
+* **"INCOMING MISSILE"** — when a ship fires a missile at us, SFRMIS prints recursive token 120 and
+  makes the launch sound, which is entry 48 of the sound table, the same one our own missile uses.
+  The simulation has been setting `MissileFiredAtUsThisFrame` for months and **nothing consumed it**:
+  missiles arrived in silence and with no warning.
+* **The scooped item's name** — part 8 prints "recursive token 48 + Y … in the range 48 (FOOD) to 64
+  (ALIEN ITEMS)", so a scoop tells you what you picked up. `ScoopedThisFrame` was set and never read
+  either.
+* **The bounty** — a kill that pays prints "control code 0 … the current cash, right-aligned to width
+  9, then ' CR'", and a ship with no bounty prints nothing at all, because the original skips the whole
+  block when the blueprint's bounty is zero.
+* **"RIGHT ON COMMANDER!"** — EXNO2 increments the kill tally and, every time its high byte goes up,
+  prints token 101. That is **every 256 kills**. Laser kills count here too: part 11 calls EXNO2 when
+  a shot kills the ship in the crosshairs, and the energy bomb and missiles have their own calls, so
+  the tally is one rule rather than three.
+
+**A missile destroyed beside us does 80 damage** — "nowhere near as bad as the 250 damage from a
+missile slamming straight into us" — and the test for "beside us" is the original's own: the OR of the
+three *low* bytes of the missile's position must be zero. That is TA35 as written, and it is almost
+always false: a missile has to sit exactly on a 256-unit lattice point in all three axes, one position
+in sixteen million. Moxon's comment reads as though the authors meant "close to us" — the same three
+bytes are tested with bit 7 in the collision code to mean "further than 127" — but TA35 tests them for
+zero. It is reproduced as written and recorded in `DIVERGENCES.md`, with a test that pins the rule
+rather than leaving it to be rediscovered.
+
+**And `Ship.Create` now gives a ship its blueprint's energy as well as its speed.** A ship built by
+the Core's own helper had a maximum energy of zero, and the missile rule asks whether a ship is down
+to half its energy — "if the energy is above half, the ship never reaches the missile code" — so in a
+simulation without the game layer **no ship ever fired a missile**. The game's own spawner sets it, so
+this only ever bit the tests and the Core on its own, which is exactly where the rule was being
+tested.

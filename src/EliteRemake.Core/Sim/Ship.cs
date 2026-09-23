@@ -363,6 +363,8 @@ public sealed class Ship
         BlueprintDefaults defaults = BlueprintDefaults.For(type);
         ship.Speed = defaults.Speed;
         ship.MaxSpeed = defaults.MaxSpeed;
+        ship.MaxEnergy = defaults.MaxEnergy;
+        ship.Energy = defaults.MaxEnergy;
 
         ship.SetPosition(x, y, z);
         Orientation orientation = Orientation.FromHeadingPitch(heading, pitch);

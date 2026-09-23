@@ -202,7 +202,7 @@ public sealed class Commander
     public string LegalStatusName => LegalStatus switch
     {
         0 => "Clean",
-        < 50 => "Offender",
+        < FugitiveStatus => "Offender",
         _ => "Fugitive",
     };
 

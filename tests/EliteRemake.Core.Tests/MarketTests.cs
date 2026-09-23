@@ -1636,6 +1636,33 @@ public class MissileTests
         Assert.False(sim.FireMissile());
     }
 
+    /// <summary>
+    /// A ship that fires a missile at us is reported for one frame, which is what the game turns into
+    /// the original's warning: "Print recursive token 120 (INCOMING MISSILE) as an in-flight message"
+    /// and the launch sound.
+    /// </summary>
+    [Fact]
+    public void AnEnemyMissileIsReportedForTheWarning()
+    {
+        var (sim, enemy) = CreateSim();
+        enemy.AiFlag = 0xF8;                  // as aggressive as it gets, so it wants a fight
+        enemy.NewbFlags = Ship.NewbHostile;
+        enemy.Energy = 10;                    // low enough that it considers a missile
+        enemy.Missiles = 3;
+        sim.Player.ForeShield = 0;
+        sim.Player.AftShield = 0;
+
+        var fired = false;
+        for (int i = 0; i < 5000 && !fired; i++)
+        {
+            sim.Step();
+            fired = sim.MissileFiredAtUsThisFrame is not null;
+        }
+
+        Assert.True(fired, "a hard-pressed pirate should have launched a missile at us");
+        Assert.Equal(2, enemy.Missiles);
+    }
+
     [Fact]
     public void FiringAMissileMakesTheTargetHostile()
     {
@@ -1672,6 +1699,52 @@ public class MissileTests
         }
 
         Assert.True(destroyed, $"the missile should have caught the Sidewinder; it is at {enemy.GetPosition()}");
+    }
+
+    /// <summary>
+    /// A missile destroyed by the E.C.M. right beside us does 80 damage, and the test for "right
+    /// beside us" is the original's own: the three low bytes of its position must all be zero.
+    /// </summary>
+    /// <remarks>
+    /// This is TA35 as written and it fires about once in sixteen million positions, which is why it
+    /// is pinned here rather than left to be discovered: it is a faithful quirk, not an oversight.
+    /// </remarks>
+    [Fact]
+    public void AMissileDestroyedBesideUsDoesEightyDamage()
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = false,
+            Commander = Commander.CreateDefault(),
+        };
+
+        sim.Commander!.Ecm = true;
+        sim.Player.Energy = 150;
+        sim.Player.ForeShield = 0;
+        sim.Player.AftShield = 0;
+
+        // Exactly on the lattice point: 256 units away, and every low byte zero. It is held still,
+        // because a missile flies at 44 and would be off the lattice point again before the E.C.M.
+        // reached it — which is the rule's whole problem in practice.
+        Ship missile = Missiles.CreateMissile(target: null);
+        missile.SetPosition(256, 0, 0);
+        missile.Speed = 0;
+        sim.Spawn(missile);
+
+        Assert.True(sim.FireEcm());
+        sim.Step();
+
+        Assert.True(missile.IsKilled, "the E.C.M. should have destroyed the missile");
+
+        // The eighty is what this pins. The figure either side of it is the E.C.M.'s own drain of a
+        // unit an iteration and the banks' recharge of one every eighth, which land in the same step.
+        Assert.InRange(sim.Player.Energy, 150 - Missiles.NearbyDamage - 1, 150 - Missiles.NearbyDamage + 1);
+
+        // And a missile a hundred units away is untouched by the rule, because its low bytes are not
+        // zero — which is nearly every missile there ever is
+        Assert.False(Missiles.IsBesideUs(100, 0, 0));
+        Assert.False(Missiles.IsBesideUs(0, 200, 0));
+        Assert.True(Missiles.IsBesideUs(0, 256, 512));
     }
 
     [Fact]
@@ -1795,6 +1868,37 @@ public class BountyTests
 
         // A pirate is fair game, so our legal status is untouched
         Assert.Equal(0, session.Commander.LegalStatus);
+
+        // And the kill says so, as control code 0 does: the cash, then " CR" — "LDA #0 / JSR MESS"
+        // prints the current cash right-aligned to width 9 followed by " CR"
+        Assert.Equal($"{EliteRemake.Core.Universe.Outfitting.Format(session.Commander.Cash)} CR", session.Message);
+    }
+
+    /// <summary>
+    /// A ship with no bounty says nothing, and every 256th kill earns the original's pat on the back:
+    /// "INC TALLY / BNE / INC TALLY+1 / LDA #101 / JSR MESS", token 101 being "RIGHT ON COMMANDER!".
+    /// </summary>
+    [Fact]
+    public void EveryTwoHundredAndFiftySixthKillEarnsAPatOnTheBack()
+    {
+        GameSession session = CreateSession();
+        session.Message = string.Empty;
+
+        // A ship worth nothing at all: the original skips the whole cash message for one
+        var wreck = new Ship(23, "worm", "Worm");
+        session.RegisterKill(wreck);
+        Assert.Equal(string.Empty, session.Message);
+
+        session.Commander.Kills = GameSession.KillMilestone - 1;
+        session.RegisterKill(wreck);
+        Assert.Equal("RIGHT ON COMMANDER!", session.Message);
+        Assert.Equal(GameSession.KillMilestone, session.Commander.Kills);
+
+        // And not again until the next two hundred and fifty-six: a kill that earns nothing leaves
+        // whatever message was there alone, as the original's MESS does
+        session.Message = "unchanged";
+        session.RegisterKill(wreck);
+        Assert.Equal("unchanged", session.Message);
     }
 
     [Fact]

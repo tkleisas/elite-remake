@@ -229,6 +229,15 @@ public sealed class FlightScene : IScene
     }
 
     /// <summary>
+    /// The original's name for a scooped commodity, which it prints from recursive tokens 48 to 64:
+    /// "FOOD" for the first of the market's items and "ALIEN ITEMS" for the last.
+    /// </summary>
+    private static string ItemName(int item) =>
+        item >= 0 && item < EliteRemake.Core.Universe.Market.Items.Length
+            ? EliteRemake.Core.Universe.Market.Items[item].Name.ToUpperInvariant()
+            : "SCOOPED";
+
+    /// <summary>
     /// The ship in our crosshairs, which a missile can lock onto: the middle of the window we are
     /// looking through, so a missile can be locked onto something behind us from the rear view.
     /// </summary>
@@ -913,6 +922,22 @@ public sealed class FlightScene : IScene
             else if (!keys.IsKeyDown(Settings.EscapePodKey))
             {
                 _escapePodPressed = false;
+            }
+
+            // A missile fired at us prints the original's warning, "Print recursive token 120
+            // (INCOMING MISSILE) as an in-flight message", and makes the launch sound — entry 48 of
+            // the sound table, the same one our own missile uses
+            if (_sim.MissileFiredAtUsThisFrame is not null)
+            {
+                Session.Message = "INCOMING MISSILE";
+                Sounds?.Play(Core.Audio.SoundEffect.Missile);
+            }
+
+            // And scooping prints what we picked up: "Print recursive token 48 + Y as an in-flight
+            // token, which will be in the range 48 (FOOD) to 64 (ALIEN ITEMS)"
+            if (_sim.ScoopedThisFrame is { } scoopedItem)
+            {
+                Session.Message = ItemName(scoopedItem.Item);
             }
 
             // Destroying a ship pays its bounty and counts the kill, and the energy bomb's

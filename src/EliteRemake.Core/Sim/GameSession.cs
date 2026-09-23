@@ -623,7 +623,25 @@ public sealed class GameSession
         }
 
         Commander.Cash += bounty;
+
+        // "LDA #0 / JSR MESS" prints control code 0 — the current cash, right-aligned, then " CR" —
+        // as an in-flight message, so a kill that pays anything says so. A ship with no bounty says
+        // nothing at all: the original skips the whole block when the blueprint's bounty is zero.
+        if (bounty > 0)
+        {
+            Message = $"{Outfitting.Format(Commander.Cash)} CR";
+        }
+
+        // And every 256 kills gets a pat on the back: EXNO2's "INC TALLY / BNE ... / INC TALLY+1 /
+        // LDA #101 / JSR MESS", where token 101 is "RIGHT ON COMMANDER!". Laser kills count here
+        // too — part 11 calls EXNO2 when a shot kills the ship in the crosshairs, and the energy
+        // bomb and missiles have their own calls — so this is the one place the tally is kept.
+        int before = Commander.Kills;
         Commander.RegisterKill();
+        if (before / KillMilestone != Commander.Kills / KillMilestone)
+        {
+            Message = "RIGHT ON COMMANDER!";
+        }
 
         // Shooting up the innocent makes us wanted, and the original decides both halves of this
         // from the ship's own NEWB flags rather than from its type or its AI: bit 6 marks a cop,
@@ -770,6 +788,12 @@ public sealed class GameSession
     /// flags so that a launch is never missed and never replayed.
     /// </summary>
     public int Launches { get; private set; }
+
+    /// <summary>
+    /// The kill tally at which the original offers a pat on the back: token 101, "RIGHT ON
+    /// COMMANDER!", is printed every time the tally's high byte goes up, which is every 256 kills.
+    /// </summary>
+    public const int KillMilestone = 256;
 
     /// <summary>Buys as much of an item as the credits and the hold allow.</summary>
     public int Buy(int item, int amount)
