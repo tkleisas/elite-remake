@@ -2931,3 +2931,37 @@ original's own data, and it says a plain Cobra is worth nothing.
 **The targetable area is now the blueprint's for the core as well**, where it had been a constant
 `95 * 95` — which is the Cobra's value, so every ship in a core-only session was exactly as easy to hit
 as a Cobra. That is the same class as the speed and the energy, found by the same search.
+
+## The scoop item: I was about to "fix" correct code, twice in one round
+
+The sweep reached the last two blueprint fields — the canister byte, which packs *how many canisters a
+ship leaves* in its low nibble and *what scooping it gives you* in its high nibble.
+
+**The escape pod reads as high nibble 2, and the source's comment says scooping one gives slaves, which
+is market item 3.** Those two do not agree on their face, so I changed the extractor to use the high
+nibble directly — and the escape pod started paying textiles. Wrong direction.
+
+**Then I read the routine that does the conversion**, and it is one line:
+
+```
+ LSR A                  \ the high nibble gives the market item number of the item
+ ...
+ ADC #1                 \ Add 1 to the high nibble to get the market item
+```
+
+*Add 1.* The extractor was right all along, and the change is reverted. The two readers agree, the
+verification passes, and the four scoopable ships resolve to **slaves, alloys, furs and gem-stones** —
+which is what the source says they should be.
+
+**This is the twelfth diagnostic of mine to be wrong before the code was**, and the most expensive kind:
+I had the answer already and talked myself out of it. The escape pod's `(2 << 4)` and the comment
+saying "slaves" *are* consistent — 2 + 1 = 3, and slaves is item 3 — and the arithmetic that reconciles
+them was two minutes of reading away in the routine I had not yet opened.
+
+**The specific mistake is worth naming**, because it is not the same as the earlier ones. In the previous
+eleven I mis-*measured*: a wrong scale, a wrong encoding, a constant that never varied, a decimal comma
+read as a thousands separator. Here I mis-*reasoned*: I treated a disagreement between two sources as
+evidence that one of them was wrong, when a disagreement between two sources is first of all evidence
+that **I have not found the rule that reconciles them**. Three of the twelve have now been that same
+shape — the RUPLA galaxy check, the token 209 placeholder, and this — and in all three the reconciling
+fact existed and had not been looked for.

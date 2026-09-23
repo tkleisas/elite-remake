@@ -841,6 +841,8 @@ internal sealed partial class ShipExtractor
         var header = new ShipHeader
         {
             MaxCanisters = canisterByte & 0x0F,
+            // The original adds one: "Add 1 to the high nibble to get the market item", so the
+            // escape pod's high nibble of 2 gives market item 3, which is slaves.
             ScoopMarketItem = (canisterByte >> 4) == 0 ? 0 : (canisterByte >> 4) + 1,
             CanisterByte = canisterByte,
             TargetableArea = targetableArea,
