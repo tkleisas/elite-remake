@@ -1729,3 +1729,29 @@ carrying them.
 feature that could not be used. The tests covered `PickUpPlans` and `DeliverPlans` as functions — they
 took a system and returned a bool, and did so correctly — but every test passed them the *Constrictor's*
 system with the Constrictor's galaxy, so the predicate was never asked about the place it was for.
+
+## The whole mission trail, mapped and checked
+
+After two rounds of finding mission faults, the entire trail was mapped from the data and checked
+against the source rather than spot-checked. Every one of the twenty-five hints, resolved to the
+system it actually lands on:
+
+| token | system | galaxy | what it is |
+| --- | --- | --- | --- |
+| 1 | Teorge, 211 | 0 | mission 1's first hint, unconditional in its galaxy |
+| 2-4 | Xeer 150, Reesdice 36, Arexe 28 | 0 | the rest of the first galaxy's trail |
+| 5-22 | from 253 down to 5 | 1 | the second galaxy's trail |
+| 23 | **Xeveon, 101** | 2 | the Thargoid intercept |
+| 24 | Orarra, 193 | 1 | the Constrictor |
+| 25 | Anreer, 41 | 2 | unconditional in its galaxy |
+
+Everything agrees with the source: the four systems in the first galaxy, the eighteen in the second,
+the Constrictor at Orarra in the second galaxy, and the plans and delivery at Ceerdi and Birera in
+the third — with the intercept token at a *different* system in the same galaxy, Xeveon at (198,205),
+which is the one thing on the trail that had to be checked rather than inferred, because "the third
+galaxy" would have been the natural guess for it too.
+
+**Checked and found correct at the same time:** the mission's own gating (`CompetentKills` 256,
+galaxies 0 and 1 for the offer), the Thargoid intercept chance of 56/256 while carrying the plans,
+the delivery reward of 10,000 tenths, and that the data screen asks for the hint at the system the
+commander is docked at rather than the one the charts point at.
