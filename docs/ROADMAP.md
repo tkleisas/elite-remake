@@ -4658,3 +4658,63 @@ Three more smaller things came out of the same sweep of the flight loop:
   three keys did nothing at all.
 * **"P" cancels the docking computer and "C" only engages it**, which is in the section above.
 * **`--fly-to-planet`** exists so that all of this can be measured rather than argued about.
+
+## The throttle: every ship in the sky flew at a constant speed
+
+**MVEIT's part 4 was missing.** After part 3 moves a ship along its own nose, part 4 turns the
+acceleration the ship has been given into speed and clears it:
+
+```
+ LDA INWK+27 / CLC / ADC INWK+28   \ speed = speed + acceleration
+ BPL P%+4 / LDA #0                 \ never less than nothing
+ CMP (XX0),Y / BCC P%+4 / LDA (XX0),Y   \ and never more than the ship's own maximum,
+                                        \ which is byte #15 of its blueprint
+ STA INWK+27
+ LDA #0 / STA INWK+28              \ the acceleration is a one-off change
+```
+
+and **TACTICS sets that acceleration** every time it runs for a ship, in its own `.TA6`:
+
+* a nose dot product of **22 or more out of 36** — about 52 degrees — means the ship is on target and
+  it **accelerates at 3**;
+* a negative dot product, or one under 22, means it is off to the side and it **brakes at -1**... but
+  only once the error reaches **18**, because "it still has quite a lot of turning to do" below that,
+  and then it coasts;
+* **missiles brake at -2**, "as missiles are more nimble and can brake more quickly";
+* and a ship that has just **hit us with its laser throttles back by one** — "DEC INWK+28 / Halve the
+  attacking ship's acceleration" — which is the original's way of stopping a firing pass from turning
+  into a collision.
+
+**None of it was happening.** The acceleration byte was written by TACTICS and by ANGRY and read by
+nothing at all, so every ship flew at the speed its blueprint gave it for ever: nothing closed on us,
+nothing braked to turn, and shooting a ship did not make it come at us any faster. This is the third
+fault of exactly that shape the project has found — a value written and never read — and it is the
+most consequential: it is most of what makes the original's dogfights feel the way they do.
+
+**`Ship.Create` now gives a ship its blueprint's speed and maximum.** A ship built by the Core's own
+helper rather than by the game's spawner had both at zero, so a simulation without the game layer had
+ships that could not move — and, once part 4 started applying acceleration, ships that could
+accelerate for ever because they had no maximum to be held to. Three tests had been relying on that
+stillness and now hold their ships in place explicitly, which is honest about what they measure.
+
+## Two more of the original's clocks
+
+**The energy banks and the shields recharge every eighth iteration, not every one.** Part 13's own
+gate is `LDA MCNT / AND #7 / BNE MA22` — its summary says "every 7 iterations" because it counts the
+seven it skips — and the shields only charge while the banks are above half, at one unit each, against
+the banks' own one or two with an energy unit fitted. Ours recharged every iteration: **eight times
+too fast**, which turned every fight into a war of attrition the player wins and made the E.C.M., the
+laser's own energy cost and every hit we took a seventh of what they should have been.
+
+**The E.C.M. runs for 32 iterations and drains a unit an iteration.** ECBLB2 sets its countdown to 32
+and part 16 decrements it once a round, draining the banks by one as it goes — "JSR DENGY ... deplete
+our energy banks by 1" — and switches itself off when they are empty. Switching it on, on the other
+hand, costs nothing at all. Ours charged a flat invention of eight and ran for sixty iterations with
+no drain, so the E.C.M. was a cheap button rather than the decision the original makes it: thirty-two
+units of energy, and one iteration of it if you fire on an empty tank.
+
+**The method rule this round earned: when a constant is written, find its reader.** The acceleration
+byte had a field, a setter, two writers and a doc comment, and no consumer. The port's own pattern —
+model the field, wire the writer, forget the reader — has now produced the Anaconda's released ship,
+the escape pod's fuel, and this, and it is worth a sweep of every field in the ship data block for who
+reads it.

@@ -113,6 +113,47 @@ public static class ShipMovement
     }
 
     /// <summary>
+    /// MVEIT part 4: apply a ship's acceleration to its speed, cap it at the ship's own maximum and
+    /// clear the acceleration.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// "LDA INWK+27 / CLC / ADC INWK+28" — the speed and the acceleration are added, the result is
+    /// held at zero if it goes negative, and it is capped at byte #15 of the ship's blueprint, which
+    /// is the fastest that ship may fly. The acceleration is then zeroed, because it is a one-off
+    /// change: a ship that wants to keep accelerating has to ask again on its next pass through
+    /// TACTICS, and TACTICS only runs for a ship every eighth iteration of the main loop.
+    /// </para>
+    /// <para>
+    /// <b>This was missing altogether, and the acceleration byte was written and never read.</b>
+    /// ANGRY sets a ship's acceleration to 2 when we shoot it — the original's way of making an
+    /// angry ship come at us faster — and TACTICS sets it to 3 when a ship is lined up on its
+    /// target and to -1 when it needs to turn. Every one of those writes went nowhere, so every ship
+    /// in the sky flew at a constant speed for ever: nothing ever closed on us and nothing ever
+    /// braked to turn, which is most of what makes the original's dogfights feel the way they do.
+    /// </para>
+    /// </remarks>
+    public static void ApplyAcceleration(Ship ship)
+    {
+        // The acceleration is a signed byte: -1 is stored as &FF and the original adds it with an
+        // ADC, so the arithmetic is the same as adding -1 to a speed of 1 or more
+        int speed = ship.Speed + (sbyte)ship.Acceleration;
+
+        if (speed < 0)
+        {
+            speed = 0;
+        }
+
+        if (ship.MaxSpeed > 0 && speed > ship.MaxSpeed)
+        {
+            speed = ship.MaxSpeed;
+        }
+
+        ship.Speed = (byte)Math.Min(255, speed);
+        ship.Acceleration = 0;
+    }
+
+    /// <summary>
     /// MV40: rotate a planet or sun's location by our pitch and roll.
     /// </summary>
     /// <remarks>

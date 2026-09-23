@@ -257,6 +257,7 @@ public sealed class FlightSim
 
         var pod = new Ship(ShipTypes.EscapePod, "escape-pod", "Escape pod")
         {
+            MaxSpeed = BlueprintDefaults.For(ShipTypes.EscapePod).MaxSpeed,
             AiFlag = 0,
             Speed = BlueprintDefaults.For(ShipTypes.EscapePod).Speed,
         };
@@ -495,10 +496,19 @@ public sealed class FlightSim
         // loop running once every thirty-two iterations
         UpdateStationSpawn();
 
-        // Recharge the energy banks and, above half full, the shields, as the original does at
-        // the end of its flight loop
-        Combat.RechargeShields(Player);
-        Combat.RechargeEnergy(Player);
+        // Recharge the energy banks and, above half full, the shields, which part 13 of the
+        // original's flight loop does every eighth iteration: "LDA MCNT / AND #7 / BNE MA22", whose
+        // own summary calls it "every 7 iterations" because it counts the seven it skips.
+        //
+        // This used to run every iteration, so the banks recovered eight times as fast as the
+        // original's and the shields with them. It was invisible in a quiet sky and decisive in a
+        // fight: the E.C.M.'s drain of a unit an iteration, the laser's own energy cost and every
+        // hit we took were all being cancelled seven times out of eight.
+        if ((MainLoopCounter & 7) == 0)
+        {
+            Combat.RechargeShields(Player);
+            Combat.RechargeEnergy(Player);
+        }
 
         // Flying into another ship hurts us badly and annoys it
         UpdateCollisions();
@@ -1432,7 +1442,20 @@ public sealed class FlightSim
         return true;
     }
 
+    /// <summary>
+    /// How long the E.C.M. runs for: ECBLB2 sets its countdown timer to 32, and part 16 of the
+    /// flight loop decrements it once an iteration.
+    /// </summary>
+    public const int EcmDuration = 32;
+
     /// <summary>Fires the E.C.M., which destroys every missile in the bubble.</summary>
+    /// <remarks>
+    /// Switching it on costs nothing. The energy goes a unit at a time while it runs — "LDA ECMP /
+    /// BEQ MA69 / JSR DENGY ... deplete our energy banks by 1" — and when the banks are empty the
+    /// E.C.M. switches itself off, which is the original's way of making it a decision rather than a
+    /// button: thirty-two units of energy, and a commander who fires it on empty banks gets one
+    /// iteration of it.
+    /// </remarks>
     public bool FireEcm()
     {
         if (Commander is not { Ecm: true } || EcmFrames > 0)
@@ -1440,14 +1463,10 @@ public sealed class FlightSim
             return false;
         }
 
-        EcmFrames = 60; // the original keeps the E.C.M. running for a while
+        // "LDA ECMA / BNE MA64": an E.C.M. that is already going off blocks another, whether it is
+        // ours or another ship's
+        EcmFrames = EcmDuration;
         EcmActive = true;
-
-        if (Player.Energy > Missiles.EcmEnergyCost)
-        {
-            Player.Energy -= Missiles.EcmEnergyCost;
-        }
-
         return true;
     }
 
@@ -1461,9 +1480,19 @@ public sealed class FlightSim
 
         if (EcmFrames > 0)
         {
-            EcmFrames--;
-            if (EcmFrames == 0)
+            // The E.C.M. drains the energy banks a unit an iteration, and gives up when they are
+            // empty: the drain comes before the countdown in the original, so the last iteration of
+            // an E.C.M. fired on a nearly empty tank is the one that empties it.
+            if (Player.Energy > 0)
             {
+                Player.Energy--;
+            }
+
+            EcmFrames--;
+
+            if (EcmFrames == 0 || Player.Energy == 0)
+            {
+                EcmFrames = 0;
                 EcmActive = false;
             }
         }
@@ -2113,6 +2142,10 @@ public sealed class FlightSim
         {
             ShipMovement.MoveShipForward(ship.Data, ship.Orientation.AsSpan(Orientation.Nosev), ship.Speed);
         }
+
+        // Part 4: apply the ship's acceleration to its speed, cap it at the ship's own maximum and
+        // clear the acceleration, which is a one-off change
+        ShipMovement.ApplyAcceleration(ship);
 
         // Part 5: rotate the ship's location by our pitch and roll, as the universe turns around
         // us. The planet and sun take the original's separate MV40 path, which keeps the full

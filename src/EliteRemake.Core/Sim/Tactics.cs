@@ -28,6 +28,28 @@ public static class Tactics
     /// <summary>The aim error below which no turn is applied (the original's RAT2).</summary>
     public const int TurnThreshold = 4;
 
+    /// <summary>
+    /// The nose dot product at or above which a ship accelerates instead of braking: the original's
+    /// CNT2, "the maximum angle beyond which a ship will slow down to start turning towards its
+    /// prey", which is 22 out of a possible 36.
+    /// </summary>
+    public const int TurnToAccelerate = 22;
+
+    /// <summary>How much a ship speeds up when it is lined up: the original's "LDA #3 / STA INWK+28".</summary>
+    public const int AccelerateRate = 3;
+
+    /// <summary>
+    /// How far off the aim has to be before a ship brakes rather than pressing on: the original's
+    /// <c>CMP #18</c>, below which it "still has quite a lot of turning to do" and coasts.
+    /// </summary>
+    public const int BrakeFrom = 18;
+
+    /// <summary>How hard a ship brakes: "LDA #&amp;FF ... STA INWK+28", which is -1.</summary>
+    public const int BrakeRate = 1;
+
+    /// <summary>How hard a missile brakes, which the original doubles "as missiles are more nimble".</summary>
+    public const int MissileBrakeRate = 2;
+
     /// <summary>The distance within which a ship will open fire: the original requires x_hi, y_hi
     /// and z_hi all to be below 32.</summary>
     public const int FireRange = 32 * 256;
@@ -529,6 +551,21 @@ public static class Tactics
         ship.Data[ShipDataBlock.RollCounter] = roll;
         ship.Data[ShipDataBlock.PitchCounter] = pitch;
 
+        // TA6: turning is one decision and the throttle is another. A ship that is pointing at its
+        // target opens up — a nose dot product of CNT2 = 22 out of 36, which is about 52 degrees —
+        // and one that is far enough off that it has turning to do brakes instead, but only once the
+        // error reaches 18; between the two it coasts. A missile brakes harder, "as missiles are
+        // more nimble and can brake more quickly".
+        //
+        // The original halves the acceleration of a ship that has just hit us with its laser, which
+        // is why the brake is one off a full 3 rather than a value of its own.
+        int aim = (sbyte)dotNose;
+        ship.Acceleration = aim >= 0 && aim >= TurnToAccelerate
+            ? (byte)AccelerateRate
+            : Math.Abs(aim) >= BrakeFrom
+                ? unchecked((byte)(Missiles.IsMissile(ship.Type) ? -MissileBrakeRate : -BrakeRate))
+                : (byte)0;
+
         // Fire if the ship is attacking, close, roughly ahead and has a laser.
         //
         // The attack test is the one that matters: a peaceful ship never fires, and the original
@@ -540,6 +577,14 @@ public static class Tactics
         // energy banks and lit the dashboard's ENERGY LOW warning with not a hostile ship in sight.
         if (attack && laserPower > 0 && aimZ > AimCosine && distance < FireRange)
         {
+            // "DEC INWK+28 / Halve the attacking ship's acceleration": a ship that has just hit us
+            // with its laser throttles back a little, which is the original's way of stopping a
+            // firing pass from turning into a collision
+            if (ship.Acceleration > 0)
+            {
+                ship.Acceleration--;
+            }
+
             // The original reads the attacker's z_sign to decide which of our shields was hit
             bool fromBehind = z < 0;
             return Combat.TakeDamage(player, damage, fromBehind);

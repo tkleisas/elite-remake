@@ -29,9 +29,6 @@ public static class Missiles
     /// <summary>How close a missile must get to its target to go off.</summary>
     public const int ImpactRange = 120;
 
-    /// <summary>How much energy the E.C.M. costs to fire.</summary>
-    public const int EcmEnergyCost = 8;
-
     /// <summary>How near a missile must be for the E.C.M. to catch it.</summary>
     public const int EcmRange = 20000;
 
@@ -46,6 +43,7 @@ public static class Missiles
     public static Ship CreateMissile(Ship? target) => new(MissileType, "missile", "Missile")
     {
         Speed = 44,
+        MaxSpeed = 44,
         Target = target,
     };
 

@@ -274,9 +274,17 @@ public static class SceneFactory
 
         if (!options.EmptySystem)
         {
-            // A couple of ships to fly around, placed ahead and to one side
-            sim.Spawn(ApplyBlueprint(Ship.Create(17, "sidewinder", "Sidewinder", 0.4f, 0.1f, 1200, -300, 4200)));
-            sim.Spawn(ApplyBlueprint(Ship.Create(12, "python", "Python", -0.3f, -0.05f, -2500, 400, 7000)));
+            // A couple of ships to fly around, placed ahead and to one side. They are given an AI
+            // flag: without one they fly straight for ever, which is what the original's own
+            // spawner avoids by setting "ORA #%11000000" on every ship it makes. A Sidewinder with
+            // AI is hostile, so the development flight has something that will come at us.
+            Ship sidewinder = ApplyBlueprint(Ship.Create(17, "sidewinder", "Sidewinder", 0.4f, 0.1f, 1200, -300, 4200));
+            sidewinder.AiFlag = EliteRemake.Core.Sim.Spawner.AiFlag(sim.Random);
+            sim.Spawn(sidewinder);
+
+            Ship python = ApplyBlueprint(Ship.Create(12, "python", "Python", -0.3f, -0.05f, -2500, 400, 7000));
+            python.AiFlag = EliteRemake.Core.Sim.Spawner.AiFlag(sim.Random);
+            sim.Spawn(python);
         }
 
         // --stress fills the bubble with ships, so the frame cost can be measured at its worst

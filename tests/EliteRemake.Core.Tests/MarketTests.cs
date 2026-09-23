@@ -832,6 +832,10 @@ public class TacticsTests
             int before = sim.Player.Energy + sim.Player.ForeShield + sim.Player.AftShield;
             for (int i = 0; i < 480; i++)
             {
+                // Held at its station: this is a test about whether the pirate is allowed to shoot,
+                // and a pirate flying at 37 units an iteration covers the two thousand between us
+                // in fifty of them and rams us, which sets its AI flag to &FF through the collision
+                pirate.Speed = 0;
                 sim.Step();
                 int now = sim.Player.Energy + sim.Player.ForeShield + sim.Player.AftShield;
                 if (now < before)
@@ -886,16 +890,87 @@ public class TacticsTests
             $"a peaceful ship should not have hit us, but energy fell to {sim.Player.Energy}");
     }
 
+    /// <summary>
+    /// TACTICS sets a ship's throttle as well as its helm, and MVEIT applies it: a ship lined up on
+    /// its target opens up, one that has turning to do brakes, and the acceleration is a one-off
+    /// change that is spent and cleared in the same iteration.
+    /// </summary>
+    /// <remarks>
+    /// None of this existed. The acceleration byte was written by TACTICS and by ANGRY and read by
+    /// nothing, so every ship in the sky flew at a constant speed: nothing closed on us, nothing
+    /// braked to turn, and being shot at did not make a ship come at us any faster.
+    /// </remarks>
+    [Fact]
+    public void AThrottleIsSetByTacticsAndAppliedByMveit()
+    {
+        var (sim, enemy) = CreateSim(aiFlag: 0xF8);
+        enemy.NewbFlags = Ship.NewbHostile;
+
+        // No laser, so that what is measured here is the throttle: a ship that hits us has its
+        // acceleration cut by one on the way past ("DEC INWK+28 / Halve the attacking ship's
+        // acceleration"), which would leave this test measuring two rules at once
+        sim.LaserPowerProvider = _ => 0;
+
+        // Pointing straight at us from 2000 units, which is a nose dot product of 36 — well past the
+        // 22 that says "accelerate"
+        enemy.SetPosition(0, 0, 2000);
+        enemy.Orientation.SetUnity(Orientation.Nosev, Orientation.Z, -1.0);
+        enemy.Speed = 20;
+
+        // TACTICS runs for a slot every eighth iteration, and MVEIT applies what it set in the same
+        // iteration, so eight iterations is one decision and its result
+        for (int i = 0; i < 8; i++)
+        {
+            sim.Step();
+        }
+
+        Assert.True(enemy.Speed >= 23, $"a ship lined up on us should open up, speed {enemy.Speed}");
+        Assert.Equal(0, enemy.Acceleration);
+
+        // Pointed away, it brakes instead. The ship is held still so that the aim stays what the
+        // test set up: TACTICS would otherwise turn it back onto us between decisions
+        enemy.SetPosition(0, 0, 2000);
+        enemy.Orientation.SetUnity(Orientation.Nosev, Orientation.Z, 1.0);
+        enemy.Orientation.SetUnity(Orientation.Nosev, Orientation.X, 0.0);
+        enemy.Speed = 20;
+
+        for (int i = 0; i < 8; i++)
+        {
+            enemy.Speed = 20;
+            enemy.Orientation.SetUnity(Orientation.Nosev, Orientation.Z, 1.0);
+            enemy.Orientation.SetUnity(Orientation.Nosev, Orientation.X, 0.0);
+            sim.Step();
+        }
+
+        Assert.True(enemy.Speed <= 20, $"a ship facing away should not speed up, speed {enemy.Speed}");
+
+        // And the speed is held to the ship's own maximum, "CMP (XX0),Y" against byte #15 of its
+        // blueprint, however hard something asks it to accelerate
+        enemy.Speed = 30;
+        enemy.Acceleration = 100;
+        ShipMovement.ApplyAcceleration(enemy);
+
+        Assert.Equal(enemy.MaxSpeed, enemy.Speed);
+        Assert.Equal(0, enemy.Acceleration);
+
+        // Which for a Sidewinder is 37
+        Assert.Equal(37, enemy.MaxSpeed);
+    }
+
     [Fact]
     public void AnEnemySteersTowardsUs()
     {
         var (sim, enemy) = CreateSim();
 
-        // Put the enemy ahead of us and to one side, facing away
+        // Put the enemy ahead of us and to one side, facing away. Its speed is pinned to zero each
+        // iteration: TACTICS now sets the throttle as well as the helm, and a ship flying at its
+        // blueprint's 37 units an iteration crosses the whole engagement in a hundred iterations.
+        // What this test is about is the helm.
         enemy.SetPosition(600, 400, 2000);
         enemy.Orientation.SetUnity(Orientation.Nosev, Orientation.Z, 1.0);
         for (int i = 0; i < 120; i++)
         {
+            enemy.Speed = 0;
             sim.Step();
         }
 
@@ -947,6 +1022,7 @@ public class TacticsTests
             // iterations
             for (int i = 0; i < 480; i++)
             {
+                enemy.Speed = 0;   // held in place: this is a test about which way it turns
                 sim.Step();
             }
 
@@ -1538,10 +1614,15 @@ public class MissileTests
         sim.MissileLock = enemy;
         Assert.True(sim.FireMissile());
 
-        // Missiles travel fast, so a few seconds should be plenty
+        // The target is held at its station. Firing a missile makes it angry — the original's FRMIS
+        // calls ANGRY, which is what turns its AI on — and a Sidewinder with its AI on flies at 37
+        // units an iteration, so left alone this becomes a stern chase across the whole system
+        // rather than a test of the missile's homing. Missiles chase and often miss in the original,
+        // which is a different thing to measure and not this.
         bool destroyed = false;
         for (int i = 0; i < 400 && !destroyed; i++)
         {
+            enemy.Speed = 0;
             sim.Step();
             destroyed = enemy.IsExploding || enemy.IsKilled || enemy.Energy == 0;
         }
@@ -1585,7 +1666,7 @@ public class MissileTests
     }
 
     [Fact]
-    public void TheEcmDestroysMissilesAndCostsEnergy()
+    public void TheEcmDestroysMissilesAndDrainsTheBanks()
     {
         var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
         {
@@ -1604,12 +1685,39 @@ public class MissileTests
         missile.SetPosition(0, 0, 5000);
         sim.Spawn(missile);
 
+        // Switching it on is free: the energy goes a unit an iteration while it runs
         Assert.True(sim.FireEcm());
-        Assert.Equal(150 - Missiles.EcmEnergyCost, sim.Player.Energy);
+        Assert.Equal(150, sim.Player.Energy);
+        Assert.Equal(FlightSim.EcmDuration, sim.EcmFrames);
 
         sim.Step();
         Assert.True(missile.IsKilled, "the E.C.M. should have destroyed the missile");
         Assert.True(sim.EcmActive);
+
+        // It runs for ECBLB2's thirty-two iterations and then switches itself off. The banks lose a
+        // unit an iteration while it runs and gain one every eighth, as part 13's own MCNT & 7 gate
+        // does, so the net drain over the thirty-two iterations is twenty-eight.
+        for (int i = 1; i < FlightSim.EcmDuration; i++)
+        {
+            sim.Step();
+        }
+
+        Assert.False(sim.EcmActive);
+        Assert.Equal(0, sim.EcmFrames);
+        Assert.Equal(150 - 28, sim.Player.Energy);
+
+        // An all but empty tank turns it off, as the original's "JSR DENGY / BEQ MA70" does: the
+        // E.C.M. is the one thing that spends energy we do not have, so it stops rather than
+        // running the banks below nothing
+        sim.Player.Energy = 3;
+        Assert.True(sim.FireEcm());
+        for (int i = 0; i < 10; i++)
+        {
+            sim.Step();
+            Assert.True(sim.Player.Energy >= 0);
+        }
+
+        Assert.False(sim.EcmActive, "an E.C.M. with no energy behind it cannot run");
     }
 }
 

@@ -320,6 +320,17 @@ public sealed class Ship
     public static Ship Create(int type, string blueprintId, string name, float heading, float pitch, int x, int y, int z)
     {
         var ship = new Ship(type, blueprintId, name);
+
+        // A new ship starts at its blueprint's speed and is held to that blueprint's maximum, which
+        // is what the original's NWSHP does when it copies the blueprint into the ship's data block.
+        // Leaving these at zero meant a simulation built without the game's own spawner had ships
+        // that could not move at all — and, once MVEIT part 4 started applying the acceleration that
+        // TACTICS sets, ships that could accelerate for ever because they had no maximum to be held
+        // to.
+        BlueprintDefaults defaults = BlueprintDefaults.For(type);
+        ship.Speed = defaults.Speed;
+        ship.MaxSpeed = defaults.MaxSpeed;
+
         ship.SetPosition(x, y, z);
         Orientation orientation = Orientation.FromHeadingPitch(heading, pitch);
         orientation.AsSpan().CopyTo(ship.Data[ShipDataBlock.Orientation..]);
