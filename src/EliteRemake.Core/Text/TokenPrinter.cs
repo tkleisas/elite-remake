@@ -135,7 +135,21 @@ public sealed class TokenPrinter
         _expanding.Clear();
 
         Expand(token, systemName, 0);
-        return Tidy(_output.ToString());
+        string text = Tidy(_output.ToString());
+
+        // The events were recorded as the text was printed, but the tidy that follows collapses
+        // runs of spaces and trims the ends, so a position can fall past the returned text's end —
+        // the briefing's last {show ship and wait} token does exactly that. The events are clamped
+        // into the text, in order, so what they report is where the tidied text reaches.
+        for (int i = 0; i < _events.Count; i++)
+        {
+            if (_events[i].Position > text.Length)
+            {
+                _events[i] = _events[i] with { Position = text.Length };
+            }
+        }
+
+        return text;
     }
 
     private void Expand(int token, string systemName, int depth)

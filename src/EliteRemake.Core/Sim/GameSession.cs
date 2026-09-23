@@ -24,6 +24,11 @@ public enum DockedScreen
     Status,
 
     /// <summary>
+    /// A mission briefing being staged, which the disc shows from the docked code's BRIEF and BRP.
+    /// </summary>
+    Briefing,
+
+    /// <summary>
     /// The control settings.
     /// </summary>
     /// <remarks>
@@ -45,6 +50,24 @@ public enum GameMode
     /// <summary>Docked, looking at the station's screens.</summary>
     Docked,
 }
+
+/// <summary>
+/// A mission briefing that the station's screens are about to stage: which extended token to print,
+/// and which ship the disc's own briefing animates — the Constrictor for mission 1's briefing, and
+/// nothing for the others.
+/// </summary>
+/// <remarks>
+/// The disc's BRIEF and BRIEF2 set their mission's bit of TP <em>before</em> they show anything, and
+/// DEBRIEF pays before it prints: the briefing screens present a mission that is already accepted.
+/// What this carries is the token and the mission it came from; the scene stages the banner, the
+/// rotating ship and the text, and then shows the Status Mode screen, as BRP does.
+/// </remarks>
+public sealed record Briefing(
+    int Token,
+
+    /// <summary>The ship the briefing rotates and shows, or 0 for none: the disc shows the
+    /// Constrictor in mission 1's briefing and nothing in the others.</summary>
+    int ShipType);
 
 /// <summary>
 /// A game in progress: the commander, the system they are in, the flight simulation and the
@@ -376,15 +399,51 @@ public sealed class GameSession
     public Missions Missions { get; private set; }
 
     /// <summary>
+    /// The briefing the docked screens are staging, or null for none. It is staged by the mission
+    /// business on docking, and shown once — the disc's BRIEF and BRP run once each — after which
+    /// the Status Mode screen comes back.
+    /// </summary>
+    public Briefing? PendingBriefing { get; private set; }
+
+    /// <summary>
+    /// Stages a mission briefing, which sets the station's screens to show it next. The disc's
+    /// briefings present missions that are already accepted — BRIEF sets bit 0 of TP before it
+    /// prints anything — so accepting here is the disc's own order of business.
+    /// </summary>
+    private void StageBriefing(int token, int shipType = 0)
+    {
+        PendingBriefing = new Briefing(token, shipType);
+        Screen = DockedScreen.Briefing;
+    }
+
+    /// <summary>
+    /// Ends the briefing, which the disc's BRP ends by showing the Status Mode screen.
+    /// </summary>
+    public void CompleteBriefing()
+    {
+        PendingBriefing = null;
+        Screen = DockedScreen.Status;
+    }
+
+    /// <summary>
     /// Docks at the station: the market is regenerated, and any mission business is settled —
-    /// picking up the plans, delivering them, or being offered the next mission.
+    /// picking up the plans, delivering them, or being offered the next mission — with the disc's
+    /// own briefing screens to stage. The disc's DOENTRY runs the mission checks before anything is
+    /// shown, and each of its five screens is a staged briefing: BRIEF for mission 1's offer, BRIEF2
+    /// and BRIEF3 for mission 2's contact and its plans, DEBRIEF and DEBRIEF2 for the two
+    /// thank-yous.
     /// </summary>
     public void HandleMissionArrival()
     {
         if (Missions.PickUpPlans(System, Commander.GalaxyNumber))
         {
             Commander.MissionStatus = Missions.StatusByte;
+
+            // BRIEF3 stages the plans briefing, token 222 — "the briefing for mission 2 where we
+            // pick up the plans we need to take to Birera". The mission bits are already set: the
+            // disc's own order of business
             Message = "You have collected the plans. The Thargoids will be looking for you.";
+            StageBriefing(222);
             return;
         }
 
@@ -398,17 +457,36 @@ public sealed class GameSession
             Commander.EnergyUnitLevel = Commander.NavalEnergyUnit;
             Flight.Player.EnergyUnitLevel = Commander.EnergyUnitLevel;
             Commander.Kills += Missions.DebriefKillPoints;
-            Message = "The plans are delivered. The Navy fits a naval energy unit.";
+            StageBriefing(223);
+            return;
+        }
+
+        if (Missions.AttendDebrief(Commander) is { } debrief)
+        {
+            // DEBRIEF pays the 5,000 credits and the 256 kill points, clears bit 0 of TP, and
+            // prints token 15, the thank-you message — through BRP, which stages it
+            Commander.MissionStatus = Missions.StatusByte;
+            Message = debrief;
+            StageBriefing(15);
             return;
         }
 
         if (Missions.OfferMission1(Commander))
         {
-            Message = "A Navy officer offers you a mission: hunt down a Constrictor in galaxy 2.";
+            // BRIEF sets bit 0 of TP — the mission is accepted before it is shown — then stages the
+            // banner and the rotating Constrictor, and prints token 10 over them
+            Missions.AcceptMission1();
+            Commander.MissionStatus = Missions.StatusByte;
+            StageBriefing(10, Missions.ConstrictorType);
+            return;
         }
-        else if (Missions.OfferMission2(Commander))
+
+        if (Missions.OfferMission2(Commander))
         {
-            Message = "A Navy officer asks you to carry documents for them.";
+            // BRIEF2 sets bit 2 of TP before printing token 11, the initial contact
+            Missions.AcceptMission2();
+            Commander.MissionStatus = Missions.StatusByte;
+            StageBriefing(11);
         }
     }
 
@@ -573,17 +651,10 @@ public sealed class GameSession
         Mode = GameMode.Docked;
         Message = $"Docked at {System.Name} station.";
 
-        // Mission business is settled on arrival, as the original's docked code does
+        // Mission business is settled on arrival, as the original's docked code does — and the
+        // debriefing is part of it: the disc's DOENTRY runs every mission check, DEBRIEF included,
+        // before it shows the hangar and the screens
         HandleMissionArrival();
-
-        // A debriefing due from the Constrictor's destruction is attended now, which is where the
-        // reward and the kill points are paid. The commander's status byte is what a save carries,
-        // so it has to follow the missions here as well as after a kill.
-        if (Missions.AttendDebrief(Commander) is { } debrief)
-        {
-            Message = debrief;
-            Commander.MissionStatus = Missions.StatusByte;
-        }
     }
 
     /// <summary>

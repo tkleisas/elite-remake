@@ -107,7 +107,22 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
         }
     }
 
-    /// <summary>Builds (once) and returns the scene for the session's current mode.</summary>
+    /// <summary>
+    /// Builds (once) and returns the scene for the session's current mode.
+    /// </summary>
+    private BriefingScene BriefingSceneFor()
+    {
+        Briefing pending = _session.PendingBriefing!;
+        if (_briefingScene is null || _briefingScene.Built != pending)
+        {
+            _briefingScene = new BriefingScene(Camera, _session, _text, GraphicsDevice);
+        }
+
+        return _briefingScene;
+    }
+
+    private BriefingScene? _briefingScene;
+
     private IScene CreateSceneForMode()
     {
         // The ship viewer replaces the game entirely, so it takes priority over the session's mode
@@ -155,6 +170,7 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
                 DockedScreen.LongRangeChart => _longChartScene ??= OpenChart(ChartRange.Long),
                 DockedScreen.DataOnSystem => _dataScene ??= new DataScene(Camera, _session, _text),
                 DockedScreen.Status => _statusScene ??= new StatusScene(Camera, _session, _text, _flightScene),
+                DockedScreen.Briefing => BriefingSceneFor(),
                 DockedScreen.Settings => _settingsScene ??= new SettingsScene(Camera, _session, _text, _settings),
                 _ => _marketScene ??= new MarketScene(Camera, _session, _text),
             };

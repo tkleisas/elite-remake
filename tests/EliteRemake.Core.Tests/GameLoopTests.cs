@@ -417,9 +417,10 @@ public class GameLoopTests
         session.Load(commander);
         session.Dock();
 
-        Assert.True(session.Missions.OfferMission2(commander), session.Message);
-        session.Missions.AcceptMission2();
+        // BRIEF2 accepts the mission before it shows anything — bit 2 of TP set before token 11
+        // prints — and stages the initial contact's briefing
         Assert.True(session.Missions.Mission2Active);
+        Assert.Equal(11, session.PendingBriefing?.Token);
 
         // Flying reloads the commander, and Load rebuilds the missions from his status byte — so the
         // byte has to be brought up to date first, or the leg we are about to fly loses the mission
@@ -437,6 +438,7 @@ public class GameLoopTests
         Assert.True(session.Missions.CarryingPlans, session.Message);
         Assert.True(session.Missions.ThargoidSpawnChance > 0, "carrying the plans should draw Thargoids");
         Assert.Equal(session.System.Name, session.Flight.System?.Name);
+        int plansBriefingToken = session.PendingBriefing?.Token ?? 0;
 
         // And to where they go, with the plans now in hand
         commander.MissionStatus = session.Missions.StatusByte;
@@ -452,9 +454,14 @@ public class GameLoopTests
 
         Assert.False(session.Missions.CarryingPlans, session.Message);
 
-        // DEBRIEF2 pays no cash: the reward is the special navy energy unit and 256 kill points
+        // DEBRIEF2 pays no cash: the reward is the special navy energy unit and 256 kill points,
+        // staged as token 223 through BRP
         Assert.Equal(Commander.NavalEnergyUnit, commander.EnergyUnitLevel);
         Assert.Equal(kills + Missions.DebriefKillPoints, commander.Kills);
+        Assert.Equal(223, session.PendingBriefing?.Token);
+
+        // And on the way here, the plans briefing was token 222 — the disc's BRIEF3
+        Assert.Equal(222, plansBriefingToken);
     }
 
     /// <summary>
@@ -512,7 +519,12 @@ public class GameLoopTests
         // A commander good enough to be offered the mission
         commander.Kills = Missions.CompetentKills;
         session.Dock();
-        Assert.True(session.Missions.OfferMission1(commander));
+
+        // The disc's BRIEF accepts the mission before it shows anything — bit 0 of TP is set before
+        // the banner comes up — and stages the briefing with the Constrictor in it
+        Assert.True(session.Missions.Mission1Active);
+        Assert.Equal(10, session.PendingBriefing?.Token);
+        Assert.Equal(Missions.ConstrictorType, session.PendingBriefing?.ShipType);
 
         // Go to the Constrictor's system, in its own galaxy
         commander.CurrentSystem = Galaxy
@@ -558,6 +570,10 @@ public class GameLoopTests
         Assert.Equal(cash + Missions.ConstrictorReward, commander.Cash);
         Assert.Equal(kills + Missions.DebriefKillPoints, commander.Kills);
         Assert.False(session.Missions.Mission1Active);
+
+        // And the debriefing is staged, as DEBRIEF stages it: BRP prints token 15 and shows the
+        // Status Mode screen after it
+        Assert.Equal(15, session.PendingBriefing?.Token);
     }
 
     /// <summary>
