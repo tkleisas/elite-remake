@@ -71,6 +71,16 @@ public sealed class GameOptions
     /// <summary>If set, start docked at the station rather than in flight.</summary>
     public bool StartDocked { get; private set; }
 
+    /// <summary>
+    /// True to open on the start screen. It is the default, and the options that ask for a
+    /// particular screen or for the ship viewer turn it off, because a development command that
+    /// wants to look at the market or at a ship's geometry does not want a menu in the way.
+    /// </summary>
+    public bool ShowTitle { get; private set; } = true;
+
+    /// <summary>True to open the start screen with its settings panel already showing.</summary>
+    public bool TitleSettings { get; private set; }
+
     /// <summary>Which docked screen to show, when starting docked.</summary>
     public DockedScreen StartScreen { get; private set; } = DockedScreen.Market;
 
@@ -104,6 +114,7 @@ public sealed class GameOptions
                     break;
                 case "--viewer":
                     options.ViewerShip = Next();
+                    options.ShowTitle = false;
                     break;
                 case "--exit-after":
                     options.ExitAfterFrames = int.Parse(Next() ?? "60");
@@ -128,6 +139,7 @@ public sealed class GameOptions
                     break;
                 case "--empty":
                     options.EmptySystem = true;
+                    options.ShowTitle = false;
                     break;
                 case "--sim-warmup":
                     options.SimWarmupFrames = int.Parse(Next() ?? "0");
@@ -149,6 +161,7 @@ public sealed class GameOptions
                     break;
                 case "--dock":
                     options.StartDocked = true;
+                    options.ShowTitle = false;
                     options.StartScreen = (Next() ?? "market").ToLowerInvariant() switch
                     {
                         "equipment" or "equip" => DockedScreen.Equipment,
@@ -163,14 +176,25 @@ public sealed class GameOptions
                 case "--font-sheet":
                     options.PrintFontSheet = true;
                     break;
+                case "--title":
+                    options.ShowTitle = true;
+                    break;
+                case "--skip-title":
+                    options.ShowTitle = false;
+                    break;
+                case "--title-settings":
+                    options.TitleSettings = true;
+                    break;
                 case "--hold":
                     options.WarmupInput = ParseControls(Next() ?? string.Empty);
                     break;
                 case "--jump":
                     options.StartHyperspace = true;
+                    options.ShowTitle = false;
                     break;
                 case "--stress":
                     options.StressShips = int.Parse(Next() ?? "12");
+                    options.ShowTitle = false;
                     break;
                 case "--help":
                 case "-h":
@@ -232,6 +256,9 @@ public sealed class GameOptions
                                       faster, slower, fire (comma separated)
               --font-sheet            draw every character in the font and exit
               --new-commander         ignore any saved commander and start fresh
+              --title                 open on the start screen (the default)
+              --skip-title            go straight into the game, past the start screen
+              --title-settings        open the start screen with its settings showing
               --jump                  begin a hyperspace jump at once, to see the tunnel
               --dock [screen]         start docked, at the market or the equipment shop
               --laser <type>          fit a pulse, beam, military or none laser to the front

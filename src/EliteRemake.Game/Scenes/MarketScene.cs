@@ -135,7 +135,7 @@ public sealed class MarketScene : IScene
         int left = Math.Max(cellWidth / 2, (device.Viewport.Width - width) / 2);
         int top = cellHeight;
 
-        spriteBatch.Begin();
+        spriteBatch.Begin(samplerState: SamplerState.PointClamp);
 
         Color title = Palette.White;
         Color normal = new(200, 206, 216);

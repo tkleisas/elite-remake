@@ -212,6 +212,11 @@ public sealed class FlightSim
         DamageTakenThisFrame = 0;
         MissileUnarmedThisFrame = false;
 
+        // The original's SSPR, which is the count of stations in our bubble and so is true for as
+        // long as the station is with us. It guards two things: nothing spawns while it is set, and
+        // a hostile pirate inside the zone loses its aggression.
+        bool stationPresent = StationIsPresent;
+
         for (int slot = 0; slot < _bubble.Count; slot++)
         {
             Ship ship = _bubble[slot];
@@ -219,7 +224,7 @@ public sealed class FlightSim
             // TACTICS decides what this ship is before it decides what to do: a trader may turn out
             // to be a pirate, and a bounty hunter only comes for a commander who is nearly a
             // fugitive. Both rewrite the ship's own NEWB flags, so the decision is made once.
-            Tactics.DecideRole(ship, Random, Commander?.LegalStatus ?? 0);
+            Tactics.DecideRole(ship, Random, Commander?.LegalStatus ?? 0, stationPresent);
 
             // An Anaconda may release the ship it carries, which is part of TACTICS in the original
             if (Tactics.ShouldReleaseShip(ship, Random))
@@ -1112,6 +1117,14 @@ public sealed class FlightSim
         LastSpawn = SpawnKind.None;
 
         if (!SpawningEnabled || System is null)
+        {
+            return;
+        }
+
+        // Nothing spawns inside the station's safe zone. The original funnels every spawn path
+        // through MTT1, which jumps to the end of the main loop while SSPR is set, so a station in
+        // the bubble means no traders, no pirates and no police until we have left it behind.
+        if (StationIsPresent)
         {
             return;
         }

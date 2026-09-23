@@ -176,6 +176,13 @@ public sealed class Ship
     /// <summary>Bit 2: hostile, which is what a trader becomes when it turns out to be a pirate.</summary>
     public const byte NewbHostile = 0x04;
 
+    /// <summary>
+    /// Bit 3: a pirate, which on this build is the Krait and the Constrictor. It matters beyond
+    /// flavour: a pirate that finds itself inside the space station's no-fire zone has its
+    /// aggression cleared, and it is the only kind of ship the original does that to.
+    /// </summary>
+    public const byte NewbPirate = 0x08;
+
     /// <summary>Bit 6: a cop, whose destruction makes us a fugitive at once.</summary>
     public const byte NewbCop = 0x40;
 

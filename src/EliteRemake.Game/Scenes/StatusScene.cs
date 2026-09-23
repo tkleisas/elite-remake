@@ -109,7 +109,7 @@ public sealed class StatusScene : IScene
         int left = Math.Max(cellWidth / 2, (device.Viewport.Width - width) / 2);
         int y = cellHeight;
 
-        spriteBatch.Begin();
+        spriteBatch.Begin(samplerState: SamplerState.PointClamp);
 
         Color normal = new(200, 206, 216);
         Color dim = new(120, 128, 140);

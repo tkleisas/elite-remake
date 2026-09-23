@@ -23,6 +23,29 @@ public static class SceneFactory
     /// Builds the development ship viewer, which shows one blueprint turning on the spot so the
     /// extracted geometry can be checked against the original's own models.
     /// </summary>
+    /// <summary>
+    /// Builds the start screen, with our own ship turning in front of the name.
+    /// </summary>
+    public static IScene CreateTitle(
+        GameSession session,
+        GraphicsDevice device,
+        ViewCamera camera,
+        TextRenderer text,
+        Settings settings,
+        Audio.SoundBank? sound,
+        bool showSettings = false) =>
+        new TitleScene(camera, device, session, text, settings, sound, PlayerShipMesh())
+        {
+            ShowSettings = showSettings,
+        };
+
+    /// <summary>The Cobra Mk III, which is the ship the player flies and the one on the title screen.</summary>
+    private static EliteRemake.Core.Ships.ShipMesh PlayerShipMesh()
+    {
+        ShipCatalog.Entry entry = ShipCatalog.Find("cobra-mk-3");
+        return entry.Mesh;
+    }
+
     public static IScene CreateViewer(GameOptions options, GraphicsDevice device, ViewCamera camera)
     {
         ShipCatalog.Entry requested = ShipCatalog.Find(options.ViewerShip!);
@@ -71,6 +94,14 @@ public static class SceneFactory
             {
                 Console.WriteLine($"Loaded commander {session.Commander.Name} at {session.System.Name}");
             }
+        }
+
+        // The disc version opens by asking whether to load a commander and then starts; the start
+        // screen is where that question lives in this port, so unless a development option has asked
+        // for a particular screen the game begins there
+        if (options.ShowTitle)
+        {
+            session.Mode = GameMode.Title;
         }
 
         if (options.StartDocked)

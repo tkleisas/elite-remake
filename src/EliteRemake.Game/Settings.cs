@@ -66,6 +66,13 @@ public sealed class Settings
     public string SlowDown { get; set; } = nameof(Keys.OemQuestion);
 
     /// <summary>
+    /// Whether the title screen plays the Blue Danube, which is the one piece of music in the game
+    /// and a modern addition: the BBC disc has no music at all.
+    /// </summary>
+    [JsonPropertyName("music")]
+    public bool Music { get; set; } = true;
+
+    /// <summary>
     /// The bindings as a list a settings screen can walk, in the order it should show them.
     /// </summary>
     [JsonIgnore]

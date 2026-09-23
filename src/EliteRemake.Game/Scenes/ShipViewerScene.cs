@@ -66,7 +66,7 @@ public sealed class ShipViewerScene : IScene
     public void Draw(SpriteBatch spriteBatch, Texture2D pixel, GraphicsDevice device)
     {
         device.Clear(Palette.Space);
-        spriteBatch.Begin();
+        spriteBatch.Begin(samplerState: SamplerState.PointClamp);
         _starfield.Draw(spriteBatch, pixel, Camera);
         spriteBatch.End();
 
@@ -91,7 +91,7 @@ public sealed class ShipViewerScene : IScene
 
     private void DrawWireframe(SpriteBatch spriteBatch, Texture2D pixel)
     {
-        spriteBatch.Begin();
+        spriteBatch.Begin(samplerState: SamplerState.PointClamp);
         foreach (ShipEdge edge in _mesh.Edges)
         {
             System.Numerics.Vector3 a = ToView(_mesh.Vertices[edge.Vertex1]);

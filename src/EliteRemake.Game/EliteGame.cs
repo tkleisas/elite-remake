@@ -19,6 +19,7 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
     private TextRenderer _text = null!;
     private Audio.SoundBank _sound = null!;
     private IScene _scene = null!;
+    private TitleScene? _titleScene;
     private FlightScene? _flightScene;
     private MarketScene? _marketScene;
     private EquipmentScene? _equipmentScene;
@@ -67,7 +68,8 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
         _text = new TextRenderer(GraphicsDevice, Data.FontData.Font);
         _sound = new Audio.SoundBank();
         _sound.Load();
-        Console.WriteLine($"Loaded {_sound.SoundCount} sounds");
+        _sound.LoadMusic();
+        Console.WriteLine($"Loaded {_sound.SoundCount} sounds and the music");
         _session = SceneFactory.CreateSession(_options);
         _scene = CreateSceneForMode();
 
@@ -89,6 +91,24 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
         if (_options.ViewerShip is not null)
         {
             return _viewerScene ??= SceneFactory.CreateViewer(_options, GraphicsDevice, Camera);
+        }
+
+        if (_session.Mode == GameMode.Title)
+        {
+            if (_titleScene is null)
+            {
+                _titleScene = (TitleScene)SceneFactory.CreateTitle(
+                    _session, GraphicsDevice, Camera, _text, _settings, _sound, _options.TitleSettings);
+
+                // The waltz plays on the start screen and nowhere else: the flight loop owns the
+                // sound chip, and the original's own sounds would be fighting it
+                if (_settings.Music)
+                {
+                    _sound.PlayMusic();
+                }
+            }
+
+            return _titleScene;
         }
 
         if (_session.Mode == GameMode.Docked)
@@ -193,10 +213,22 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
             _session.HandlePlayerDeath();
         }
 
+        // The start screen's quit option leaves the game
+        if (_titleScene is { QuitRequested: true })
+        {
+            Exit();
+            return;
+        }
+
         // The session decides whether we are flying or docked; follow it
         IScene wanted = CreateSceneForMode();
         if (!ReferenceEquals(wanted, _scene))
         {
+            if (_scene is TitleScene)
+            {
+                _sound.StopMusic();
+            }
+
             _scene = wanted;
 
             if (_scene is Scenes.FlightScene flightSounds)
@@ -314,7 +346,7 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
     public void WriteFontSheet()
     {
         GraphicsDevice.Clear(new Color(0, 0, 0));
-        _spriteBatch.Begin();
+        _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
 
         const string rows =
             " !\"#$%&'()*+,-./0123456789:;<=>?@" +

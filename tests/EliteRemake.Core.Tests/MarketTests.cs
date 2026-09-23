@@ -629,6 +629,78 @@ public class TacticsTests
     }
 
     [Fact]
+    public void APirateInsideTheStationsNoFireZoneLosesItsAggression()
+    {
+        // TACTICS' TN3: a hostile pirate inside the station's safe zone has bits 1-6 of its AI flag
+        // cleared, "because even pirates aren't crazy enough to breach the station's no-fire zone".
+        // Only pirates are treated this way — bit 3 of the NEWB flags, which on this build is the
+        // Krait and the Constrictor — so a bounty hunter keeps its aggression.
+        EliteRandom random = new(1);
+
+        var pirate = Ship.Create(19, "krait", "Krait", 0, 0, 0, 0, 2000);
+        pirate.NewbFlags = Ship.NewbPirate | Ship.NewbHostile;
+        pirate.AiFlag = 0xF9;
+
+        Tactics.DecideRole(pirate, random, 0, stationPresent: true);
+        Assert.Equal(Tactics.SafeZoneAiFlag, pirate.AiFlag);
+
+        // Out of the zone it keeps every bit it had
+        var elsewhere = Ship.Create(19, "krait", "Krait", 0, 0, 0, 0, 2000);
+        elsewhere.NewbFlags = Ship.NewbPirate | Ship.NewbHostile;
+        elsewhere.AiFlag = 0xF9;
+        Tactics.DecideRole(elsewhere, random, 0, stationPresent: false);
+        Assert.Equal(0xF9, elsewhere.AiFlag);
+
+        // A hostile ship that is not a pirate is left alone: the rule is about pirates
+        var hunter = Ship.Create(16, "viper", "Viper", 0, 0, 0, 0, 2000);
+        hunter.NewbFlags = Ship.NewbBountyHunter | Ship.NewbHostile;
+        hunter.AiFlag = 0xF9;
+        Tactics.DecideRole(hunter, random, 0, stationPresent: true);
+        Assert.Equal(0xF9, hunter.AiFlag);
+    }
+
+    [Fact]
+    public void APirateInTheNoFireZoneCannotHitUs()
+    {
+        // The end-to-end half of the rule. The two runs differ only in whether a station is in the
+        // bubble, so the station is what stops the shooting.
+        //
+        // Note the aggression is never given back: the original zeroes the AI flag and nothing
+        // restores it, so a pirate that has been inside the zone stays toothless for good. The
+        // second run therefore uses a fresh pirate rather than the one that was pacified.
+        static int EnergyAfterSixtyFrames(bool withStation)
+        {
+            var (sim, pirate) = CreateSim(aiFlag: 0xF9);
+            pirate.NewbFlags = Ship.NewbPirate | Ship.NewbHostile;
+
+            // Ahead of us, pointed straight at us, close enough to fire
+            pirate.SetPosition(0, 0, 2000);
+            pirate.Orientation.SetUnity(Orientation.Nosev, Orientation.Z, -1.0);
+
+            if (withStation)
+            {
+                sim.Spawn(Ship.Create(
+                    ShipTypes.Coriolis, "coriolis", "Coriolis space station", 0, 0, 0, 0, 3000));
+            }
+
+            sim.Player.Energy = 150;
+            for (int i = 0; i < 60; i++)
+            {
+                sim.Step();
+            }
+
+            return sim.Player.Energy;
+        }
+
+        int inTheZone = EnergyAfterSixtyFrames(withStation: true);
+        Assert.True(inTheZone >= 150, $"the no-fire zone should have held, but energy fell to {inTheZone}");
+
+        int outOfTheZone = EnergyAfterSixtyFrames(withStation: false);
+        Assert.True(outOfTheZone < 150,
+            $"an unpacified pirate should have hit us, but energy was {outOfTheZone}");
+    }
+
+    [Fact]
     public void APeacefulShipFlyingAwayDoesNotShootUsInTheBack()
     {
         // The steering vector for a peaceful ship is flipped so that it turns away from us, and the
@@ -2966,6 +3038,77 @@ public class CollisionTests
 
         Assert.True(other.IsExploding, "a weak ship should be destroyed by the collision");
         Assert.Same(other, sim.DestroyedThisFrame);
+    }
+}
+
+/// <summary>
+/// Checks the space station's safe zone, the original's SSPR: while a station is in our bubble
+/// nothing spawns around us, and a hostile pirate inside the zone has its aggression cleared.
+/// </summary>
+public class SafeZoneTests
+{
+    private static FlightSim CreateSim(bool withStation)
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            Commander = Commander.CreateDefault(),
+            System = Galaxy.GenerateGalaxy(Galaxy.GalaxySeeds(0))[7],   // Lave
+            GalaxySeeds = Galaxy.GalaxySeeds(0),
+        };
+
+        if (withStation)
+        {
+            sim.Spawn(Ship.Create(
+                ShipTypes.Coriolis, "coriolis", "Coriolis space station", 0, 0, 0, 0, 3000));
+        }
+
+        return sim;
+    }
+
+    private static int ShipsAfter(FlightSim sim, int frames)
+    {
+        int start = sim.Bubble.Count;
+        int most = start;
+
+        for (int i = 0; i < frames; i++)
+        {
+            sim.Step();
+            most = Math.Max(most, sim.Bubble.Count);
+        }
+
+        return most - start;
+    }
+
+    [Fact]
+    public void NothingSpawnsWhileTheStationIsInTheBubble()
+    {
+        // The original funnels every spawn path through MTT1, which jumps to the end of the main
+        // loop while SSPR is set. Mission ships are behind the same gate: the Constrictor is spawned
+        // after it too, so on the disc you have to leave the station's vicinity before it appears.
+        FlightSim guarded = CreateSim(withStation: true);
+        Assert.Equal(0, ShipsAfter(guarded, 4000));
+
+        // The same run without a station fills the sky, so it is the station doing the guarding
+        FlightSim open = CreateSim(withStation: false);
+        Assert.True(ShipsAfter(open, 4000) > 0, "ships should spawn with no station in the bubble");
+    }
+
+    [Fact]
+    public void TheStationLeavingTheBubbleLiftsTheZone()
+    {
+        // It is the station in the bubble that counts, not being near a station: fly far enough and
+        // the station is tidied out of the bubble, as the original's own slot count does
+        FlightSim sim = CreateSim(withStation: true);
+        Ship station = Assert.Single(sim.Bubble, s => s.Type == ShipTypes.Coriolis);
+
+        for (int i = 0; i < 4000 && sim.Bubble.Contains(station); i++)
+        {
+            // Fly away from it, so it falls behind and out of range
+            sim.Step(new FlightInput(SpeedUp: i < 40));
+        }
+
+        Assert.DoesNotContain(station, sim.Bubble);
+        Assert.True(ShipsAfter(sim, 4000) > 0, "the sky should come back to life once the station is gone");
     }
 }
 

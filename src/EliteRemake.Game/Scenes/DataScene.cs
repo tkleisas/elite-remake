@@ -155,7 +155,7 @@ public sealed class DataScene : IScene
         int left = Math.Max(cellWidth / 2, (device.Viewport.Width - width) / 2);
         int top = cellHeight * 2;
 
-        spriteBatch.Begin();
+        spriteBatch.Begin(samplerState: SamplerState.PointClamp);
 
         Color normal = new(200, 206, 216);
         Color label = new(140, 148, 160);

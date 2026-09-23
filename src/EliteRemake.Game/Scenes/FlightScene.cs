@@ -595,7 +595,7 @@ public sealed class FlightScene : IScene
         device.Clear(Palette.Space);
 
         // Stars first: they are the backdrop, and the original draws them before the ships
-        spriteBatch.Begin();
+        spriteBatch.Begin(samplerState: SamplerState.PointClamp);
         _starfield.Draw(spriteBatch, pixel, Camera);
         spriteBatch.End();
 
@@ -603,7 +603,7 @@ public sealed class FlightScene : IScene
         // original's LL164 clears the screen and draws its rings over the top
         if (Session is { HyperspaceCountdown: > 0 } || (ShowTunnelFrames > 0 && _drawnFrames < ShowTunnelFrames))
         {
-            spriteBatch.Begin();
+            spriteBatch.Begin(samplerState: SamplerState.PointClamp);
             HyperspaceTunnel.Draw(spriteBatch, pixel, Camera, Palette.White);
             spriteBatch.End();
             _hud.Draw(spriteBatch, pixel, Camera, _sim);
@@ -612,7 +612,7 @@ public sealed class FlightScene : IScene
 
         // The planet and the sun are circles rather than models, and they are so large and distant
         // that they are always behind the ships, so they are drawn first as the backdrop
-        spriteBatch.Begin();
+        spriteBatch.Begin(samplerState: SamplerState.PointClamp);
         foreach (Ship body in _sim.Bubble)
         {
             if (!IsCelestial(body.Type))
@@ -663,7 +663,7 @@ public sealed class FlightScene : IScene
 
         _renderer.End();
 
-        spriteBatch.Begin();
+        spriteBatch.Begin(samplerState: SamplerState.PointClamp);
         DrawLaserBeam(spriteBatch, pixel);
         DrawExplosions(spriteBatch, pixel);
         spriteBatch.End();

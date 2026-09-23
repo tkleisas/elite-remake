@@ -3884,3 +3884,40 @@ port. The spawn suppression is murkier: the original's guard skips the speed ass
 - Headless runs now print the scene's status line **as they end**. The status line was printed at frame 2,
   which is *before* anything has happened, and reading it as the final state has been wrong more than
   once — including twice in this round.
+
+## The start screen, with the controls and the waltz
+
+**What was asked for**: a start screen, some settings on it, and the Blue Danube playing — "even if it
+is not on bbc disc".
+
+**What the original has**: a title screen with the game's name over a starfield, and on the disc a
+single prompt asking whether to load a commander. There is no menu, no settings and **no music at all** —
+the BBC has one sound chip and the flight loop uses it for effects. The waltz belongs to the Commodore
+64 version, which had a SID to spare, and the source library has its music player but not its note data:
+the disassembly only points at the data blob. So the music is a departure, and it is recorded as one in
+`docs/DIVERGENCES.md` rather than quietly presented as a port.
+
+**The tune is measured, not remembered.** Transcribing a melody from memory is exactly the kind of
+reading that has been wrong repeatedly in this project, so the notes came from a published score — James
+Kerr's *Merry Melodies* as transcribed for the ABC collections — via its MIDI, which was parsed and
+reduced to one line. A beeper has one voice, so the accompaniment and the melody are played in score
+order, the way a music box renders a piece written for an orchestra. The synthesizer is then tested by
+**counting the pitch back out of the rendered samples**: all seventy notes come back within 0.32% of the
+frequency the table asks for, and the tune opens with the rising G–B–D arpeggio that makes it
+recognisable. A typo in the table, or a synth playing the wrong octave, fails the test.
+
+**One rendering bug fell out of it.** The wordmark showed a thin bright bar in every space, and the
+pitch of the artifact — one pixel wide whatever the scale — said it was not a glyph. It was the sprite
+batch's default **linear filtering** sampling across the edge of each cell in the font atlas, which is
+also why every glyph had been slightly soft. The whole game is pixel art, so every sprite batch in the
+game now uses point sampling: the text is crisp and the bars are gone.
+
+**Also in this round**, from the same question:
+
+- The settings screen was tied to the docked status screen — closing it always returned there, and it
+  could only show key bindings. It now takes a list of on/off options and somewhere to return to, so the
+  title screen shows the same panel with the music switch on top.
+- `CTRL-S` to save was unreachable: the check for "S" as *move down* came first, so pressing it moved the
+  cursor and the save never ran. The modifier is tested before the bare key now.
+- The commander's save file is asked for through one property, so the start screen cannot offer a load
+  that then fails for want of a file.

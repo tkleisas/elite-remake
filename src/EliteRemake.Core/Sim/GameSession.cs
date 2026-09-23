@@ -36,6 +36,9 @@ public enum DockedScreen
 /// <summary>Where the player is: flying, or docked at the station.</summary>
 public enum GameMode
 {
+    /// <summary>On the start screen, before the game has begun.</summary>
+    Title,
+
     /// <summary>In flight.</summary>
     Flying,
 
@@ -116,7 +119,7 @@ public sealed class GameSession
     public MarketEntry[] Market { get; private set; }
 
     /// <summary>Whether we are flying or docked.</summary>
-    public GameMode Mode { get; private set; } = GameMode.Flying;
+    public GameMode Mode { get; set; } = GameMode.Flying;
 
     /// <summary>Which station screen we are looking at, when docked.</summary>
     public DockedScreen Screen { get; set; } = DockedScreen.Market;
@@ -411,6 +414,30 @@ public sealed class GameSession
     /// <summary>The default path of the commander's save file.</summary>
     public static string DefaultSavePath =>
         Path.Combine(AppContext.BaseDirectory, "commander.json");
+
+    /// <summary>True when there is a saved commander available to load.</summary>
+    /// <remarks>
+    /// The start screen offers "load commander" only when there is something to load, and this is
+    /// asked of the same path <see cref="TryLoad"/> reads, so the menu cannot promise a load that
+    /// then fails for want of a file.
+    /// </remarks>
+    public static bool HasSave => File.Exists(DefaultSavePath);
+
+    /// <summary>
+    /// Replaces the commander in play with a brand new one, which is what the start screen's "new
+    /// commander" does and what the original asks for by name on the disc.
+    /// </summary>
+    /// <remarks>
+    /// Everything that hangs off the commander has to be rebuilt with it, exactly as
+    /// <see cref="Load"/> does and for the same reasons: the simulation holds the commander, the
+    /// missions live in the status byte, and the ship's equipment is the commander's.
+    /// </remarks>
+    public void NewCommander()
+    {
+        Commander fresh = Commander.CreateDefault();
+        Load(fresh);
+        Message = $"A new commander: {fresh.Name}.";
+    }
 
     /// <summary>
     /// Saves the commander, as the original does when docked. Returns a message describing what

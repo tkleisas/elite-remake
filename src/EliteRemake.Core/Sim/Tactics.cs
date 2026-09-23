@@ -128,7 +128,15 @@ public static class Tactics
     /// <param name="ship">The ship whose turn it is.</param>
     /// <param name="random">The random number generator.</param>
     /// <param name="legalStatus">The commander's legal status, the original's FIST.</param>
-    public static void DecideRole(Ship ship, EliteRandom random, int legalStatus)
+    /// <param name="stationPresent">
+    /// True while a space station is in our bubble, which is the original's SSPR and the station's
+    /// no-fire zone.
+    /// </param>
+    public static void DecideRole(
+        Ship ship,
+        EliteRandom random,
+        int legalStatus,
+        bool stationPresent = false)
     {
         if ((ship.NewbFlags & Ship.NewbTrader) != 0)
         {
@@ -144,7 +152,23 @@ public static class Tactics
         {
             ship.NewbFlags |= Ship.NewbHostile;
         }
+
+        // TN3: a hostile pirate inside the station's no-fire zone has its aggression cleared, as
+        // the original puts it, "because even pirates aren't crazy enough to breach the station's
+        // no-fire zone". Bits 1-6 of the AI flag are the aggression level, which is what the attack
+        // roll reads, so clearing them leaves a ship that is still hostile and still flies at us but
+        // cannot bring itself to shoot.
+        if (stationPresent && ship.IsHostile && (ship.NewbFlags & Ship.NewbPirate) != 0)
+        {
+            ship.AiFlag &= SafeZoneAiFlag;
+        }
     }
+
+    /// <summary>
+    /// The AI flag a pirate is left with inside the station's no-fire zone: bits 1 to 6 cleared, so
+    /// the aggression is zero.
+    /// </summary>
+    public const byte SafeZoneAiFlag = 0b1000_0001;
 
     /// <summary>
     /// Considers whether an Anaconda should release the ship it carries.

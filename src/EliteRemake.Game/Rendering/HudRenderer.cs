@@ -76,7 +76,7 @@ public sealed class HudRenderer
     /// <summary>Draws the whole dashboard and the crosshair.</summary>
     public void Draw(SpriteBatch spriteBatch, Texture2D pixel, ViewCamera camera, FlightSim sim)
     {
-        spriteBatch.Begin();
+        spriteBatch.Begin(samplerState: SamplerState.PointClamp);
 
         DrawCrosshair(spriteBatch, pixel);
         DrawDashboardBackground(spriteBatch, pixel);
