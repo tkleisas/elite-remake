@@ -214,6 +214,11 @@ public sealed class FlightSim
         {
             Ship ship = _bubble[slot];
 
+            // TACTICS decides what this ship is before it decides what to do: a trader may turn out
+            // to be a pirate, and a bounty hunter only comes for a commander who is nearly a
+            // fugitive. Both rewrite the ship's own NEWB flags, so the decision is made once.
+            Tactics.DecideRole(ship, Random, Commander?.LegalStatus ?? 0);
+
             // An Anaconda may release the ship it carries, which is part of TACTICS in the original
             if (Tactics.ShouldReleaseShip(ship, Random))
             {

@@ -130,6 +130,48 @@ public class GameLoopTests
     }
 
     /// <summary>
+    /// A trader turns out to be a pirate 39% of the time, and a bounty hunter only comes for the
+    /// nearly wanted.
+    /// </summary>
+    /// <remarks>
+    /// TACTICS reads the ship's role from its NEWB flags and rewrites them: bit 0 is a trader, which
+    /// rolls against #100 and becomes a pirate on the 39% that do not reach it, and bit 1 is a bounty
+    /// hunter, which goes hostile only once our legal status reaches 40. The rates are measured here
+    /// rather than assumed, because a comparison written the wrong way round gives a plausible-looking
+    /// constant and the wrong world — which happened once already with the Anaconda's roll.
+    /// </remarks>
+    [Fact]
+    public void TradersTurnPirateAndBountyHuntersWaitForUsToBeWanted()
+    {
+        var random = new EliteRandom(1);
+
+        // A trader turns pirate at roughly 39%, and once hostile it keeps the bit
+        int turned = 0;
+        for (int i = 0; i < 10_000; i++)
+        {
+            var trader = new Ship(9, "shuttle", "Shuttle") { NewbFlags = Ship.NewbTrader | Ship.NewbInnocent };
+            Tactics.DecideRole(trader, random, legalStatus: 0);
+            if (trader.IsHostile) turned++;
+        }
+
+        Assert.InRange(turned, 3_700, 4_100);   // 39% of 10000
+
+        // A bounty hunter stays peaceful while we are clean and turns once we are nearly a fugitive
+        var clean = new Ship(24, "cobra-mk-3-p", "Python") { NewbFlags = Ship.NewbBountyHunter };
+        for (int i = 0; i < 200; i++) Tactics.DecideRole(clean, random, legalStatus: 0);
+        Assert.False(clean.IsHostile, "a clean commander is left alone");
+
+        var wanted = new Ship(24, "cobra-mk-3-p", "Python") { NewbFlags = Ship.NewbBountyHunter };
+        Tactics.DecideRole(wanted, random, legalStatus: 40);
+        Assert.True(wanted.IsHostile, "a bounty hunter comes for the nearly wanted");
+
+        // And a ship with neither role is untouched
+        var rock = new Ship(7, "asteroid", "Asteroid") { NewbFlags = 0 };
+        for (int i = 0; i < 100; i++) Tactics.DecideRole(rock, random, legalStatus: 255);
+        Assert.Equal(0, rock.NewbFlags);
+    }
+
+    /// <summary>
     /// An Anaconda releases a Worm, and on this build nothing else.
     /// </summary>
     /// <remarks>

@@ -167,6 +167,15 @@ public sealed class Ship
     /// </remarks>
     public byte NewbFlags { get; set; }
 
+    /// <summary>Bit 0: a trader, which can turn out to be a pirate instead.</summary>
+    public const byte NewbTrader = 0x01;
+
+    /// <summary>Bit 1: a bounty hunter, which comes after us once we are nearly a fugitive.</summary>
+    public const byte NewbBountyHunter = 0x02;
+
+    /// <summary>Bit 2: hostile, which is what a trader becomes when it turns out to be a pirate.</summary>
+    public const byte NewbHostile = 0x04;
+
     /// <summary>Bit 6: a cop, whose destruction makes us a fugitive at once.</summary>
     public const byte NewbCop = 0x40;
 
@@ -178,6 +187,10 @@ public sealed class Ship
 
     /// <summary>True when this ship counts as an innocent.</summary>
     public bool IsInnocent => (NewbFlags & NewbInnocent) != 0;
+
+    /// <summary>True when this ship is hostile, which a trader becomes when it turns out to be a
+    /// pirate.</summary>
+    public bool IsHostile => (NewbFlags & NewbHostile) != 0;
 
     public byte AiFlag
     {

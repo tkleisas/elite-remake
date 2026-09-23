@@ -78,6 +78,63 @@ public static class Tactics
     public const byte SpawnedShipAiFlag = 0b1111_0001;
 
     /// <summary>
+    /// The threshold a trader rolls against to turn out to be a pirate: the original's
+    /// <c>CPX #100</c>, where a roll of 100 or more leaves it alone. That is 156 in 256, or 61%.
+    /// </summary>
+    public const int TraderRemainsThreshold = 100;
+
+    /// <summary>
+    /// The legal status at which a bounty hunter comes for us: the original's <c>CPX #40</c> against
+    /// <c>FIST</c>, where 50 is a fugitive.
+    /// </summary>
+    public const int BountyHunterLegalStatus = 40;
+
+    /// <summary>
+    /// Decides a ship's role from its NEWB flags and rewrites the flags as play goes on.
+    /// </summary>
+    /// <remarks>
+    /// This is the rule the roles actually come from on this build, and it runs every frame the
+    /// tactics do:
+    ///
+    /// <code>
+    /// LDA NEWB / LSR A / BCC TN1        \ bit 0: is this a trader?
+    /// CPX #100 / BCS TA22               \ 61% chance: leave it alone
+    ///                                   \ otherwise it turns out to be a pirate
+    /// .TN1
+    /// LSR A / BCC TN2                   \ bit 1: is this a bounty hunter?
+    /// LDX FIST / CPX #40 / BCC TN2      \ only if our legal status is 40 or more
+    /// LDA NEWB / ORA #%00000100         \ a bounty hunter that hates us goes hostile
+    /// </code>
+    ///
+    /// Two things follow from this that the spawn-table model does not give. A **trader** is a ship
+    /// carrying bit 0 — on this build only the Shuttle and the Transporter — and 39% of the time it
+    /// is a pirate in disguise rather than a trader, which is why the source's comment gives 39% here
+    /// against 20% in the advanced versions. And a **bounty hunter** does not simply attack: it only
+    /// turns on us once our legal status reaches 40, so a clean commander is left alone by the very
+    /// ships that exist to hunt the wanted.
+    /// </remarks>
+    /// <param name="ship">The ship whose turn it is.</param>
+    /// <param name="random">The random number generator.</param>
+    /// <param name="legalStatus">The commander's legal status, the original's FIST.</param>
+    public static void DecideRole(Ship ship, EliteRandom random, int legalStatus)
+    {
+        if ((ship.NewbFlags & Ship.NewbTrader) != 0)
+        {
+            // A trader rolls to turn out to be a pirate. Once hostile it stays hostile: the flags
+            // are rewritten, so the roll is not repeated.
+            if (!ship.IsHostile && random.Next() < TraderRemainsThreshold)
+            {
+                ship.NewbFlags |= Ship.NewbHostile;
+            }
+        }
+        else if ((ship.NewbFlags & Ship.NewbBountyHunter) != 0 &&
+                 legalStatus >= BountyHunterLegalStatus)
+        {
+            ship.NewbFlags |= Ship.NewbHostile;
+        }
+    }
+
+    /// <summary>
     /// Considers whether an Anaconda should release the ship it carries.
     /// </summary>
     /// <remarks>

@@ -2633,3 +2633,33 @@ the flagged strings were printed alongside the verdict rather than only counted.
 self-correcting. The counter alone would have read "4 truncated" and sent the next round hunting a
 fault that does not exist — which is precisely what happened last round, when a plausible-looking
 conclusion went into the roadmap unchecked.
+
+## The trader-to-pirate rule, implemented
+
+The item recorded as open in round 94 — a subsystem rather than an adjustment — is in.
+
+**What it does.** `Tactics.DecideRole` reads a ship's role from its NEWB flags before the tactics
+decide what to do with it, and rewrites those flags as play goes on:
+
+* **Bit 0 is a trader**, which rolls against `#100` and turns out to be a **pirate** on the 39% of
+  rolls that fall below it. The source's own comment gives the contrast: *"in the disc version, 39% of
+  traders turn out to be bounty hunters, while it's just 20% in the advanced versions"*. Once hostile
+  it stays hostile, because the flag is rewritten rather than re-rolled.
+* **Bit 1 is a bounty hunter**, which goes hostile **only once our legal status reaches 40** — and 50
+  is a fugitive. So the ships that exist to hunt the wanted leave a clean commander alone.
+
+That second half is the part the spawn-table model could not express. We had been choosing attackers
+from a table of ship types; the original chooses them from **the state of our own record**, which is
+why a bounty hunter is a consequence of being wanted rather than an independent event.
+
+**The test measures the rates rather than asserting the constants.** Ten thousand rolls at 39%, and a
+bounty hunter checked at legal status 0 against 40. That is deliberate: the Anaconda's roll was written
+the wrong way round once already, giving a plausible-looking constant and a world that spawned eight
+times too often, and only a measured rate caught it. A test that asserts `TraderRemainsThreshold == 100`
+would have passed just as happily with the comparison inverted.
+
+**Two recovered tokens checked at the same time.** The traversal fix brought back tokens 198 and 209.
+Token 209 is the system name in the hint phrases, and token 198 is **genuinely empty** in the source —
+`EQUB VE` with the comment `Token 198: ""` — so an empty token in the table is correct rather than a
+second extraction fault. Worth checking, because an empty token is exactly what a broken extraction
+looks like.
