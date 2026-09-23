@@ -625,7 +625,10 @@ public sealed class FlightSim
                 DropsThisFrame = Debris.DestructionDrops(ship.Type, 0, Random);
             }
 
-            if (Combat.TakeDamage(Player, CollisionDamageToUs, fromBehind: false))
+            // Which shield takes it comes from the ship's own z_sign, as OOPS does for any attacker:
+            // ramming from behind should not take the forward shield
+            (_, _, int collisionZ) = ship.GetPosition();
+            if (Combat.TakeDamage(Player, CollisionDamageToUs, fromBehind: collisionZ < 0))
             {
                 PlayerDied = true;
             }
@@ -763,9 +766,14 @@ public sealed class FlightSim
                 }
                 else
                 {
-                    // The missile has gone off on us: record the hit, and note whether it was fatal
+                    // The missile has gone off on us: record the hit, and note whether it was fatal.
+                    // Which shield it takes comes from the missile's own z_sign, as the original's
+                    // OOPS does — "fetch byte #8 (z_sign) for the ship attacking us... if A is
+                    // negative, then we got hit in the rear". Passing false meant every missile took
+                    // the forward shield however it arrived.
+                    (_, _, int missileZ) = missile.GetPosition();
                     HitByMissile = true;
-                    if (Combat.TakeDamage(Player, Missiles.DirectHitDamage, fromBehind: false))
+                    if (Combat.TakeDamage(Player, Missiles.DirectHitDamage, fromBehind: missileZ < 0))
                     {
                         PlayerDied = true;
                     }

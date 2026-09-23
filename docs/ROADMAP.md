@@ -2749,3 +2749,33 @@ being refused and being killed were the same value.
 the remaining work: **a boolean or an enum shared between two different outcomes is a seam, and the
 seam is where the faults are.** Whether the value is read at all, and whether the value means one thing
 or two, are the two questions to ask of any flag that crosses a boundary.
+
+## A third shared value: which shield takes the damage
+
+The rule from last round — a value crossing a boundary is a seam — says to ask whether it is read and
+whether it means one thing or two. There is a third question it did not name, and the sweep found it:
+**whether the value can even be determined at the call site.**
+
+`Combat.TakeDamage` takes a `fromBehind` and uses it to choose the fore or the aft shield, and the
+original reads it from the attacker's own `z_sign`:
+
+```
+ LDX #0 / LDY #8        \ Fetch byte #8 (z_sign) for the ship attacking us
+ LDA (INF),Y
+ BMI OO1                \ If A is negative, then we got hit in the rear
+```
+
+The laser path does exactly that — `fromBehind = z < 0` — but **two other call sites passed
+`fromBehind: false` as a constant**: the missile that goes off on us, and a ship we ram. So every
+missile took the forward shield however it arrived, and ramming a ship from behind took the forward
+shield too.
+
+**Both now read the attacker's own position.** The missile uses the missile's `z_sign`, the collision
+uses the ship's, which is what the original does for any attacker rather than only for lasers. There
+are now **no hardcoded shield sides** left in the simulation.
+
+**Why this one is a little different from the other seams.** The value was not merely unread or
+overloaded — it was *available* and passed as a constant anyway, because the call sites were written
+where all the other arguments were to hand and the shield side was not. That is the shape to watch for
+in the remaining work: a parameter that a caller has to *compute* is the one most likely to be
+defaulted, because defaulting it is the only way to make the call compile without thinking about it.
