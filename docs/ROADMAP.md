@@ -3181,3 +3181,25 @@ things: one was a genuine gap in our wiring (`EcmOff`, already fixed), one was a
 and the game ignored (`PlayerDied`), and one was an event the core did not surface at all (the missile
 lock being released). They looked identical from the outside — a defined constant with no reference —
 and needed three different fixes.
+
+## The sound table is now guarded, and the zero entry with it
+
+The ship-type constants drifted silently because nothing compared them to the data, and the sound
+table is the same kind of table: ten entries of four bytes each, copied out of the source, where a
+wrong pitch still plays and is only wrong beside the original. It now has a test, with two parts:
+
+* **every entry against the disc's `SFX` data**, including the effect's number being its offset in that
+  table — which is how the original addresses a sound, and which a reordering would break;
+* **the E.C.M.'s switch-off entry being deliberately silent**, which is the part worth pinning. It looks
+  like an unfinished entry, it is the obvious thing to "correct", and it is exactly right: zeroing the
+  sound buffer is how the original stops the field's continuous tone. A test that only checked the nine
+  audible entries would leave the one that invites a wrong fix unguarded.
+
+**Verified to be capable of failing**: changing one byte of the low beep's pitch fails it immediately.
+
+**The pattern this closes.** Three tables have now been given the same treatment — the ship types, the
+ship data block's offsets, and the sounds — and in each case the question was the same: *is there
+anything in this table that a wrong value would not announce?* For the offsets, the answer was no,
+because the routines that read them would break. For the ship types and the sounds, the answer was yes,
+because nothing reads them until a specific thing is tried, and a wrong value there is silent twice
+over — in the code and in the game.
