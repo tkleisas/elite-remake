@@ -4247,3 +4247,32 @@ then fires only as fast as it cools.
 nothing: counting shots over 250 iterations measures the temperature curve, not the pulse rate, and gave
 3.1 a second both before and after. Counting the first forty iterations, where the laser is still cool,
 is what shows the counter's own rate.
+
+## The fifty-hertz sweep is finished, and the simulation got a soak test
+
+**The interrupt handler's gameplay counters are all accounted for.** After the simulation rate itself,
+the station's roll and the laser's pulse counter all turned out to be tied to different clocks, the
+obvious next question was what else the fifty-hertz interrupt drives. Reading IRQ1's line-scan entry
+point, it sets `DL` (the line counter that WSCAN waits on) and decrements `LASCT`, and sets `SVN` when a
+save is in progress. **`LASCT` was the only one that touches the game**; `DL` is a timing helper and
+`SVN` is a flag. The dashboard's gauges are drawn from the main game loop, not the interrupt.
+
+So there is one clock for the game and a fifty-hertz clock for the pulse laser, and both are now
+modelled. That is worth writing down because it is the trap this port has fallen into three times: a
+constant that looks like it counts frames is counting something else.
+
+### A smoke sweep, and a soak
+
+**Twenty-one command-line combinations** — every screen, the viewer, an empty system, a full bubble,
+hyperspace, the autopilot, both simulation rates, the font sheet — all run clean, with no exception and
+no non-zero exit.
+
+And the simulation now has a soak test: four and a half hours of game time at the original's rate, with
+spawning on, the commander thrusting, rolling, pitching and firing throughout, jumping to a new system
+every fifty thousand iterations. Every iteration checks the invariants that the fixed-point arithmetic
+must preserve — the bubble never exceeds its twelve slots, the energy banks, laser temperature and cabin
+temperature stay inside a byte, and **every ship's three coordinates stay inside the 24-bit range**,
+which is where a sign-magnitude mistake would eventually show up as a coordinate that has wrapped.
+
+It passes, which is the least interesting possible result and the one worth having: the ported
+arithmetic does not drift or wrap over hours of play, and a future change that makes it will say so.

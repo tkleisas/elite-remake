@@ -1308,3 +1308,96 @@ public class SpawnCadenceTests
         Assert.InRange(seen.Count, 5, 60);
     }
 }
+
+/// <summary>
+/// Runs the simulation hard for a long stretch and checks that nothing has gone structurally wrong.
+/// </summary>
+/// <remarks>
+/// The ported arithmetic is fixed-point and full of sign-magnitude bytes, saturating additions and
+/// 24-bit coordinates. A mistake in any of it tends to show up not as a wrong number but as a ship at
+/// an impossible distance, a bubble that grows without limit, or a value that has wrapped. This flies
+/// several hours of game time with spawning on, jumping between systems and with ships being shot,
+/// and asserts the invariants that must hold throughout.
+/// </remarks>
+public class SimulationSoakTests
+{
+    [Fact]
+    public void NothingGoesStructurallyWrongOverHoursOfFlight()
+    {
+        var session = new GameSession(
+            Commander.CreateDefault(),
+            new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III")));
+
+        FlightSim sim = session.Flight;
+        session.Commander.SetLaser(LaserMount.Front, LaserType.Beam);
+        sim.LaserPowerProvider = _ => 10;
+        sim.Player.Energy = 255;
+        sim.Player.ForeShield = 255;
+        sim.Player.AftShield = 255;
+
+        // About four and a half hours of game time at the original's rate: long enough for the
+        // fixed-point arithmetic to accumulate any drift it is going to, and short enough to keep the
+        // suite quick
+        const int Iterations = 200_000;
+        var random = new EliteRandom(99);
+
+        for (int i = 0; i < Iterations; i++)
+        {
+            // Fly about: thrust, turn, and shoot at whatever is in front
+            var input = new FlightInput(
+                RollLeft: (i & 127) < 32,
+                RollRight: (i & 127) >= 96,
+                PullUp: (i & 255) < 64,
+                PitchDown: (i & 255) >= 192,
+                SpeedUp: (i & 63) == 0,
+                Fire: (i & 7) == 0);
+
+            sim.Step(input);
+
+            Assert.InRange(sim.Bubble.Count, 0, FlightSim.MaxShipsInBubble);
+            Assert.InRange(sim.Player.Energy, 0, 255);
+            Assert.InRange(sim.LaserTemperature, 0, 255);
+            Assert.InRange(sim.CabinTemperature, 0, 255);
+
+            foreach (Ship ship in sim.Bubble)
+            {
+                (int x, int y, int z) = ship.GetPosition();
+                Assert.InRange(x, -0x800000, 0x800000);
+                Assert.InRange(y, -0x800000, 0x800000);
+                Assert.InRange(z, -0x800000, 0x800000);
+                Assert.InRange(ship.Energy, 0, 255);
+                Assert.InRange(ship.Speed, 0, 255);
+            }
+
+            // Every so often, jump somewhere new: a fresh system, a fresh market and a fresh sky
+            if (i % 50_000 == 49_999)
+            {
+                session.SelectedSystem = session.SystemsInGalaxy[random.Next() % 256];
+                session.Commander.Fuel = 70;
+                if (session.StartHyperspace())
+                {
+                    for (int tick = 0; tick < 40 && session.HyperspaceCountdown > 0; tick++)
+                    {
+                        session.TickHyperspace();
+                    }
+                }
+
+                sim.Player.Energy = 255;
+                sim.PlayerDied = false;
+
+                // Being killed in the middle of the soak would end the game rather than the test, so
+                // a pod puts us back at the station and the flight carries on
+                session.Commander.EscapePod = true;
+                if (session.GameOver)
+                {
+                    session.Restart();
+                }
+            }
+        }
+
+        // The commander is still in a real system with a real market after all that
+        Assert.False(string.IsNullOrWhiteSpace(session.System.Name));
+        Assert.NotEmpty(session.SystemsInGalaxy);
+        Assert.InRange(session.Commander.Fuel, 0, 70);
+    }
+}
