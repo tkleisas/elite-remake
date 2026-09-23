@@ -2467,3 +2467,42 @@ looked like a thousands separator.
 the ninth time, and the pattern is stable enough to state as a rule for any future diagnostic work
 here: a probe that has not been checked against a second, independent view of the same quantity is not
 evidence.
+
+## A missing token leaves thirteen mission hints half-written
+
+Sweeping the `_DISC_DOCKED` branches — the station side, the counterpart of the flight sweep that found
+six faults — turned up the disc's Anreer description override, and checking that led to something
+larger.
+
+**The disc's Anreer text is correct.** The extractor reads it as
+
+```
+THE INHABITANTS OF Anreer ARE SO AMAZINGLY PRIMITIVE THAT THEY STILL THINK A*****R IS A PRETTY NEAT GAME
+```
+
+which is the disc variant, not the advanced versions' `***** ****** IS 3D`. That branch is a disc
+difference we already had right.
+
+**But rendering every hint through the game's own printer showed thirteen of them truncated.** Hints 10
+to 22 all print as:
+
+```
+I HEAR A FUNNY LOOKING SHIP APPEARED AT
+```
+
+with no system name after the "AT". Token 106 is *"I HEAR A [130-134] LOOKING SHIP APPEARED AT
+ERRIUS"*, and its trailing system name is **token 209** — which is **absent from our extracted data**.
+Token 208 and 210 are both present, so it is one token, not a range.
+
+**Why it matters.** The hint's random element picks one of tokens 106 to 110, so two of the five
+phrases lose their system name and the hint names no system at all. Since the whole point of the trail
+hints is to say where the Constrictor was seen, those hints say nothing useful.
+
+**What is established, and what is not.** The extractor *does* start token 209 — traced — so the loss
+is downstream of parsing, and the output is a reachability walk rather than the whole table, which is
+where to look next. I have not found the cause, and have not changed anything to paper over it: the
+missing name is a symptom, and guessing at the walk would risk dropping more tokens than it recovered.
+
+`PrintToken` was added to `DescriptionData` while checking this, so a main-table token can be printed
+on its own rather than only through the description and hint entry points. That is what made the five
+phrases visible individually and the truncation obvious.

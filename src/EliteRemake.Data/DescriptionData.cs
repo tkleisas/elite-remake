@@ -31,6 +31,22 @@ public static class DescriptionData
         return printer.Print(document.DescriptionToken, systemName);
     }
 
+    /// <summary>
+    /// Prints a main-table extended token by number, which is what the original's DETOK does.
+    /// </summary>
+    /// <remarks>
+    /// Exposed so the token tables can be checked directly rather than only through the description
+    /// and hint entry points: a token that only ever appears as part of a larger phrase is otherwise
+    /// hard to look at on its own, and the five that a hint's random element picks from are exactly
+    /// that.
+    /// </remarks>
+    public static string PrintToken(int token, string systemName, EliteRandom random)
+    {
+        Document document = LazyDocument.Value;
+        var printer = new TokenPrinter(_tokens.Value, document.Mtin, random);
+        return printer.Print(token, systemName);
+    }
+
     /// <summary>The mission hints, which replace a system's description while a mission is on.</summary>
     public static Core.Sim.MissionHints Hints => _hints.Value;
 
