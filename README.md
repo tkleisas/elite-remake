@@ -256,8 +256,12 @@ dotnet test tests/EliteRemake.Core.Tests                    # 412 tests, ~20 s
 dotnet run --project src/EliteRemake.Game -- --title --screenshot /tmp/title.png --frame 30
 #   -> Final: Title: version 1.0.0, selected START, music on (playing), save absent
 
-# a flight in front of the station, then the docking computer takes us in
-dotnet run --project src/EliteRemake.Game -- --skip-title --autopilot --station-distance 3000
+# a flight in front of the station, then the docking computer takes us in: --sim-rate runs the
+# simulation faster than real time so the whole approach fits in twenty seconds
+dotnet run --project src/EliteRemake.Game -- --skip-title --autopilot --station-distance 3000 \
+    --sim-rate 250 --exit-after 1200
+#   -> Drew 1200 frames in 20.00s: 16.67 ms a frame, 60.0 fps (simulation steps run at 13 Hz, up
+#      to 10 a frame)
 #   -> Final: Market: LAVE, 17 items, 100.0 credits, 0/22 t held
 ```
 
