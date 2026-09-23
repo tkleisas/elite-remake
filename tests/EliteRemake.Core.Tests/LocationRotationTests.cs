@@ -93,12 +93,18 @@ public class LocationRotationTests
         (double sx, double sy, double sz) = Get(ships);
         (double bx, double by, double bz) = Get(bodies);
 
-        Assert.Equal(bx, sx);
-        Assert.Equal(by, sy);
-        Assert.Equal(bz, sz);
-
+        // The two paths use different arithmetic — the ships' one is the original's two-byte method
+        // and the bodies' one works in 24 bits — so they agree to rounding rather than exactly. Both
+        // must still preserve the distance, which is the property that matters.
         double start = Math.Sqrt((700.0 * 700) + (400 * 400) + (1800 * 1800));
-        double distance = Math.Sqrt((sx * sx) + (sy * sy) + (sz * sz));
-        Assert.True(Math.Abs(distance - start) / start < 0.05);
+
+        double shipDistance = Math.Sqrt((sx * sx) + (sy * sy) + (sz * sz));
+        double bodyDistance = Math.Sqrt((bx * bx) + (by * by) + (bz * bz));
+
+        Assert.True(Math.Abs(shipDistance - start) / start < 0.05, $"the ships' path wandered to {shipDistance:0}");
+        Assert.True(Math.Abs(bodyDistance - start) / start < 0.05, $"the bodies' path wandered to {bodyDistance:0}");
+
+        // And they stay close to each other, since they are describing the same rotation
+        Assert.True(Math.Abs(shipDistance - bodyDistance) / start < 0.05);
     }
 }

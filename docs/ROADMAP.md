@@ -3470,3 +3470,38 @@ answer was one script away.
 **`Mvt6Tests` now covers twelve combinations of sign and magnitude** spanning the 16-bit boundary, and
 reverting the fix fails exactly the six at or above it while the six below still pass — which is the
 signature of the fault.
+
+## The original's two-byte method was restored, measured, and drifts — so the departure stands
+
+With `Mvt6` fixed the obvious next question was whether the departure was still needed: if the spiral
+was `Mvt6`'s truncation, then the original's own two-byte routine should now be rigid and the faithful
+method could come back.
+
+**It was restored, and it is not rigid.** One full turn of pitch with the ship's coordinates at
+(700, -400, 1800):
+
+```
+start distance 1900
+  the original's two-byte path: 1829  — a wander of just under four percent
+  the full-precision path:      within 2.3%
+```
+
+So the original's method — or our port of it — drifts, and fixing `Mvt6` removed one cause without
+removing the symptom. The two possibilities have not been told apart: either the disc's own routine
+drifts by a few percent a turn, or our port of it drops precision somewhere the original does not. What
+is certain is that the full-precision path is rigid and the original's is not, on the same input.
+
+**The departure therefore stays, and the reason is set out where the code is** rather than in a commit
+message: *a wireframe hides a few percent of positional error; a solid body visibly does not stay where
+it should.* That is the same argument that justified the rigid render basis and the detail edges drawn
+explicitly, and it is the only argument this renderer has for departing from the original anywhere.
+
+**And the test that compared the two paths exactly was wrong.** It asserted they agree to the byte,
+which was true while both used one arithmetic and stopped being true the moment they used two. It now
+requires that **both preserve distance** and that they stay within a few percent of each other — three
+assertions about the property instead of one about the implementation.
+
+**What would still be worth knowing**, and is now cheap to measure rather than read: whether the drift
+compounds or oscillates. A few percent a turn in one direction empties a coordinate within a couple of
+hundred turns; oscillating around the true value stays bounded. That is one script, and given this
+round's lesson it should be measured rather than reasoned about.

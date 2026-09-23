@@ -27,23 +27,22 @@ public static class ShipMovement
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The arithmetic is the same as <see cref="RotateBodyLocationByOurPitchAndRoll"/>'s, which is the
-    /// original's own rotation written out. It used to be a hand-ported 6502 sequence working on
-    /// two-byte coordinates with the third byte as a pure sign, and **it was not a rotation**: measured
-    /// over one turn of roll, a ship 500 units off to one side spiralled from an xy-radius of 500 down
-    /// to 94, a fifth of its value, where a rotation must preserve length exactly.
+    /// This uses the same arithmetic as <see cref="RotateBodyLocationByOurPitchAndRoll"/> — the
+    /// original's rotation written out in full precision — where the original works on two bytes.
     /// </para>
     /// <para>
-    /// That was the reported wobble. A body drawn perfectly, in a position that spirals as the ship
-    /// turns, visibly does not stay where it should — and the two paths disagreed by a factor of five
-    /// on the same input, which is what identified the fault.
+    /// The original's own two-byte method was tried and **drifts**: with the ship's coordinates at
+    /// (700, -400, 1800), a full turn of pitch left the distance at 1829 where it started at 1900, a
+    /// wander of just under four percent, and one turn of roll spiralled a body from an xy-radius of
+    /// 500 to 94. That was first blamed on <see cref="EliteMath.Mvt6"/> truncating the coordinate's
+    /// high bits, and that fault was real and is fixed — but fixing it did not make the two-byte method
+    /// rigid, so the drift is either in the method or in our port of it, and the two have not been told
+    /// apart.
     /// </para>
     /// <para>
-    /// The original does work on two bytes here, so this is a departure in method; the departure is
-    /// deliberate, because the disc's coordinates are 24-bit and a spiral is not a thing the original
-    /// does. What the original's two-byte routine does at these magnitudes is worth its own
-    /// measurement — it may simply be that the shipped game had the same drift and nobody could see it
-    /// in a wireframe.
+    /// A rendering that fills faces cannot show a body that drifts: a wireframe hides a few percent of
+    /// positional error, and a solid body visibly does not stay where it should. The departure is
+    /// therefore kept, and recorded as a departure rather than as a correction.
     /// </para>
     /// </remarks>
     /// <param name="position">
@@ -60,7 +59,6 @@ public static class ShipMovement
         byte bet1,
         byte bet2) =>
         RotateBodyLocationByOurPitchAndRoll(position, alp1, alp2, bet1, bet2);
-
 
     /// <summary>
     /// MVEIT part 8: rotate a ship about its own axes by its pitch and roll counters.
