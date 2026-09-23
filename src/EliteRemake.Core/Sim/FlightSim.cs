@@ -1466,6 +1466,29 @@ public sealed class FlightSim
 
         LastJunkSpawned = 0;
 
+        // Before it considers pirates, the original considers the police: it works out how bad we
+        // look — contraband in the hold, or our legal status if there are already police about — and
+        // rolls against that. A pack of police is sent if the roll comes off, and then "if we now
+        // have at least one cop in the local bubble, stop spawning", so a police pack takes the place
+        // of the pirates rather than joining them.
+        int cops = _bubble.Count(s => s.Type == Spawner.CopType);
+        int badness = Spawner.Badness(Commander, cops);
+        if (badness > 0 && Random.Next() < badness)
+        {
+            int officers = 1 + (Random.Next() % 4);
+            for (int i = 0; i < officers; i++)
+            {
+                if (!Spawn(Spawner.Create(SpawnKind.Cops, System.Value, Random, i)))
+                {
+                    break;
+                }
+            }
+
+            LastSpawn = SpawnKind.Cops;
+            _spawnDelay = officers;
+            return;
+        }
+
         SpawnKind kind = Spawner.ChooseSpawn(System.Value, Random);
         if (kind == SpawnKind.None)
         {

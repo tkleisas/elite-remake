@@ -1401,3 +1401,77 @@ public class SimulationSoakTests
         Assert.InRange(session.Commander.Fuel, 0, 70);
     }
 }
+
+/// <summary>
+/// Checks that the police come after a commander carrying contraband, and leave a clean one alone.
+/// </summary>
+/// <remarks>
+/// The original's BAD works out how bad we look — four times the slaves and narcotics in the hold plus
+/// twice the firearms — and, if there are already police about, or's in our legal status. The result is
+/// the number of chances in 256 of a police pack arriving, and that pack then takes the place of the
+/// pirates: "if we now have at least one cop in the local bubble, stop spawning".
+/// </remarks>
+public class PoliceSpawnTests
+{
+    /// <summary>Counts police packs over a long run with a given hold and record.</summary>
+    private static int PolicePacks(int slaves, int narcotics, int firearms, int legalStatus)
+    {
+        var commander = Commander.CreateDefault();
+        commander.AddCargo(Spawner.SlavesItem, slaves);
+        commander.AddCargo(Spawner.NarcoticsItem, narcotics);
+        commander.AddCargo(Spawner.FirearmsItem, firearms);
+        commander.LegalStatus = legalStatus;
+
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = true,
+            Commander = commander,
+            System = Galaxy.GenerateGalaxy(Galaxy.GalaxySeeds(0))[7],   // Lave
+            GalaxySeeds = Galaxy.GalaxySeeds(0),
+        };
+
+        int packs = 0;
+        SpawnKind previous = SpawnKind.None;
+        for (int i = 0; i < 200_000; i++)
+        {
+            sim.Step();
+            if (sim.LastSpawn == SpawnKind.Cops && previous != SpawnKind.Cops)
+            {
+                packs++;
+            }
+
+            previous = sim.LastSpawn;
+        }
+
+        return packs;
+    }
+
+    [Fact]
+    public void ACleanCommanderIsLeftAlone()
+    {
+        Assert.Equal(0, PolicePacks(slaves: 0, narcotics: 0, firearms: 0, legalStatus: 0));
+    }
+
+    [Fact]
+    public void ContrabandBringsThePolice()
+    {
+        int some = PolicePacks(slaves: 5, narcotics: 0, firearms: 0, legalStatus: 0);
+        int plenty = PolicePacks(slaves: 20, narcotics: 0, firearms: 0, legalStatus: 0);
+
+        Assert.True(some > 0, "carrying slaves should attract the police");
+        Assert.True(plenty > some * 2, $"a full hold should be worse than five tonnes: {some} against {plenty}");
+    }
+
+    [Fact]
+    public void ARecordOnlyCountsOnceThePoliceAreAlreadyThere()
+    {
+        // "If there are no cops in the local bubble, skip the next instruction" — the legal status is
+        // only or'd into our badness once they are on to us, so being wanted with nobody about is the
+        // bounty hunters' business rather than theirs
+        Assert.Equal(0, PolicePacks(slaves: 0, narcotics: 0, firearms: 0, legalStatus: 40));
+
+        // Which means the roll itself is what the status changes, and the roll needs a hold to start
+        // from
+        Assert.Equal(0, Spawner.Badness(Commander.CreateDefault(), copsInBubble: 0));
+    }
+}

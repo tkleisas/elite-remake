@@ -17,6 +17,9 @@ public enum SpawnKind
 
     /// <summary>A trader, minding its own business on its way to the planet or the station.</summary>
     Trader,
+
+    /// <summary>A pack of police, after a commander carrying contraband or already wanted.</summary>
+    Cops,
 }
 
 /// <summary>
@@ -110,8 +113,50 @@ public static class Spawner
 
         // "a ship type from the following: Cobra Mk III, Python, Boa or Anaconda"
         SpawnKind.Trader => TraderBase + (random.Next() & 3),
+
+        // "Set A to the ship type for a cop": hordes is called with a type range of zero, so a pack
+        // of police is all Vipers
+        SpawnKind.Cops => CopType,
         _ => 0,
     };
+
+    /// <summary>The Viper, which is what the police fly.</summary>
+    public const int CopType = 16;
+
+    /// <summary>
+    /// How bad a commander looks to the police.
+    /// </summary>
+    /// <remarks>
+    /// The original's BAD adds the slaves and the narcotics in the hold, doubles that and adds the
+    /// firearms; its caller then doubles the lot, so the figure is four times the slaves and
+    /// narcotics plus twice the firearms. If there are already police about it is <em>or'd</em> with
+    /// our legal status, so being wanted keeps them coming even with an empty hold. The result is the
+    /// number of chances in 256 of a police pack appearing, so a clean commander with an empty hold
+    /// is left alone entirely.
+    /// </remarks>
+    /// <param name="commander">The commander, or null.</param>
+    /// <param name="copsInBubble">How many police are already out there.</param>
+    public static int Badness(Commander? commander, int copsInBubble)
+    {
+        if (commander is null)
+        {
+            return 0;
+        }
+
+        int contraband = commander.GetCargo(SlavesItem) + commander.GetCargo(NarcoticsItem);
+        int bad = ((contraband * 2) + commander.GetCargo(FirearmsItem)) * 2;
+
+        return copsInBubble > 0 ? bad | commander.LegalStatus : bad;
+    }
+
+    /// <summary>Slaves, which the police take an interest in.</summary>
+    public const int SlavesItem = 3;
+
+    /// <summary>Narcotics, which they take more of an interest in.</summary>
+    public const int NarcoticsItem = 6;
+
+    /// <summary>Firearms, which they take an interest in.</summary>
+    public const int FirearmsItem = 10;
 
     /// <summary>The Cobra Mk III, the first of the four ships a trader can be flying.</summary>
     public const int TraderBase = 11;

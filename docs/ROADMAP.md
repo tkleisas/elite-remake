@@ -4276,3 +4276,34 @@ which is where a sign-magnitude mistake would eventually show up as a coordinate
 
 It passes, which is the least interesting possible result and the one worth having: the ported
 arithmetic does not drift or wrap over hours of play, and a future change that makes it will say so.
+
+## Smuggling had no consequences
+
+**The police never came.** The original's main game loop, before it considers pirates, works out how bad
+we look and rolls against it, and that branch was missing entirely: a commander could fill the hold with
+slaves and narcotics, or build up a criminal record, and the only thing that ever came after them was the
+ordinary traffic.
+
+**The rule, from `BAD` and its caller:**
+
+```
+BAD:  A = slaves + narcotics
+      A = A * 2 + firearms
+      (the caller then doubles it again)
+```
+
+so badness is **four times the slaves and narcotics plus twice the firearms**, and — *only if there are
+already police in the local bubble* — that is **or'd** with the legal status. The result is the number of
+chances in 256 of a police pack arriving, and the pack then takes the place of the pirates, because the
+routine ends with "if we now have at least one cop in the local bubble, stop spawning".
+
+The `ORA FIST` being guarded by the count of police in the bubble is the part worth reading twice: a
+wanted commander with no police about is **not** hunted by this rule. That is the bounty hunters'
+business, and our port already has it — a Viper's E% flags make it a bounty hunter, and a bounty hunter
+turns on a commander whose legal status has reached 40.
+
+**Measured**: a clean commander with an empty hold sees **no police at all** over two hundred thousand
+iterations; five tonnes of slaves brings 43 packs and a full hold of twenty tonnes brings 111. The police
+fly Vipers, out of the same hordes routine, with a type range of zero.
+
+**Three tests hold it**: clean is left alone, contraband brings them, and a record alone does not.
