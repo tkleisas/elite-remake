@@ -3064,3 +3064,32 @@ comment, and got it wrong both times; the three comments taken together state it
 is not subtle but it is expensive: **a comment that names a value is evidence, and arithmetic about
 what a value ought to be is not.** I had that written down after the RUPLA round and did not apply it
 here.
+
+## Every hardcoded ship type, checked against the blueprints
+
+The Thargon's type was wrong — 20, the Adder's number — and the reason it survived is worth stating:
+**a constant that drifts from the data is invisible.** It type-checks, it reads correctly, and it
+silently names a different ship. Nothing about `Thargon = 20` looks wrong on the line it is written.
+
+So all eighteen named ship types in the core were checked against the extracted blueprints at once:
+
+| | |
+| --- | --- |
+| the station, the Constrictor (twice), the Thargoid (twice), the Thargon (twice) | correct |
+| the missile, the Anaconda, the Worm, the Viper as the cop | correct |
+| the six junk types — canister, boulder, asteroid, splinter, escape pod, Thargon | correct, after the fix |
+| the pack-hunter and bounty-hunter bases | correct |
+
+**And the check is now a test**, which is the point: this is the third round in a row where the answer
+was found by writing the comparison out rather than by reading the code, and the comparison is worth
+keeping. It is the cheapest kind of test — eighteen assertions, no setup, no simulation — and it covers
+the one class of fault that reading cannot catch, because the wrong value looks exactly like the right
+one.
+
+**Verified to be capable of failing**: putting the Thargon back to 20 fails it immediately.
+
+**The scope of what is now guarded.** Between this and the earlier audits, the things that are checked
+rather than asserted are: the blueprints against the binary byte for byte, every text token's
+reachability, every description and hint rendering, the index spaces, the combat rates, and now the
+ship-type constants. Each was written because a fault had already been found in that area — which is
+the honest order of events, though not the ideal one.
