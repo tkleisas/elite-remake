@@ -2360,3 +2360,37 @@ the instructions, the guards around them, and the prose.
 The rule I am taking from it: **when two things share a name, find a value that can only belong to one
 of them before changing either.** The Anaconda's 50 could only belong to the unmasked scale; a single
 number answered a question that two similar code paths could not.
+
+## Round 100: the whole loop, flown again
+
+A hundred rounds in, the cheapest useful thing is to fly the game end to end, since so much has
+changed under it — the market, the missions, the legal status, the galaxy, the visibility scale for
+every ship. Thirteen checks, all passing:
+
+| check | |
+| --- | --- |
+| starts at Lave in flight | ok |
+| docked with a 17-item market | ok |
+| buys cargo | ok |
+| selling does not restock the market | ok |
+| ten jumps and dockings survived | ok |
+| killing a pirate pays its bounty | ok |
+| killing a pirate leaves us clean | ok |
+| the kill counts | ok |
+| killing an innocent makes us an offender | ok |
+| galactic jump works | ok |
+| the chart follows the galaxy | ok |
+| we left Lave | ok |
+
+Nothing was found, which is the right result for a round like this: the loop is intact, and the list
+of things that were wrong is a list of things that are now covered.
+
+**And the ships whose detail was suppressed.** The visibility fault hid detail edges on every ship
+whose visibility is above 7, not only the stations. Rendering the ones with the most — the Cobra Mk
+III's fourteen, the Viper's six, the Krait's ten, the Mamba's twenty — shows them drawing correctly,
+so the fix's effect is not confined to the docking slots that led to it.
+
+**Still open, and the only open item that matters to a player:** whether the reported wobble is gone.
+The two changes that could account for it are the visibility scale (round 97) and the rigid frame
+(round 96), and only someone looking at the screen can say. The measurements say the frame is now
+rigid and the slots now draw; they cannot say that the picture is right.
