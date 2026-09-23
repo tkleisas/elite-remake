@@ -126,13 +126,14 @@ public sealed class ChartScene : IScene
             _session.SelectedSystem = NearestTo(CursorX, CursorY);
         }
 
-        if (IsNewPress(keys, Keys.S))
+        // S and L for short and long, and the original's own f5 and f4 for the same two screens
+        if (IsNewPress(keys, Keys.S) || IsNewPress(keys, Keys.F5))
         {
             Range = ChartRange.Short;
             SelectSystem(_session.System);
         }
 
-        if (IsNewPress(keys, Keys.L))
+        if (IsNewPress(keys, Keys.L) || IsNewPress(keys, Keys.F4))
         {
             Range = ChartRange.Long;
             SelectSystem(_session.System);
@@ -144,9 +145,20 @@ public sealed class ChartScene : IScene
             _session.StartHyperspace();
         }
 
-        if (IsNewPress(keys, Keys.F3))
+        if (IsNewPress(keys, Keys.F6))
         {
             _session.Screen = DockedScreen.DataOnSystem;
+        }
+
+        // The market, on the original's f7
+        if (IsNewPress(keys, Keys.F7))
+        {
+            _session.Screen = DockedScreen.Market;
+        }
+
+        if (IsNewPress(keys, Keys.F9))
+        {
+            _session.Screen = DockedScreen.Status;
         }
 
         if (IsNewPress(keys, Keys.F8))

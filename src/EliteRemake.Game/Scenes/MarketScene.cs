@@ -78,17 +78,17 @@ public sealed class MarketScene : IScene
         }
 
         // The charts, which the original puts on its own function keys
-        if (IsNewPress(keys, Keys.F1))
+        if (IsNewPress(keys, Keys.F5))
         {
             _session.Screen = DockedScreen.ShortRangeChart;
         }
 
-        if (IsNewPress(keys, Keys.F2))
+        if (IsNewPress(keys, Keys.F4))
         {
             _session.Screen = DockedScreen.LongRangeChart;
         }
 
-        if (IsNewPress(keys, Keys.F3))
+        if (IsNewPress(keys, Keys.F6))
         {
             _session.Screen = DockedScreen.DataOnSystem;
         }
@@ -97,6 +97,19 @@ public sealed class MarketScene : IScene
         if (IsNewPress(keys, Keys.A))
         {
             _session.AcceptMission();
+        }
+
+        // The market, on the original's f7
+        if (IsNewPress(keys, Keys.F7))
+        {
+            _session.Screen = DockedScreen.Market;
+        }
+
+        // The inventory, on the original's f9. The original keeps the inventory and the status
+        // screen apart; ours shows the equipment and the hold on one screen, so f9 comes here too.
+        if (IsNewPress(keys, Keys.F9))
+        {
+            _session.Screen = DockedScreen.Status;
         }
 
         if (IsNewPress(keys, Keys.F8))
@@ -187,7 +200,7 @@ public sealed class MarketScene : IScene
         y += cellHeight;
         _text.Draw(spriteBatch, _session.Message, left, y, scale, Palette.Cyan);
         y += cellHeight;
-        _text.DrawHintLine(spriteBatch, "1-0 SELECT  B BUY  S SELL  E EQUIP  F1-F3 SCREENS  F8 STATUS  ESC LAUNCH", left, y, scale, (int)Camera.ViewportWidth - left - 8, new Color(120, 128, 140));
+        _text.DrawHintLine(spriteBatch, "1-0 SELECT  B BUY  S SELL  E EQUIP  F4 LONG  F5 SHORT  F6 DATA  F8 STATUS  ESC LAUNCH", left, y, scale, (int)Camera.ViewportWidth - left - 8, new Color(120, 128, 140));
 
         spriteBatch.End();
     }

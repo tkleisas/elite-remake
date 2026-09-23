@@ -76,19 +76,32 @@ public sealed class EquipmentScene : IScene
             _session.Screen = DockedScreen.Market;
         }
 
-        if (IsNewPress(keys, Keys.F1))
+        if (IsNewPress(keys, Keys.F5))
         {
             _session.Screen = DockedScreen.ShortRangeChart;
         }
 
-        if (IsNewPress(keys, Keys.F2))
+        if (IsNewPress(keys, Keys.F4))
         {
             _session.Screen = DockedScreen.LongRangeChart;
         }
 
-        if (IsNewPress(keys, Keys.F3))
+        if (IsNewPress(keys, Keys.F6))
         {
             _session.Screen = DockedScreen.DataOnSystem;
+        }
+
+        // The market, on the original's f7
+        if (IsNewPress(keys, Keys.F7))
+        {
+            _session.Screen = DockedScreen.Market;
+        }
+
+        // The inventory, on the original's f9. The original keeps the inventory and the status
+        // screen apart; ours shows the equipment and the hold on one screen, so f9 comes here too.
+        if (IsNewPress(keys, Keys.F9))
+        {
+            _session.Screen = DockedScreen.Status;
         }
 
         if (IsNewPress(keys, Keys.F8))
@@ -176,7 +189,7 @@ public sealed class EquipmentScene : IScene
         y += cellHeight;
         _text.Draw(spriteBatch, _session.Message, left, y, scale, Palette.Cyan);
         y += cellHeight;
-        _text.DrawHintLine(spriteBatch, "1-9 SELECT  B BUY  F FUEL  M MARKET  F1-F3 SCREENS  ESC LAUNCH", left, y, scale, (int)Camera.ViewportWidth - left - 8, dim);
+        _text.DrawHintLine(spriteBatch, "1-9 SELECT  B BUY  F FUEL  M MARKET  F7 MARKET  F8 STATUS  ESC LAUNCH", left, y, scale, (int)Camera.ViewportWidth - left - 8, dim);
 
         spriteBatch.End();
     }

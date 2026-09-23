@@ -63,7 +63,12 @@ public sealed class StatusScene : IScene
             _session.Screen = DockedScreen.Settings;
         }
 
-        if (IsNewPress(keys, Keys.Escape) || IsNewPress(keys, Keys.F8))
+        // The market, on the original's f7. This screen is both the original's status screen and its
+        // inventory — the equipment and the hold are here rather than on two screens — so f7 and f8
+        // both lead back to the market, as f8 does in the original.
+        if (IsNewPress(keys, Keys.F7) ||
+            IsNewPress(keys, Keys.Escape) ||
+            IsNewPress(keys, Keys.F8))
         {
             _session.Screen = DockedScreen.Market;
         }
@@ -77,17 +82,17 @@ public sealed class StatusScene : IScene
             _flight?.ArriveInSystem(_session.System);
         }
 
-        if (IsNewPress(keys, Keys.F1))
+        if (IsNewPress(keys, Keys.F5))
         {
             _session.Screen = DockedScreen.ShortRangeChart;
         }
 
-        if (IsNewPress(keys, Keys.F2))
+        if (IsNewPress(keys, Keys.F4))
         {
             _session.Screen = DockedScreen.LongRangeChart;
         }
 
-        if (IsNewPress(keys, Keys.F3))
+        if (IsNewPress(keys, Keys.F6))
         {
             _session.Screen = DockedScreen.DataOnSystem;
         }
@@ -171,7 +176,7 @@ public sealed class StatusScene : IScene
         y += cellHeight;
         _text.DrawHintLine(
             spriteBatch,
-            "F1-F3 SCREENS  CTRL-H GALACTIC JUMP  O CONTROLS  ESC BACK",
+            "F4 CHART  F5 SHORT  F6 DATA  F7 MARKET  CTRL-H GALACTIC JUMP  O CONTROLS  ESC BACK",
             left + cellWidth,
             y,
             scale,

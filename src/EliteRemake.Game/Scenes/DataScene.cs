@@ -118,19 +118,31 @@ public sealed class DataScene : IScene
         Regenerate();
         KeyboardState keys = Keyboard.GetState();
 
-        if (IsNewPress(keys, Keys.Escape) || IsNewPress(keys, Keys.F3))
+        if (IsNewPress(keys, Keys.Escape) || IsNewPress(keys, Keys.F6))
         {
             _session.Screen = DockedScreen.Market;
         }
 
-        if (IsNewPress(keys, Keys.F1))
+        if (IsNewPress(keys, Keys.F5))
         {
             _session.Screen = DockedScreen.ShortRangeChart;
         }
 
-        if (IsNewPress(keys, Keys.F2))
+        if (IsNewPress(keys, Keys.F4))
         {
             _session.Screen = DockedScreen.LongRangeChart;
+        }
+
+        // The market on the original's f7 and the inventory on its f9, which our status screen also
+        // shows
+        if (IsNewPress(keys, Keys.F7))
+        {
+            _session.Screen = DockedScreen.Market;
+        }
+
+        if (IsNewPress(keys, Keys.F9))
+        {
+            _session.Screen = DockedScreen.Status;
         }
 
         if (IsNewPress(keys, Keys.H))
@@ -197,7 +209,7 @@ public sealed class DataScene : IScene
         y += cellHeight;
         _text.DrawHintLine(
             spriteBatch,
-            "F1/F2 CHARTS   H HYPERSPACE   ESC BACK",
+            "F4/F5 CHARTS   F7 MARKET   F8 STATUS   H HYPERSPACE   ESC BACK",
             left + cellWidth,
             y,
             scale,

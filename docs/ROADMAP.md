@@ -4336,3 +4336,27 @@ the original's main game loop and its sixteen-part flight loop onto the port is 
 that never came, the traders and the station traffic that were never launched, and now the dust that
 never moved. The flight loop's parts are all accounted for after this: laser pulsing, E.C.M. drain,
 docking, collisions, the altitude checks, scooping and the stardust were the whole list.
+
+## The docked screens were on the wrong function keys
+
+**Anyone who knows the original would have found that nothing happened.** The disc's docked keys are
+**f4** for the long-range chart, **f5** for the short-range chart, **f6** for the data on system, **f7**
+for the market prices, **f8** for the status screen and **f9** for the inventory. Ours were on f1, f2 and
+f3 — a layout from nowhere in particular, on a port whose whole point is that the original's keys are the
+original's keys.
+
+Every docked screen now answers to the original's set, and the on-screen legends say so. The modern
+shortcuts are still there beside them — S and L for the two charts, Escape to go back, E for the
+equipment shop — because those are additions rather than substitutions, and the original's own keys were
+never on the way.
+
+**f9 is the one that needed a decision.** The original keeps the **status screen** (f8) and the
+**inventory** (f9) apart: the first is the commander's record — name, system, legal status, rating, the
+equipment fitted — and the second is the fuel, the cash and the hold. Ours shows all of it on one screen,
+which is a reasonable thing for a modern display but left f9 with nothing behind it. f9 now comes to that
+screen as well, so the key does what a player expects rather than nothing.
+
+**Nothing else was missing on the docked side.** Walking the original's docked key handler, `TT102`,
+against the port's screens turned up no absent screen: the market prices (f7) and the cargo list `TT210`
+are one screen for us, the inventory and the status screen are one screen for us, and the charts, the
+data on system and the launch are all present.
