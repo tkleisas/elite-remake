@@ -3396,3 +3396,38 @@ drifted in the same way and it was invisible in a wireframe, or our port of that
 the original is rigid. Reading MVEIT part 5's `MVT6` usage with that question in mind is the next piece
 of work, and it is a reading rather than a measurement — which is the sort that has gone wrong most
 often in this project.
+
+## The open question about the original: two readings, two answers, neither trustworthy
+
+Whether the original's own two-byte rotation is rigid or drifts is still not settled, and the attempts to
+settle it are worth recording because they disagree.
+
+**First reading, from `MVT6`'s listing.** Its loop adds the product's low byte to `INWK,X` and its high
+byte to `INWK+1,X` — the coordinate's *low 16 bits* — while the sign comes from `A EOR x_sign`, which is
+the sign of the 24-bit product. That reads as a 24-bit sum whose low bits are taken from a 16-bit
+window, which would lose the product's top byte whenever it exceeds 16 bits, and would drift by exactly
+the kind of amount observed. **This supports "the original drifts too".**
+
+**Second reading, as an implementation.** `MVEIT` part 5 and `MVT6` were transcribed directly from the
+listing — `MLTU2` for the products, the `EOR`-based sign, the two's-complement negation in `MV51` — and
+run on the same input. It produced **x=4942, y=33098, z=8128 from a start of (500, 0, 1500)**: a radius
+that *explodes* rather than spiralling, six times its starting value. That is not the original's
+behaviour either — the original is a working game — so **the transcription is wrong**, most likely in
+`MLTU2`'s conventions, which the listing describes in terms of the complemented `P` byte and which I
+have evidently read backwards.
+
+**So the two attempts point opposite ways and both are suspect.** The listing suggests truncation; the
+transcription suggests I do not yet understand the routine well enough to model it. Neither is evidence,
+and the honest state is: **our port of this routine was wrong — that is measured — and whether the
+original shares the fault is unproven.**
+
+**What would settle it**, and why it is worth doing rather than guessing: our `Mltu2` and `Mvt6` are
+already covered by their own tests, so the arithmetic primitives are right. The question is their
+*composition* in the rotation, and the way to answer it is not to re-read the listing a third time but
+to **drive the primitives with inputs whose product is known to exceed 16 bits** and compare against the
+listing's stated intent. That is a measurement, and this project's readings have a much worse record
+than its measurements.
+
+**The practical position is unchanged**: the rotation is rigid, the wobble is gone, and the departure is
+documented as a departure. A user-visible fault was fixed with a measurement; an archaeological question
+about the original is open, and is labelled as such rather than resolved by preference.
