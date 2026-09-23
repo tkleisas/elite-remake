@@ -1993,3 +1993,42 @@ The Cougar rule in the same branch is dead code for this build, since the disc h
 
 **The tally is fifteen**, and this round is the first where the version-guard rule found something
 rather than explaining something.
+
+## The missile lock outlived its target
+
+Continuing the disc-only sweep into `KILLSHP`, whose disc branch differs from the others:
+
+```
+ELIF _DISC_FLIGHT OR _ELITE_A_VERSION
+ CPX MSTG               \ Check whether this slot matches the slot number in
+ENDIF                   \ MSTG, the target of our missile lock
+...
+ LDY #&EE               \ Otherwise we need to remove our missile lock, so call
+ JSR ABORT              \ ABORT to unarm the missile and update the missile
+```
+
+The lock is released **on every kill**, not only when our own missile does the killing — and ours was
+never released at all when a ship was destroyed. The lock survived its target, so the missile
+indicators went on showing a target that was gone and the next missile was aimed at a ship already
+removed from the bubble.
+
+`RemoveKilledShips` now clears the lock when the ship it points at has been killed, which is where the
+original's ABORT call lands.
+
+**The tally is sixteen.** Three of the last four faults have come from the same move — list the
+branches that this build takes, and read them rather than the ones the other versions take — and that
+move has now found four faults in a row after being derived from three.
+
+## Two disc branches that turned out to be plumbing rather than rules
+
+Read at the same time and deliberately not acted on, because they are about how a 1982 machine with
+two banks of memory works rather than about the game:
+
+* `death2` calls `CATD` to reload the disc catalogue and then jumps to `INBAY` to load the docked
+  code. On a modern machine there is no overlay to reload — the docked screens are already there.
+* `hyp` branches on `QQ11` to decide whether to call `TT111`, which is about which view was being
+  drawn when the jump started.
+
+Recording these as read-and-rejected is worth as much as recording the faults: a branch being
+disc-only does not make it a rule, and the two above would have been changes with no observable
+effect.

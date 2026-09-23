@@ -130,6 +130,35 @@ public class GameLoopTests
     }
 
     /// <summary>
+    /// A missile lock does not outlive the ship it is locked onto.
+    /// </summary>
+    /// <remarks>
+    /// The original's KILLSHP clears the lock when a ship is destroyed, for every kill rather than
+    /// only for a kill by our own missile. Without it the lock survives its target, the missile
+    /// indicators keep showing a target that is gone, and the next missile flies at a ship that has
+    /// been removed from the bubble.
+    /// </remarks>
+    [Fact]
+    public void AMissileLockIsReleasedWhenItsTargetIsDestroyed()
+    {
+        GameSession session = NewSession();
+        var target = Ship.Create(17, "sidewinder", "Sidewinder", 0, 0, 0, 2000, 0);
+        Assert.True(session.Flight.Spawn(target));
+
+        session.Flight.MissileLock = target;
+        Assert.NotNull(session.Flight.MissileLock);
+        Assert.True(session.Flight.CanFireMissile || session.Commander.Missiles == 0);
+
+        // Destroy it and clear the wreck away
+        target.Energy = 0;
+        target.IsKilled = true;
+        Assert.Equal(1, session.Flight.RemoveKilledShips());
+
+        Assert.Null(session.Flight.MissileLock);
+        Assert.False(session.Flight.CanFireMissile, "there is nothing left to lock onto");
+    }
+
+    /// <summary>
     /// Shooting an innocent turns the space station against us.
     /// </summary>
     /// <remarks>

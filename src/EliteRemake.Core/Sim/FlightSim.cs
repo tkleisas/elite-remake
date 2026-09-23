@@ -154,7 +154,27 @@ public sealed class FlightSim
     public bool Remove(Ship ship) => _bubble.Remove(ship);
 
     /// <summary>Removes every ship whose status has marked it for removal.</summary>
-    public int RemoveKilledShips() => _bubble.RemoveAll(ship => ship.IsKilled);
+    /// <summary>
+    /// Removes the ships that have been destroyed, releasing the missile lock if it was on one.
+    /// </summary>
+    /// <remarks>
+    /// The original's KILLSHP clears the missile lock when the ship it is locked onto is destroyed —
+    /// "we need to remove our missile lock, so call ABORT to unarm the missile and update the missile
+    /// indicators" — and it does so for every kill, not only for a kill by our own missile. Without
+    /// this the lock survives its target, so the missile indicators keep showing a target that is no
+    /// longer there and the next missile flies at a ship that has been removed from the bubble.
+    /// </remarks>
+    public int RemoveKilledShips()
+    {
+        int removed = _bubble.RemoveAll(ship => ship.IsKilled);
+
+        if (MissileLock is { IsKilled: true })
+        {
+            MissileLock = null;
+        }
+
+        return removed;
+    }
 
     /// <summary>Advances the simulation by one frame (the original runs at 50 frames a second).</summary>
     public void Step(FlightInput input = default)
