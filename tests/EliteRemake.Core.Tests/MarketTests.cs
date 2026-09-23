@@ -129,6 +129,31 @@ public class MarketTests
         Assert.Equal("Alien Items", first[^1].Item.Name);
     }
 
+    /// <summary>
+    /// Alien items are never available to buy, in any system.
+    /// </summary>
+    /// <remarks>
+    /// The original's var routine zeroes AVL+16 as it goes past, so the availability computation
+    /// never gets to apply to them. They are what a Thargoid leaves behind and can only be scooped,
+    /// which is why the market screen always shows a dash against them.
+    /// </remarks>
+    [Fact]
+    public void AlienItemsAreNeverAvailableToBuy()
+    {
+        // Every economy, and a range of random bytes: the computed availability would be non-zero
+        // for some of these, so this is the explicit rule being tested and not a coincidence
+        foreach (int economy in Enumerable.Range(0, 8))
+        {
+            for (int randomByte = 0; randomByte < 256; randomByte += 37)
+            {
+                StarSystem system = Lave() with { Economy = economy };
+                MarketEntry[] market = Market.Build(system, randomByte);
+
+                Assert.Equal(0, market[Market.AlienItems].Availability);
+            }
+        }
+    }
+
     [Fact]
     public void BuyingAndSellingMovesCashAndCargo()
     {

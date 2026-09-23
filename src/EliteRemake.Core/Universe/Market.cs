@@ -62,6 +62,9 @@ public static class Market
         new(16, "Alien Items", 53, 15, "t", 192, 0b00000111),
     ];
 
+    /// <summary>The alien items, the last commodity, which can never be bought.</summary>
+    public const int AlienItems = 16;
+
     /// <summary>
     /// Builds a system's market from its economy and the random byte the original picks for the
     /// visit.
@@ -80,6 +83,11 @@ public static class Market
                 Price(Items[i], system.Economy, randomByte),
                 Availability(Items[i], system.Economy, randomByte));
         }
+
+        // The original's var routine zeroes AVL+16 on its way past, so alien items are never
+        // available to buy in any system, whatever the economy and the random byte work out to.
+        // They are what a Thargoid leaves behind, and they can only be scooped.
+        entries[AlienItems] = entries[AlienItems] with { Availability = 0 };
 
         return entries;
     }

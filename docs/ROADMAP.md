@@ -1106,3 +1106,42 @@ PRXS value of 140"). Our 2 Cr a light year was already right.
 The test that should have caught this was asserting the wrong numbers, in a sample of eight that
 happened to include four of the seven. It now pins the whole table by number, name and price, so a
 future mix-up with another platform's table cannot pass.
+
+## Auditing the hand-written tables: the market, and one rule it was missing
+
+The equipment prices were wrong because a table transcribed by eye has no protection the way an
+extracted one does. The market was the next candidate, so it was checked against its source
+item by item.
+
+**The table is exactly right.** All seventeen commodities match the disc's `QQ23` in every field —
+base price, economic factor, unit, base quantity and mask:
+
+```
+ITEM 19,  -2, 't',   6, %00000001  \  0 = Food
+ITEM 65,  -3, 't',   2, %00000111  \  2 = Radioactives
+ITEM 53,  15, 't', 192, %00000111  \ 16 = Alien items
+```
+
+**Both formulas are right too.** TT151's price is `base + (random AND mask)`, then the economic
+factor added or subtracted according to its sign, then multiplied by 4 — which matches
+`Market.Price`. GVL's availability is the same shape with `base_quantity`, and its sign rule is
+inverted: a positive economic factor *subtracts* the economy's effect, and a negative one adds it.
+`Market.Availability` does exactly that, keeps six bits, and floors at zero.
+
+**But one rule was missing.** The original's `var` routine, which both formulas call, does this on
+its way past:
+
+```
+ LDA #0                 \ Set AVL+16 (availability of alien items) to 0,
+ STA AVL+16             \ setting A to 0 in the process
+```
+
+So alien items are **never** available to buy, in any system, whatever the economy and the random
+byte work out to. They are what a Thargoid leaves behind and can only be scooped — which is why the
+original's market screen always shows a dash against them. We were computing their availability like
+any other commodity, so they could be bought where the arithmetic happened to give a positive
+number. `Market.Build` now zeroes it, with a test that sweeps every economy and a spread of random
+bytes, because for some of those combinations the computed figure would otherwise be non-zero.
+
+What is left un-audited in the same style, and is the next thing to check: the combat constants
+(laser powers, heat, the OOPS chain) and the spawn probabilities.
