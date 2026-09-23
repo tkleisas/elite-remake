@@ -2113,7 +2113,13 @@ public class MissionTests
         Assert.Equal(1, missions.StatusByte); // bit 0: mission 1 in progress
 
         missions.RegisterConstrictorKill(Missions.ConstrictorType);
+
+        // KILLSHP only sets bit 1, so the objective is done while the mission is still in progress:
+        // %11 until the debriefing is attended
+        Assert.Equal(3, missions.StatusByte);
+
         // The debrief clears bit 0 and leaves bit 1, so a finished mission reads %10
+        missions.AttendDebrief(Commander.CreateDefault());
         Assert.Equal(2, missions.StatusByte);
 
         missions.AcceptMission2();
@@ -2211,20 +2217,47 @@ public class MissionTests
         Assert.False(missions.ShouldSpawnConstrictor(target, Missions.ConstrictorGalaxy, 0));
     }
 
+    /// <summary>
+    /// Killing the Constrictor marks the mission done and owes a debriefing; the debrief pays.
+    /// </summary>
+    /// <remarks>
+    /// The original's KILLSHP only sets bit 1 of TP. The reward, and on the disc the 256 kill points,
+    /// are paid by DEBRIEF the next time we attend a debriefing at a station, which is why the
+    /// mission stays in progress until then. This test used to expect the payment at the kill.
+    /// </remarks>
     [Fact]
-    public void KillingTheConstrictorPaysFiveThousandCredits()
+    public void KillingTheConstrictorOwesADebriefingThatPaysFiveThousandCredits()
     {
         var missions = new Missions { Mission1Active = true };
+        var commander = Commander.CreateDefault();
+        int cash = commander.Cash;
+        int kills = commander.Kills;
 
-        // Not the Constrictor: no reward, and the mission stays open
-        Assert.Equal(0, missions.RegisterConstrictorKill(17));
+        // Not the Constrictor: nothing happens, and the mission stays open
+        Assert.False(missions.RegisterConstrictorKill(17));
         Assert.False(missions.Mission1Complete);
+        Assert.False(missions.DebriefPending);
 
-        Assert.Equal(Missions.ConstrictorReward, missions.RegisterConstrictorKill(Missions.ConstrictorType));
+        // The Constrictor: the mission is done, but nothing is paid yet
+        Assert.True(missions.RegisterConstrictorKill(Missions.ConstrictorType));
         Assert.True(missions.Mission1Complete);
+        Assert.True(missions.DebriefPending);
+        Assert.True(missions.Mission1Active, "the debrief is what closes the mission");
+        Assert.Equal(cash, commander.Cash);
+
+        // Attending the debrief pays the reward and the kill points, once
+        Assert.NotNull(missions.AttendDebrief(commander));
+        Assert.Equal(cash + Missions.ConstrictorReward, commander.Cash);
+        Assert.Equal(kills + Missions.DebriefKillPoints, commander.Kills);
+        Assert.False(missions.Mission1Active);
+        Assert.False(missions.DebriefPending);
+
+        // Nothing is owed a second time
+        Assert.Null(missions.AttendDebrief(commander));
+        Assert.Equal(cash + Missions.ConstrictorReward, commander.Cash);
 
         // Killing another one pays nothing more
-        Assert.Equal(0, missions.RegisterConstrictorKill(Missions.ConstrictorType));
+        Assert.False(missions.RegisterConstrictorKill(Missions.ConstrictorType));
     }
 
     [Fact]
@@ -2269,13 +2302,22 @@ public class MissionTests
         Assert.Equal(Missions.ConstrictorAiFlag, constrictor!.AiFlag);
         Assert.True(constrictor.AiFlag >= 0x80, "the Constrictor should be hostile");
 
-        // Killing it completes the mission and pays the reward
+        // Killing it completes the objective, but the reward waits for the debriefing
         session.BountyProvider = _ => 0;
         int cash = session.Commander.Cash;
         session.RegisterKill(constrictor);
 
         Assert.True(session.Missions.Mission1Complete);
+        Assert.True(session.Missions.DebriefPending);
+        Assert.Equal(cash, session.Commander.Cash);
+
+        // Docking attends the debriefing, which is where the reward and the kill points arrive
+        int kills = session.Commander.Kills;
+        session.Dock();
+
         Assert.Equal(cash + Missions.ConstrictorReward, session.Commander.Cash);
+        Assert.Equal(kills + Missions.DebriefKillPoints, session.Commander.Kills);
+        Assert.False(session.Missions.DebriefPending);
         Assert.Equal(2, session.Commander.MissionStatus);
     }
 }

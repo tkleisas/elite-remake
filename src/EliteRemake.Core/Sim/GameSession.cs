@@ -457,6 +457,15 @@ public sealed class GameSession
 
         // Mission business is settled on arrival, as the original's docked code does
         HandleMissionArrival();
+
+        // A debriefing due from the Constrictor's destruction is attended now, which is where the
+        // reward and the kill points are paid. The commander's status byte is what a save carries,
+        // so it has to follow the missions here as well as after a kill.
+        if (Missions.AttendDebrief(Commander) is { } debrief)
+        {
+            Message = debrief;
+            Commander.MissionStatus = Missions.StatusByte;
+        }
     }
 
     /// <summary>True once the commander has been killed.</summary>
@@ -478,12 +487,11 @@ public sealed class GameSession
     {
         int bounty = BountyProvider(destroyed);
 
-        // Killing the Constrictor completes the first mission and pays its reward
-        int mission = Missions.RegisterConstrictorKill(destroyed.Type);
-        if (mission > 0)
+        // Destroying the Constrictor completes the first mission's objective, but the reward and
+        // the kill points wait for the debriefing at a station, as the original's DEBRIEF does
+        if (Missions.RegisterConstrictorKill(destroyed.Type))
         {
-            Commander.Cash += mission;
-            Message = "The Constrictor is destroyed. Mission complete: 5,000 credits.";
+            Message = "The Constrictor is destroyed. Return to a station for the debriefing.";
         }
 
         Commander.Cash += bounty;

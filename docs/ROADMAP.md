@@ -1660,3 +1660,39 @@ that the mission's own trail still requires the mission.
 **The tally is nine.** This one, like the stock gate before it, had no test that went near the
 disagreement: the hint tests covered the trail systems, which all need the mission, and the one
 always-bit hint they covered was Teorge in galaxy 0.
+
+## The mission reward was paid at the kill instead of the debriefing
+
+Reading the mission chain end to end against the source turned up two things wrong with the
+Constrictor's completion, and one thing right.
+
+**The reward and the kill points belong to the debrief, not the kill.** `KILLSHP` does one thing when
+the Constrictor dies — it sets bit 1 of `TP` to mark mission 1 as successfully completed. Everything
+else happens in `DEBRIEF`, the next time a debriefing is attended at a station:
+
+```
+.DEBRIEF
+ LSR TP / ASL TP        \ Clear bit 0 of TP: mission 1 is no longer in progress
+ INC TALLY+1            \ Award 256 kill points for completing the mission
+ LDX #LO(50000)         \ Increase our cash reserves by the generous mission
+ LDY #HI(50000)         \ reward of 5,000 CR
+ JSR MCASH
+ LDA #15                \ print extended token 15, the thank you message
+```
+
+Ours paid the 5,000 credits at the kill and **never awarded the 256 kill points at all**. The points
+are the more interesting half: 256 is exactly the threshold that makes a commander Competent, so the
+debrief is what qualifies him for the *next* mission's offer — which means the mission chain could
+not have advanced correctly for a commander who was not already Competent by other means.
+
+It also explains the status byte: `KILLSHP` only sets bit 1, so between the kill and the debriefing
+the missions read `%11` — objective done, mission still in progress. That is the state the original
+sits in, and ours skipped straight to `%10`.
+
+**Checked and found correct while reading it:** the reward is 50,000 **tenths**, which is the 5,000.0
+Cr the comment gives, so the constant's scale was right; and the combat rating thresholds match the
+documented table exactly — 8, 16, 32, 64, 128, 256, 512, 2560, 6400.
+
+**The tally is ten.** Two tests asserted the old behaviour and now assert the original's, and one of
+them — `TheStatusByteIsTheOriginals` — was already checking the `%10` state that the code could not
+actually reach.

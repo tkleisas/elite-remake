@@ -142,22 +142,60 @@ public sealed class Missions
     public static bool IsConstrictorSystem(StarSystem system, SystemSeeds galaxySeeds) =>
         system.Seeds == ConstrictorTarget(galaxySeeds).Seeds;
 
+    /// <summary>Whether the Constrictor is destroyed and the debrief has not been attended yet.</summary>
+    public bool DebriefPending { get; set; }
+
     /// <summary>
-    /// Records that we destroyed the Constrictor: the original's KILLSHP sets bit 1, and the debrief
-    /// that follows clears bit 0, so a completed mission leaves just bit 1 set.
+    /// Records that we destroyed the Constrictor: the original's KILLSHP sets bit 1 of TP to mark
+    /// mission 1 as successfully completed.
     /// </summary>
-    /// <returns>The reward in tenths of a credit, or 0 if this was not the mission target.</returns>
-    public int RegisterConstrictorKill(int shipType)
+    /// <remarks>
+    /// Nothing is paid here. The original's KILLSHP only sets the flag; the reward, and on the disc
+    /// the 256 kill points, are paid by the DEBRIEF routine the next time we attend a debriefing at a
+    /// station — which is why <see cref="Mission1Active"/> stays on until then.
+    /// </remarks>
+    /// <returns>True if this was the mission target and the kill counted.</returns>
+    public bool RegisterConstrictorKill(int shipType)
     {
         if (shipType != ConstrictorType || !Mission1Active || Mission1Complete)
         {
-            return 0;
+            return false;
         }
 
-        Mission1Active = false;
         Mission1Complete = true;
-        return ConstrictorReward;
+        DebriefPending = true;
+        return true;
     }
+
+    /// <summary>
+    /// Attends the debriefing, if one is due, paying the reward and the kill points.
+    /// </summary>
+    /// <remarks>
+    /// The original's DEBRIEF clears bit 0 of TP to take mission 1 out of progress, adds 256 to the
+    /// kill tally — on the disc the points arrive here rather than at the kill — and pays 5000.0
+    /// credits through MCASH. It then prints extended token 15, the thank you message.
+    /// </remarks>
+    /// <returns>A message describing the debrief, or null if none was due.</returns>
+    public string? AttendDebrief(Commander commander)
+    {
+        if (!DebriefPending)
+        {
+            return null;
+        }
+
+        DebriefPending = false;
+        Mission1Active = false;
+        commander.Kills += DebriefKillPoints;
+        commander.Cash += ConstrictorReward;
+
+        return $"Mission 1 complete: the Constrictor is destroyed. {ConstrictorReward / 10} credits " +
+               $"and {DebriefKillPoints} kill points awarded.";
+    }
+
+    /// <summary>
+    /// The kill points the debrief awards: the original's <c>INC TALLY+1</c>, which is 256.
+    /// </summary>
+    public const int DebriefKillPoints = 256;
 
     /// <summary>
     /// True once we have been offered and accepted the mission, which the original gates on being
