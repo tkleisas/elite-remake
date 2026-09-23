@@ -3683,3 +3683,37 @@ bound chosen to look tidy.
 discarding the coordinate's high bits — is at the primitive rather than in the rotation, so every caller
 benefits. The rotation is approximately rigid and the approximation is measured and bounded, with two
 rejected hypotheses recorded beside it. The loop is intact end to end.
+
+## Mission 1 could not be completed: the simulation was never given the missions or the galaxy
+
+Flying the mission chain rather than calling the mission rules found that **mission 1 was impossible in
+the game.**
+
+`FlightSim` holds two pieces of state the mission rules live on — the missions themselves, and which
+galaxy we are in — and **neither was ever assigned anywhere**. So the simulation always saw `Missions ==
+null` and `GalaxyNumber == 0`, while the Constrictor is in galaxy 2. `SpawnMissionShip` returned at its
+first guard and the Constrictor could never appear, however long a commander waited in the right system.
+
+**And every mission test passed throughout.** They call `Missions.*` directly — `OfferMission1`,
+`IsConstrictorSystem`, `RegisterConstrictorKill`, `AttendDebrief` — and all of those were correct. What
+none of them could see is that the object they were calling **was not the object the simulation had**.
+
+**Three gaps, all filled:**
+
+| assigned | where |
+| --- | --- |
+| `Flight.GalaxyNumber`, `Flight.GalaxySeeds` | `Load` |
+| `Flight.Missions` | the constructor and `Load` |
+| `Flight.System` | `Load` |
+
+`Flight.System` was null for the same reason and the spawner checks it first, so it had to come too.
+
+**The test flies it**, and reverting the `Load` wiring fails it. It is the same shape as the live combat
+checks from twenty rounds ago: mission tests that construct their own `Missions` cannot find a fault in
+*which* `Missions` the game is holding. **That is now the sixth fault of this family** — state written by
+one part of the port and read by another that never received it — and the first found in the mission
+system, which had been the most heavily tested area of the codebase.
+
+**What this says about the test suite, honestly.** There are 292 tests and the mission system has a
+dozen of them. The gap is structural rather than a matter of coverage: **a test that calls a rule's
+methods directly proves the rule and proves nothing about whether the game calls them.**

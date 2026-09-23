@@ -269,6 +269,70 @@ public class GameLoopTests
     }
 
     /// <summary>
+    /// The whole of mission 1, flown: offered, accepted, found, killed, and paid at the debriefing.
+    /// </summary>
+    /// <remarks>
+    /// Every mission test before this called the mission rules directly and passed, while the game
+    /// could not complete mission 1 at all: <c>FlightSim</c> holds the missions and the galaxy it is in,
+    /// and *neither was ever assigned*, so the simulation always saw no missions and galaxy 1 — and the
+    /// Constrictor lives in galaxy 2. This flies to its system and waits for it, which is the only kind
+    /// of test that could have found it.
+    /// </remarks>
+    [Fact]
+    public void MissionOneCanBeFlownAndPaid()
+    {
+        var commander = Commander.CreateDefault();
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III")) { Commander = commander };
+        var session = new GameSession(commander, sim);
+
+        // A commander good enough to be offered the mission
+        commander.Kills = Missions.CompetentKills;
+        session.Dock();
+        Assert.True(session.Missions.OfferMission1(commander));
+
+        // Go to the Constrictor's system, in its own galaxy
+        commander.CurrentSystem = Galaxy
+            .GenerateGalaxy(Galaxy.GalaxySeeds(Missions.ConstrictorGalaxy))
+            .First(s => s.Name == "ORARRA");
+        commander.GalaxyNumber = Missions.ConstrictorGalaxy;
+
+        // Accept before loading: Load rebuilds the missions from the commander's status byte, so
+        // accepting afterwards would change a Missions object the simulation no longer holds
+        commander.MissionStatus = 1;   // bit 0: mission 1 in progress
+        session.Load(commander);
+
+        Assert.Equal("ORARRA", session.System.Name);
+        Assert.Equal(Missions.ConstrictorGalaxy, sim.GalaxyNumber);
+        Assert.Same(session.Missions, sim.Missions);
+
+        // The Constrictor appears, and only because we are in the right place
+        session.Launch();
+        Ship? constrictor = null;
+        for (int i = 0; i < 4_000 && constrictor is null; i++)
+        {
+            sim.Step();
+            constrictor = sim.Bubble.FirstOrDefault(s => s.Type == Missions.ConstrictorType);
+        }
+
+        Assert.NotNull(constrictor);
+
+        // Killing it completes the objective; the debriefing pays
+        session.BountyProvider = _ => 0;
+        int cash = commander.Cash;
+        session.RegisterKill(constrictor!);
+
+        Assert.True(session.Missions.Mission1Complete);
+        Assert.Equal(cash, commander.Cash);
+
+        int kills = commander.Kills;
+        session.Dock();
+
+        Assert.Equal(cash + Missions.ConstrictorReward, commander.Cash);
+        Assert.Equal(kills + Missions.DebriefKillPoints, commander.Kills);
+        Assert.False(session.Missions.Mission1Active);
+    }
+
+    /// <summary>
     /// A hostile ship engages us and a non-hostile one does not — the link between the NEWB hostile
     /// bit and the decision to fight.
     /// </summary>

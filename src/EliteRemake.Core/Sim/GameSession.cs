@@ -76,6 +76,13 @@ public sealed class GameSession
         SelectedSystem = System;
 
         Missions = Missions.FromStatusByte(commander.MissionStatus);
+
+        // The simulation needs the missions: the Constrictor's appearance, the Thargoid intercepts and
+        // the plans are all decided inside it, from the mission rules. This was never set, so the
+        // simulation always saw no missions at all and the Constrictor could never appear — mission 1
+        // was uncompletable in the game, though every mission test passed because they call the mission
+        // rules directly rather than flying to the system.
+        Flight.Missions = Missions;
     }
 
     /// <summary>The commander.</summary>
@@ -315,6 +322,10 @@ public sealed class GameSession
         Commander.CurrentSystem = System;
         SelectedSystem = System;
 
+        // The simulation has to follow, or the mission rules would still be looking in the old galaxy
+        Flight.GalaxyNumber = Commander.GalaxyNumber;
+        Flight.GalaxySeeds = Galaxy.GalaxySeeds(Commander.GalaxyNumber);
+
         Market = Universe.Market.Build(System, _random.Next());
         Message = $"Galactic hyperspace: arrived in galaxy {Commander.GalaxyNumber + 1}, {System.Name} system.";
         return true;
@@ -457,6 +468,19 @@ public sealed class GameSession
         SelectedSystem = System;
         Market = Universe.Market.Build(System, _random.Next());
         Missions = Missions.FromStatusByte(commander.MissionStatus);
+
+        // As in the constructor: the simulation holds the missions, and they are rebuilt here, so it
+        // has to be given the new object rather than keeping the one it had
+        Flight.Missions = Missions;
+
+        // The simulation needs the galaxy as well as the system, because the mission rules are stated
+        // in terms of both: the Constrictor is only in its own galaxy, and the plans and their delivery
+        // are in another. This was never set anywhere, so the simulation always believed it was in
+        // galaxy 1 and the Constrictor could never appear — mission 1 was uncompletable, which no test
+        // covered because they set the mission state by hand rather than flying to the system.
+        Flight.System = System;
+        Flight.GalaxyNumber = commander.GalaxyNumber;
+        Flight.GalaxySeeds = Universe.Galaxy.GalaxySeeds(commander.GalaxyNumber);
     }
 
     /// <summary>Docks at the station.</summary>
