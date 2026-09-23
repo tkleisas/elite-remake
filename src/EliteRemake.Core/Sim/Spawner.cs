@@ -108,55 +108,6 @@ public static class Spawner
     /// aggressive) and uses bit 0 to give the ship an E.C.M. about a fifth of the time.
     /// </summary>
     /// <summary>
-    /// The speed a spawned ship of this type flies at, from its blueprint.
-    /// </summary>
-    /// <remarks>
-    /// The original's NWSHP takes the new ship's speed from byte #15 of its blueprint, so a ship that
-    /// arrives with no speed set by the caller still flies. We had been leaving speed to the game
-    /// layer, which stamps blueprint values on as ships reach it — so a ship spawned in the core had
-    /// speed zero, sat at the spawn distance, and could never close to within firing range. Nothing
-    /// the spawner produced could reach us, which is why a commander parked in a busy system was
-    /// never shot at.
-    ///
-    /// The table is the blueprint byte per type, written out because the core has no dependency on
-    /// the data files; the extractor's output is what it was checked against.
-    /// </remarks>
-    public static byte SpeedFor(int type) => type switch
-    {
-        1 => 44,   // missile
-        2 => 0,   // coriolis
-        3 => 8,   // escape-pod
-        4 => 16,   // plate
-        5 => 15,   // canister
-        6 => 30,   // boulder
-        7 => 30,   // asteroid
-        8 => 10,   // splinter
-        9 => 8,   // shuttle
-        10 => 10,   // transporter
-        11 => 28,   // cobra-mk-3
-        12 => 20,   // python
-        13 => 24,   // boa
-        14 => 14,   // anaconda
-        16 => 32,   // viper
-        17 => 37,   // sidewinder
-        18 => 30,   // mamba
-        19 => 30,   // krait
-        20 => 24,   // adder
-        21 => 30,   // gecko
-        22 => 26,   // cobra-mk-1
-        23 => 23,   // worm
-        24 => 28,   // cobra-mk-3-p
-        25 => 40,   // asp-mk-2
-        26 => 20,   // python-p
-        27 => 30,   // fer-de-lance
-        28 => 25,   // moray
-        29 => 39,   // thargoid
-        30 => 30,   // thargon
-        31 => 36,   // constrictor
-        _ => 0,
-    };
-
-    /// <summary>
     /// The AI flag for a hostile ship we are about to spawn.
     /// </summary>
     /// <remarks>
@@ -194,6 +145,7 @@ public static class Spawner
     public static Ship Create(SpawnKind kind, StarSystem system, EliteRandom random, int index = 0)
     {
         int type = ShipType(kind, random);
+        BlueprintDefaults defaults = BlueprintDefaults.For(type);
 
         // Spread a pack out around the lead ship
         int offsetX = ((random.Next() & 0xFF) - 128) * (index + 1);
@@ -211,9 +163,15 @@ public static class Spawner
             // every pirate and bounty hunter arrived aggressive but peaceful.
             NewbFlags = Ship.NewbHostile,
 
-            // A speed to fly at, as NWSHP takes from the blueprint, so the ship can actually reach us
-            Speed = SpeedFor(type),
+            // Everything the blueprint gives a new ship, as NWSHP copies it in: without these the
+            // ship arrives inert and either cannot reach us or dies to the first hit
+            Speed = defaults.Speed,
+            MaxEnergy = defaults.MaxEnergy,
+            MaxSpeed = defaults.MaxSpeed,
+            VisibilityDistance = defaults.VisibilityDistance,
         };
+
+        ship.Energy = ship.MaxEnergy;
 
         ship.SetPosition(offsetX, offsetY, z);
 
@@ -225,4 +183,65 @@ public static class Spawner
 
         return ship;
     }
+}
+
+/// <summary>
+/// The blueprint values a spawned ship needs, so that it can fly and fight without help.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The original's NWSHP copies a new ship's speed, energy, top speed and visibility distance out of
+/// its blueprint as it adds it to the local bubble, so a ship arrives complete. We had been leaving
+/// those to the game layer, which stamps blueprint values on as ships reach it — so anything spawned
+/// in the core arrived inert: **no speed**, so it sat at the spawn distance and could never close to
+/// within firing range, and **no energy**, so it died to a single hit. Those two faults cost two
+/// rounds each to find, both by flying the game, and neither was visible to tests that built their own
+/// ships.
+/// </para>
+/// <para>
+/// The table is the blueprint bytes per ship type, written out because the core has no dependency on
+/// the data files; the extractor's output is what it was checked against.
+/// </para>
+/// </remarks>
+/// <param name="Speed">The speed it flies at.</param>
+/// <param name="MaxEnergy">The energy it starts with, and its ceiling.</param>
+/// <param name="MaxSpeed">The fastest it may fly.</param>
+/// <param name="VisibilityDistance">How far away it is still drawn as a model.</param>
+public readonly record struct BlueprintDefaults(byte Speed, byte MaxEnergy, byte MaxSpeed, byte VisibilityDistance)
+{
+    /// <summary>The defaults for a ship type, or an all-zero set for a type the table does not cover.</summary>
+    public static BlueprintDefaults For(int type) => type switch
+    {
+        1 => new(44, 2, 44, 14),   // missile
+        2 => new(0, 240, 0, 120),   // coriolis
+        3 => new(8, 17, 8, 8),   // escape-pod
+        4 => new(16, 16, 16, 5),   // plate
+        5 => new(15, 17, 15, 12),   // canister
+        6 => new(30, 20, 30, 20),   // boulder
+        7 => new(30, 60, 30, 50),   // asteroid
+        8 => new(10, 20, 10, 8),   // splinter
+        9 => new(8, 32, 8, 22),   // shuttle
+        10 => new(10, 32, 10, 16),   // transporter
+        11 => new(28, 150, 28, 50),   // cobra-mk-3
+        12 => new(20, 250, 20, 40),   // python
+        13 => new(24, 250, 24, 40),   // boa
+        14 => new(14, 252, 14, 50),   // anaconda
+        16 => new(32, 100, 32, 23),   // viper
+        17 => new(37, 70, 37, 20),   // sidewinder
+        18 => new(30, 90, 30, 25),   // mamba
+        19 => new(30, 80, 30, 25),   // krait
+        20 => new(24, 85, 24, 23),   // adder
+        21 => new(30, 70, 30, 18),   // gecko
+        22 => new(26, 90, 26, 19),   // cobra-mk-1
+        23 => new(23, 30, 23, 19),   // worm
+        24 => new(28, 150, 28, 50),   // cobra-mk-3-p
+        25 => new(40, 150, 40, 40),   // asp-mk-2
+        26 => new(20, 250, 20, 40),   // python-p
+        27 => new(30, 160, 30, 40),   // fer-de-lance
+        28 => new(25, 100, 25, 40),   // moray
+        29 => new(39, 240, 39, 55),   // thargoid
+        30 => new(30, 20, 30, 20),   // thargon
+        31 => new(36, 252, 36, 45),   // constrictor
+        _ => default,   // a type the table does not cover
+    };
 }

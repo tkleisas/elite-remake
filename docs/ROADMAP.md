@@ -2859,3 +2859,35 @@ and these two found the missing hostile bit and the missing speed between them.
   enumerate what a build takes, read the guards before the instructions, measure rates rather than
   assert constants, ask who reads a value and what it means, and — most expensively learned — **never
   let a check supply the very thing it is meant to be testing**.
+
+## Two more blueprint fields, and an honest split between "broken" and "inconsistent"
+
+Round 114 found that a spawned ship had no speed. The field next to it had the same gap — **no
+energy** — so the same search was made across every blueprint value a ship needs, and the four that
+mattered are now in one place:
+
+| field | what it does |
+| --- | --- |
+| speed | how fast it flies, which is what lets it close to firing range |
+| max energy | what it starts with, and its ceiling |
+| max speed | the fastest it may fly |
+| visibility distance | how far away it is still drawn as a model |
+
+`BlueprintDefaults.For(type)` carries them, and the spawner applies them as NWSHP does. Four parallel
+tables became one type, which is its own small correction: I had been adding a table per symptom, and
+the second and third were only ever going to be found by looking rather than by flying.
+
+**But the two are not the same kind of fault, and the roadmap should not claim they are.** The game
+layer stamps blueprint values on through `FlightSim.ShipSpawned`, so in a real game the energy *was*
+being set — the gap was in the core, which is where all the tests live and where the spawner is used
+directly. The **speed** was different: `ApplyBlueprint` sets it only when it is zero, so the core's
+zero was carried into the game and the ship never moved. So:
+
+* **speed: a real game bug.** A commander parked in a busy system was never shot at, because nothing
+  the spawner produced could reach firing range.
+* **energy: a core inconsistency.** Ships spawned outside the game arrived unable to absorb one hit.
+  The game masked it; nothing else did.
+
+Both are fixed, and it matters which was which — a defect list that does not distinguish them cannot be
+used to judge how much of the game was actually affected. Two rounds of flying found the first one;
+one search of the field next to it found the second.
