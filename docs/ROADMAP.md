@@ -2137,3 +2137,46 @@ character for character.
 **The tally is eighteen**, and both faults were found by reading the source's *comments* rather than
 its instructions — which is the third distinct source of faults this session, after the code itself
 and the guards around it.
+
+## Traders become pirates 39% of the time, and the roles come from the NEWB flags
+
+The comment sweep found a rule that is not a constant to correct but a piece of the AI we do not have.
+Recorded precisely and **not** implemented this round, because the more I read it the clearer it became
+that implementing it correctly is a round's work rather than an hour's.
+
+**What TACTICS does, per ship per frame**, on this build:
+
+```
+JSR DORND / LDA NEWB / LSR A / BCC TN1     \\ bit 0: is this a trader?
+CPX #100 / BCS TA22                        \\ 61% chance: leave it alone
+                                           \\ otherwise it becomes a pirate
+.TN1
+LSR A / BCC TN2                            \\ bit 1: is this a bounty hunter?
+LDX FIST / CPX #40 / BCC TN2               \\ only if our legal status is 40 or more
+LDA NEWB / ORA #%00000100 / STA NEWB       \\ a bounty hunter that hates us goes hostile
+```
+
+So on this build a ship's *behaviour* — trader, pirate, bounty hunter, hostile — is read from its NEWB
+flags and rewritten during play. A trader is attacked by the roll 39% of the time and becomes a pirate;
+a bounty hunter only turns on us if we are nearly a fugitive. The source's own comment gives the
+contrast: *"in the disc version, 39% of traders turn out to be bounty hunters, while it's just 20% in
+the advanced versions"* — halved.
+
+**Why this is not a one-line fix.** Everything else the sweep found was a threshold or a branch;
+this is the rule that decides what a ship *is*. Getting it right means:
+
+* the roles have to come from the NEWB flags rather than from the spawn table we currently use, where
+  `SpawnKind.Pirates` and `SpawnKind.BountyHunter` pick ship types directly;
+* only two types in the whole `E%` table carry the trader bit — the Shuttle at `0x21` and the
+  Transporter at `0x61` — so a "trader" is a much smaller category here than our spawner assumes;
+* the roll is per frame, so it needs the same care the Anaconda's did, including the direction of the
+  comparison, which I got wrong there and which the *test* caught by measuring a rate;
+* and it interacts with `FIST`, which we have under the name `LegalStatus`.
+
+Doing it badly would be worse than not doing it: a wrong rate here would change what every ship in the
+sky does. So it is written up with the code quoted and left for a round that can give it a test that
+measures the rates rather than asserting a value — which is the only kind of test that caught the last
+comparison-direction error.
+
+**The tally stays at eighteen**, and the sweep's classification gains a fifth row: one rule that is a
+subsystem rather than an adjustment.
