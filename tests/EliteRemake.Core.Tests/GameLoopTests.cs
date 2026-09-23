@@ -269,6 +269,65 @@ public class GameLoopTests
     }
 
     /// <summary>
+    /// The whole of mission 2, flown: offered, accepted, the plans collected, and delivered.
+    /// </summary>
+    /// <remarks>
+    /// The companion to the mission 1 test, and it exists for the same reason: the mission rules were
+    /// heavily tested in isolation and the chain between them was not. Mission 2 crosses two galaxies'
+    /// worth of state — the plans are in one system of the third galaxy and the delivery in another —
+    /// so it exercises the simulation's view of the universe at every leg.
+    /// </remarks>
+    [Fact]
+    public void MissionTwoCanBeFlownAndPaid()
+    {
+        var commander = Commander.CreateDefault();
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III")) { Commander = commander };
+        var session = new GameSession(commander, sim);
+
+        // Mission 1 complete, so mission 2 is on offer
+        commander.Kills = Missions.CompetentKills;
+        commander.MissionStatus = 2;
+        session.Load(commander);
+        session.Dock();
+
+        Assert.True(session.Missions.OfferMission2(), session.Message);
+        session.Missions.AcceptMission2();
+        Assert.True(session.Missions.Mission2Active);
+
+        // Flying reloads the commander, and Load rebuilds the missions from his status byte — so the
+        // byte has to be brought up to date first, or the leg we are about to fly loses the mission
+        commander.MissionStatus = session.Missions.StatusByte;
+        Assert.Equal(6, commander.MissionStatus);   // mission 1 done, mission 2 in progress
+
+        // Fly to where the plans are
+        commander.CurrentSystem = Galaxy
+            .GenerateGalaxy(Galaxy.GalaxySeeds(Missions.PlansGalaxy))
+            .First(s => s.X == Missions.PlansX && s.Y == Missions.PlansY);
+        commander.GalaxyNumber = Missions.PlansGalaxy;
+        session.Load(commander);
+        session.Dock();
+
+        Assert.True(session.Missions.CarryingPlans, session.Message);
+        Assert.True(session.Missions.ThargoidSpawnChance > 0, "carrying the plans should draw Thargoids");
+        Assert.Equal(session.System.Name, session.Flight.System?.Name);
+
+        // And to where they go, with the plans now in hand
+        commander.MissionStatus = session.Missions.StatusByte;
+        Assert.Equal(10, commander.MissionStatus);   // mission 1 done, carrying the plans
+
+        commander.CurrentSystem = Galaxy
+            .GenerateGalaxy(Galaxy.GalaxySeeds(Missions.PlansGalaxy))
+            .First(s => s.X == Missions.DeliveryX && s.Y == Missions.DeliveryY);
+        session.Load(commander);
+
+        int cash = commander.Cash;
+        session.Dock();
+
+        Assert.False(session.Missions.CarryingPlans, session.Message);
+        Assert.True(commander.Cash > cash, "delivering the plans should pay");
+    }
+
+    /// <summary>
     /// The simulation follows us from system to system, which the mission rules depend on.
     /// </summary>
     /// <remarks>

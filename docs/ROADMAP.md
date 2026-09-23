@@ -3749,3 +3749,24 @@ before the Anaconda could release anything, so the ship it found was a boulder. 
 never received**, and all six were invisible to a suite of nearly three hundred tests. The pattern worth
 carrying forward: **when a class holds a reference to another class, ask who assigns it — and then ask
 everywhere the thing it refers to can change.**
+
+## Mission 2 flies too, and the whole chain is now walked by tests
+
+The companion to the mission 1 test, and it passes on the first flight: offered once mission 1 is
+complete, accepted, the plans collected **at Ceerdi in the third galaxy**, the Thargoid intercept chance
+rising to 56/256 while carrying them, and the delivery **at Birera** paying a thousand credits.
+
+Both missions now have a test that flies them rather than calling their rules, and between them they
+cross four systems in three galaxies — which is the part the isolated tests could not reach.
+
+**Three things the test had to get right, and each is a fact about the game rather than about the test.**
+Mission state lives in the commander's status byte, so a leg that reloads him has to have that byte
+brought up to date first or the mission is lost in transit; the byte reads 6 on the way out and 10 with
+the plans in hand, which are the states the rules define. Writing them as assertions rather than as
+setup means the test fails loudly if the encoding ever changes.
+
+**Where the mission chain stands**: mission 1 offered at 256 kills, its Constrictor found in its own
+system and galaxy, its debrief paid at 5000 credits and 256 kill points; mission 2 offered afterwards,
+its plans and delivery in the right systems of the right galaxy, its Thargoid intercepts triggered by
+carrying them. That is the whole of the disc's mission content, and it is now exercised end to end
+rather than in pieces.
