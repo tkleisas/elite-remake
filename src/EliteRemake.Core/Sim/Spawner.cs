@@ -108,6 +108,55 @@ public static class Spawner
     /// aggressive) and uses bit 0 to give the ship an E.C.M. about a fifth of the time.
     /// </summary>
     /// <summary>
+    /// The speed a spawned ship of this type flies at, from its blueprint.
+    /// </summary>
+    /// <remarks>
+    /// The original's NWSHP takes the new ship's speed from byte #15 of its blueprint, so a ship that
+    /// arrives with no speed set by the caller still flies. We had been leaving speed to the game
+    /// layer, which stamps blueprint values on as ships reach it — so a ship spawned in the core had
+    /// speed zero, sat at the spawn distance, and could never close to within firing range. Nothing
+    /// the spawner produced could reach us, which is why a commander parked in a busy system was
+    /// never shot at.
+    ///
+    /// The table is the blueprint byte per type, written out because the core has no dependency on
+    /// the data files; the extractor's output is what it was checked against.
+    /// </remarks>
+    public static byte SpeedFor(int type) => type switch
+    {
+        1 => 44,   // missile
+        2 => 0,   // coriolis
+        3 => 8,   // escape-pod
+        4 => 16,   // plate
+        5 => 15,   // canister
+        6 => 30,   // boulder
+        7 => 30,   // asteroid
+        8 => 10,   // splinter
+        9 => 8,   // shuttle
+        10 => 10,   // transporter
+        11 => 28,   // cobra-mk-3
+        12 => 20,   // python
+        13 => 24,   // boa
+        14 => 14,   // anaconda
+        16 => 32,   // viper
+        17 => 37,   // sidewinder
+        18 => 30,   // mamba
+        19 => 30,   // krait
+        20 => 24,   // adder
+        21 => 30,   // gecko
+        22 => 26,   // cobra-mk-1
+        23 => 23,   // worm
+        24 => 28,   // cobra-mk-3-p
+        25 => 40,   // asp-mk-2
+        26 => 20,   // python-p
+        27 => 30,   // fer-de-lance
+        28 => 25,   // moray
+        29 => 39,   // thargoid
+        30 => 30,   // thargon
+        31 => 36,   // constrictor
+        _ => 0,
+    };
+
+    /// <summary>
     /// The AI flag for a hostile ship we are about to spawn.
     /// </summary>
     /// <remarks>
@@ -161,6 +210,9 @@ public static class Spawner
             // the AI flag alone. Leaving it clear meant nothing the spawner produced could attack:
             // every pirate and bounty hunter arrived aggressive but peaceful.
             NewbFlags = Ship.NewbHostile,
+
+            // A speed to fly at, as NWSHP takes from the blueprint, so the ship can actually reach us
+            Speed = SpeedFor(type),
         };
 
         ship.SetPosition(offsetX, offsetY, z);

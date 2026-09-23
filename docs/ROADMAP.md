@@ -2805,3 +2805,31 @@ by hand-constructing two ships; round 110 audited the *bits* for readers; round 
 *parameters* for defaults. None of those three looked at what the **spawner** produces, which is the
 path every ship in an actual game arrives through. A check that constructs its own inputs cannot find a
 fault in the thing that constructs them.
+
+## A commander parked in a busy system was never shot at
+
+Round 113's lesson says to stop building inputs by hand and consume the real path, so this round's
+check lets `Spawner` make the ships and asks only whether the commander is ever hit. **It was not, in
+twenty thousand frames.**
+
+**Two faults, and the second was the one that mattered.**
+
+The first was the one round 113 found: no hostile bit. The second was **speed**. A spawned ship was
+arriving with `Speed = 0` and staying at the spawn distance, so it never came within the 8192-unit
+firing range and never fired — ten hostile ships in the sky, at 9728 units, motionless. The original's
+`NWSHP` takes the new ship's speed from **byte #15 of its blueprint**; ours left that to the game layer,
+which stamps blueprint values on as ships reach it, so anything spawned in the core was stationary.
+
+`Spawner.SpeedFor` now carries the blueprint's speed per type and the spawner uses it, which is the
+same shape as `NewbFlagsFor` — a small table in the core, checked against the extractor's output,
+because the core has no dependency on the data files.
+
+**Why the hand-built tests could not see this.** Every tactics test places its enemy *inside* firing
+range, because that is what such a test is about. So the range check never mattered, the speed never
+mattered, and a spawner producing motionless ships passed all of them. The check that consumes the
+real path fails immediately.
+
+**That is two rounds running where flying the game found what the suite could not**, and both times the
+gap was the same: the tests supply the very thing that was broken. The test added here is deliberately
+the opposite — it asserts nothing about ships and only asks whether the commander takes damage — and it
+is worth more than any of the more specific ones for exactly that reason.

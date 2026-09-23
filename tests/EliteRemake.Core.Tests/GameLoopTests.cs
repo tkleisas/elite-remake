@@ -130,6 +130,55 @@ public class GameLoopTests
     }
 
     /// <summary>
+    /// A real engagement, through the paths the game itself uses: the spawner produces the ships and
+    /// the simulation fights them.
+    /// </summary>
+    /// <remarks>
+    /// This exists because three consecutive rounds audited the combat rules while building their own
+    /// ships by hand, and the spawner was producing ships that could not fight at all. A check that
+    /// constructs its own inputs cannot find a fault in the thing that constructs them, so this one
+    /// lets <see cref="Spawner"/> make the ships and asks only whether the commander survives being
+    /// shot at.
+    /// </remarks>
+    [Fact]
+    public void ACommanderIsAttackedByWhatTheSpawnerProduces()
+    {
+        var commander = Commander.CreateDefault();
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            Commander = commander,
+            System = Galaxy.GenerateGalaxy(Galaxy.GalaxySeeds(0))[7],   // Lave
+            GalaxySeeds = Galaxy.GalaxySeeds(0),
+        };
+
+        sim.Player.Energy = 255;
+        sim.Player.ForeShield = 255;
+        sim.Player.AftShield = 255;
+
+        // Every spawned ship carries a laser, as the game's blueprint lookup would give it
+        sim.LaserPowerProvider = _ => 10;
+
+        // Let the spawner fill the sky, then fly
+        int damage = 0;
+        int hostile = 0;
+        for (int frame = 0; frame < 20_000; frame++)
+        {
+            sim.Step();
+            damage += sim.DamageTakenThisFrame;
+
+            if ((frame & 255) == 0)
+            {
+                hostile = sim.Bubble.Count(s => s.IsHostile);
+
+            }
+        }
+
+        Assert.True(sim.Bubble.Count > 0, "the spawner should have produced something");
+        Assert.True(hostile > 0, "and it should be hostile");
+        Assert.True(damage > 0, "so an unarmed commander left sitting still should be shot at");
+    }
+
+    /// <summary>
     /// A ship the spawner produces is hostile, and therefore able to attack.
     /// </summary>
     /// <remarks>
