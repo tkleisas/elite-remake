@@ -284,7 +284,8 @@ public sealed class FlightScene : IScene
             text.Append(
                 $", energy {_sim.Player.Energy}/{_sim.Player.MaxEnergy}, " +
                 $"cabin {_sim.CabinTemperature}, laser {_sim.LaserTemperature}, " +
-                $"fuel {Session?.Commander.Fuel ?? 0}, sim step {_sim.MainLoopCounter}, took {_sim.DamageTakenThisFrame} damage");
+                $"fuel {Session?.Commander.Fuel ?? 0}, sim step {_sim.MainLoopCounter}, took {_sim.DamageTakenThisFrame} damage, died {_sim.PlayerDied}" +
+                (Session is null ? string.Empty : $", game over {Session.GameOver}, \"{Session.Message}\""));
 
             foreach (Ship ship in _sim.Bubble)
             {
@@ -374,6 +375,51 @@ public sealed class FlightScene : IScene
         _starfield.Update(_sim.Speed * frames);
     }
 
+    /// <summary>
+    /// The message to show, or empty for none.
+    /// </summary>
+    /// <remarks>
+    /// The session keeps a message as its state rather than as something to print once, and the
+    /// flight loop leaves it set for ever unless something replaces it — so a jump's "hyperspace
+    /// drive engaged" would sit at the bottom of the view for the rest of the game. The timer is a
+    /// modern addition for that reason; the original erases the message when the next one is
+    /// printed, and has no timeout of its own because most of its messages replace each other
+    /// quickly. The game-over message never expires, since it is the last thing that happens.
+    /// </remarks>
+    private string CurrentMessage()
+    {
+        if (Session is null)
+        {
+            return string.Empty;
+        }
+
+        if (Session.GameOver)
+        {
+            return Session.Message;
+        }
+
+        if (Session.Message != _lastMessage)
+        {
+            _lastMessage = Session.Message;
+            _messageLeft = MessageSeconds;
+        }
+
+        if (_messageLeft <= 0)
+        {
+            return string.Empty;
+        }
+
+        _messageLeft -= _lastElapsed;
+        return Session.Message;
+    }
+
+    /// <summary>How long an in-flight message stays on screen.</summary>
+    private const float MessageSeconds = 4f;
+
+    private string _lastMessage = string.Empty;
+    private float _messageLeft;
+    private float _lastElapsed;
+
     /// <summary>The session this scene is flying in, so docking can be requested.</summary>
     public GameSession? Session { get; set; }
 
@@ -385,6 +431,8 @@ public sealed class FlightScene : IScene
 
     public void Update(float elapsedSeconds)
     {
+        _lastElapsed = elapsedSeconds;
+
         LastInput = ReadInput() with
         {
             RollLeft = ReadInput().RollLeft || HeldInput.RollLeft,
@@ -594,6 +642,14 @@ public sealed class FlightScene : IScene
         _drawnFrames++;
         device.Clear(Palette.Space);
 
+        // The dashboard's state is set here rather than at the end, because the hyperspace tunnel
+        // draws the dashboard too and returns early: setting it late left the tunnel's frames with
+        // whatever the previous frame had put there.
+        _hud.MissilesArmed = Session?.Commander.Missiles ?? 0;
+        _hud.Fuel = Session?.Commander.Fuel ?? EliteRemake.Core.Universe.Outfitting.MaxFuel;
+        _hud.Message = CurrentMessage();
+        _hud.Locked = _sim.MissileLock is not null;
+
         // Stars first: they are the backdrop, and the original draws them before the ships
         spriteBatch.Begin(samplerState: SamplerState.PointClamp);
         _starfield.Draw(spriteBatch, pixel, Camera);
@@ -668,9 +724,6 @@ public sealed class FlightScene : IScene
         DrawExplosions(spriteBatch, pixel);
         spriteBatch.End();
 
-        _hud.MissilesArmed = Session?.Commander.Missiles ?? 0;
-        _hud.Fuel = Session?.Commander.Fuel ?? EliteRemake.Core.Universe.Outfitting.MaxFuel;
-        _hud.Locked = _sim.MissileLock is not null;
         _hud.Draw(spriteBatch, pixel, Camera, _sim);
     }
 

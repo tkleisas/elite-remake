@@ -73,6 +73,12 @@ public sealed class HudRenderer
     /// <summary>True when a missile is locked onto a target, which lights the leftmost indicator.</summary>
     public bool Locked { get; set; }
 
+    /// <summary>
+    /// The in-flight message, or empty for none. The original displays these in capitals at the
+    /// bottom of the space view, erasing whatever was there before.
+    /// </summary>
+    public string Message { get; set; } = string.Empty;
+
     /// <summary>Draws the whole dashboard and the crosshair.</summary>
     public void Draw(SpriteBatch spriteBatch, Texture2D pixel, ViewCamera camera, FlightSim sim)
     {
@@ -84,6 +90,26 @@ public sealed class HudRenderer
         DrawRightPanel(spriteBatch, pixel, sim);
         DrawScanner(spriteBatch, pixel, sim);
         DrawCompass(spriteBatch, pixel, sim);
+
+        // In-flight messages go across the foot of the space view, which is where the original's
+        // MESS puts them: "display an in-flight message in capitals at the bottom of the space view,
+        // erasing any existing in-flight message first"
+        if (Message.Length > 0)
+        {
+            string line = Message.ToUpperInvariant();
+            int messageScale = Math.Max(2, TextScale);
+            _text.DrawCentred(
+                spriteBatch,
+                line,
+                View.Width / 2,
+                (int)(View.Height * 0.86f),
+                EliteRemake.Core.Text.HintLine.Fit(
+                    line.Length,
+                    messageScale,
+                    TextRenderer.CellWidth(messageScale),
+                    (int)(View.Width * 0.95f)),
+                Palette.Yellow);
+        }
 
         // The original flashes "ENERGY LOW" when the banks are at 50 or below: LDA #50, CMP ENERGY,
         // BCC - so it is an inclusive test, not a strict one

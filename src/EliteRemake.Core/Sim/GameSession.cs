@@ -436,6 +436,17 @@ public sealed class GameSession
     {
         Commander fresh = Commander.CreateDefault();
         Load(fresh);
+        GameOver = false;
+
+        // A new commander comes with a new ship, so the wreck's empty banks and shields go with it.
+        // Load replaces everything that hangs off the commander but not the ship the commander is
+        // sitting in, and restarting after a death used to hand back a commander in a wreck.
+        Flight.Player.Energy = NewShipEnergy;
+        Flight.Player.ForeShield = 255;
+        Flight.Player.AftShield = 255;
+        Flight.Player.IsExploding = false;
+        Flight.Player.IsKilled = false;
+
         Message = $"A new commander: {fresh.Name}.";
     }
 
@@ -654,18 +665,12 @@ public sealed class GameSession
     public void Restart()
     {
         GameOver = false;
-        Commander.Cash = 1000;
-        Commander.Fuel = 70;
-        Commander.Missiles = 3;
-        Commander.Kills = 0;
-        Commander.LegalStatus = 0;
-        Commander.SetLaser(LaserMount.Front, LaserType.Pulse);
-        Flight.Player.Energy = 150;
-        Flight.Player.ForeShield = 255;
-        Flight.Player.AftShield = 255;
+        NewCommander();
         Message = "New commander: 100 credits, full tank, pulse laser, three missiles.";
-        Launch();
     }
+
+    /// <summary>The energy a freshly delivered Cobra Mk III comes with.</summary>
+    public const int NewShipEnergy = 150;
 
     /// <summary>Launches from the station.</summary>
     public void Launch()

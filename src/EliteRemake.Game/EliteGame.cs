@@ -239,8 +239,18 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
             Console.WriteLine(_scene.StatusLine);
         }
 
+        // The game is over: the wreck is left where it fell and nothing else happens until the
+        // player asks for another go. The original's DEATH routine stops the flight loop and shows
+        // the GAME OVER screen, and without this the simulation carried on around a dead commander —
+        // the pirates that killed us kept firing, and our energy was quietly put back to a full bank
+        // so the wreck could be shot at indefinitely.
+        if (_session.GameOver && _session.Mode == GameMode.Flying)
+        {
+            HandleGameOverKeys();
+        }
+
         var updateClock = System.Diagnostics.Stopwatch.StartNew();
-        if (!_options.Paused)
+        if (!_options.Paused && !(_session.GameOver && _session.Mode == GameMode.Flying))
         {
             _scene.Update((float)gameTime.ElapsedGameTime.TotalSeconds);
         }
@@ -298,6 +308,26 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
             Exit();
         }
     }
+
+    /// <summary>
+    /// Waits for the player to say what happens after they die: the original's GAME OVER screen
+    /// offers a new commander or the way out.
+    /// </summary>
+    private void HandleGameOverKeys()
+    {
+        Microsoft.Xna.Framework.Input.KeyboardState keys = Microsoft.Xna.Framework.Input.Keyboard.GetState();
+
+        if (keys.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.N) && !_gameOverKeys.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.N))
+        {
+            _session.Restart();
+            _flightScene = null;
+        }
+
+        _gameOverKeys = keys;
+    }
+
+    /// <summary>The keys as they were on the previous frame, for the game-over screen.</summary>
+    private Microsoft.Xna.Framework.Input.KeyboardState _gameOverKeys;
 
     /// <summary>
     /// Prints the scene's state as the run ends. The scene also prints its status line when it

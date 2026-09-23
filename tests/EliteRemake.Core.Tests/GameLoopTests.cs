@@ -890,3 +890,75 @@ public class GameLoopTests
         Assert.Contains("Not enough fuel", other.Message);
     }
 }
+
+/// <summary>
+/// Checks what happens after we are killed: the wreck is the end of the commander unless they were
+/// carrying an escape pod, and asking for a new commander gives a fresh ship rather than the wreck.
+/// </summary>
+public class DeathAndRestartTests
+{
+    private static GameSession Fly()
+    {
+        var session = new GameSession(
+            Commander.CreateDefault(),
+            new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III")));
+
+        session.Flight.SpawningEnabled = false;
+        return session;
+    }
+
+    [Fact]
+    public void DeathWithoutAPodEndsTheGame()
+    {
+        GameSession session = Fly();
+
+        session.HandlePlayerDeath();
+
+        Assert.True(session.GameOver);
+        Assert.Equal(GameMode.Flying, session.Mode);
+    }
+
+    [Fact]
+    public void DeathWithAPodPutsUsBackAtTheStationMinusTheCargo()
+    {
+        GameSession session = Fly();
+        session.Commander.EscapePod = true;
+        session.Commander.AddCargo(5, 10);
+        session.Commander.Fuel = 12;
+
+        session.HandlePlayerDeath();
+
+        Assert.False(session.GameOver);
+        Assert.Equal(GameMode.Docked, session.Mode);
+        Assert.False(session.Commander.EscapePod);
+        Assert.Equal(0, session.Commander.GetCargo(5));
+        Assert.Equal(Universe.Outfitting.MaxFuel, session.Commander.Fuel);
+    }
+
+    [Fact]
+    public void AskingForANewCommanderAfterDeathGivesAFreshShip()
+    {
+        // Restarting used to hand back the wreck: the commander was reset but the ship was not, so a
+        // new game began with empty energy banks and no shields
+        GameSession session = Fly();
+        session.HandlePlayerDeath();
+        Assert.True(session.GameOver);
+
+        session.Flight.Player.Energy = 0;
+        session.Flight.Player.ForeShield = 0;
+        session.Flight.Player.AftShield = 0;
+        session.Flight.Player.IsExploding = true;
+        session.Commander.Cash = 999_999;
+
+        session.Restart();
+
+        Assert.False(session.GameOver);
+        Assert.Equal(GameSession.NewShipEnergy, session.Flight.Player.Energy);
+        Assert.Equal(255, session.Flight.Player.ForeShield);
+        Assert.Equal(255, session.Flight.Player.AftShield);
+        Assert.False(session.Flight.Player.IsExploding);
+        Assert.Equal(1000, session.Commander.Cash);
+        Assert.Equal(Universe.Outfitting.MaxFuel, session.Commander.Fuel);
+        Assert.Equal(GameMode.Flying, session.Mode);
+    }
+}

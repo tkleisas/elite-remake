@@ -3971,3 +3971,34 @@ and the simulation's own table agrees with the extracted data.
 **Measured after the fix**: flying clear of the station and sitting still, a pack of hostile ships —
 Cobra Mk III (pirate), Mambas, Gecko, Krait, Adder — spawns and closes in, and the energy banks go from
 255 to 1. Before the fix the same run ended at full energy with every ship in the sky marked peaceful.
+
+## Nothing that happened in flight was ever shown, and death did not stop the game
+
+Two things that only became visible once pirates existed again.
+
+**In-flight messages were never drawn.** The session keeps its message as state — docking refusals,
+hyperspace countdowns, arrivals, mission text, scooping, and the GAME OVER line itself — and the docked
+screens all print it. The flight scene never did, so **no message that mattered was ever seen by the
+player**: you could be told you had arrived somewhere, or that a station would not let you dock, and the
+screen said nothing. Messages now appear at the foot of the space view in yellow, which is where the
+original's `MESS` puts them: *"display an in-flight message in capitals at the bottom of the space view,
+erasing any existing in-flight message first"*.
+
+The message needed a timeout, which the original does not have: it erases a message when the next one is
+printed, and its own messages replace each other quickly, whereas ours is state that stays set for ever.
+Four seconds, and the game-over message never expires. This is a departure and is recorded as one.
+
+Setting the dashboard's state had also been left until after the hyperspace tunnel's early return, so
+during a jump the dashboard drew whatever the previous frame had left on it. It is now set once, before
+either path.
+
+**Dying did not stop the game.** The shell reset our energy to a full bank and carried on simulating, so
+the pirates that had just killed us went on firing at the wreck, and the wreck's energy kept coming back.
+The original's `DEATH` stops the flight loop, divides our speed by four and shows the death screen. Ours
+now stops stepping the simulation and waits: **N** for a new commander, **ESC** to leave.
+
+**Asking for one of those gave back the wreck.** `Restart` was a second, hand-written reset that had
+drifted from the tested `NewCommander`: it restored the commander but not the ship, so a new game could
+begin with empty banks and no shields, and it left the cargo hold, the equipment and the missions alone.
+It is now one line that calls `NewCommander`, which does the whole job through the same `Load` path the
+save file uses. Two resets that have to be kept in step are two resets that will not be.
