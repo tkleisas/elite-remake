@@ -3936,6 +3936,32 @@ public class AltitudeCheckTests
     }
 
     [Fact]
+    public void TheAltitudeBarReadsTheOriginalsSquareRoot()
+    {
+        // Part 15 sets ALTIT to &FF first, so a planet beyond the top-byte test leaves the bar
+        // full — "255 = a long way above"
+        var (far, _) = SetUp(100000, 0, 100000);   // over 65536 in x and z, so the top byte is not zero
+        for (int i = 0; i < 32; i++)
+        {
+            far.Step();
+        }
+
+        Assert.Equal(255, far.Altitude);
+
+        // Close in, the bar is LL5's square root of the sum of the squared high bytes, less the
+        // 37 the SBC takes with it. At (30000, 0, 30000) the high bytes are 117, whose squares
+        // come to 106 after the divide by 256, so 106 - 37 = 69 and the square root is 8
+        var (near, _) = SetUp(30000, 0, 30000);
+        for (int i = 0; i < 32; i++)
+        {
+            near.Step();
+        }
+
+        Assert.Equal(8, near.Altitude);
+        Assert.False(near.PlayerDied, "69 is above the surface");
+    }
+
+    [Fact]
     public void TheSunIsNotCrashedIntoButCookedBy()
     {
         // The sun has its own slot and its own check, so flying into it is a death by heat rather

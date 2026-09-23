@@ -84,7 +84,7 @@ public sealed class HudRenderer
     {
         spriteBatch.Begin(samplerState: SamplerState.PointClamp);
 
-        DrawCrosshair(spriteBatch, pixel);
+        DrawCrosshair(spriteBatch, pixel, sim);
         DrawDashboardBackground(spriteBatch, pixel);
         DrawLeftPanel(spriteBatch, pixel, sim);
         DrawRightPanel(spriteBatch, pixel, sim);
@@ -274,25 +274,29 @@ public sealed class HudRenderer
     }
 
     /// <summary>Draws the fixed gunsight at the centre of the space view.</summary>
-    private void DrawCrosshair(SpriteBatch spriteBatch, Texture2D pixel)
+    private void DrawCrosshair(SpriteBatch spriteBatch, Texture2D pixel, FlightSim sim)
     {
+        // "LDA LASER,Y / BEQ LO2": SIGHT draws nothing when the view we are looking through has
+        // no laser fitted
+        if (sim.Commander is not { } commander || commander.GetLaser(sim.ActiveMount) == LaserType.None)
+        {
+            return;
+        }
+
+        // The disc's SIGHT: a cross drawn at size 20 and again at size 10, which on the BBC erases
+        // the middle of itself and leaves the four arms — "draw crosshairs of size 10 at the same
+        // location, which will remove the centre part from the laser crosshairs, leaving a gap in
+        // the middle". Our arms are the two size-20 crosses' surviving parts.
         float cx = View.Width / 2f;
         float cy = View.Height / 2f;
-        float arm = 9 * Scale;
-        float gap = 3 * Scale;
+        float outer = 20 * Scale;
+        float inner = 10 * Scale;
         float thickness = MathF.Max(1f, Scale);
 
-        // A broken square, as the original's sight is drawn from four corner brackets
-        for (int corner = 0; corner < 4; corner++)
-        {
-            float sx = (corner is 0 or 3) ? -1 : 1;
-            float sy = (corner is 0 or 1) ? -1 : 1;
-            float x = cx + (sx * gap);
-            float y = cy + (sy * gap);
-
-            DrawRect(spriteBatch, pixel, x, y, sx * arm, thickness, Crosshair);
-            DrawRect(spriteBatch, pixel, x, y, thickness, sy * arm, Crosshair);
-        }
+        DrawRect(spriteBatch, pixel, cx - outer, cy, outer - inner, thickness, Crosshair);
+        DrawRect(spriteBatch, pixel, cx + inner, cy, outer - inner, thickness, Crosshair);
+        DrawRect(spriteBatch, pixel, cx, cy - outer, thickness, outer - inner, Crosshair);
+        DrawRect(spriteBatch, pixel, cx, cy + inner, thickness, outer - inner, Crosshair);
     }
 
     private void DrawDashboardBackground(SpriteBatch spriteBatch, Texture2D pixel)
@@ -319,12 +323,14 @@ public sealed class HudRenderer
         float height = MathF.Max(4f, Dashboard.Height * 0.075f);
         float spacing = Dashboard.Height * 0.135f;
 
-        // Fore and aft shields, then fuel and the two temperatures, as on the original panel
+        // Fore and aft shields, then fuel, the two temperatures and the altitude — the six bars
+        // of the original's left column, the last of which part 15 sets every 32 iterations
         DrawLabelledBar(spriteBatch, pixel, left, top, width, height, sim.Player.ForeShield / 255f, Palette.Cyan, "FS");
         DrawLabelledBar(spriteBatch, pixel, left, top + spacing, width, height, sim.Player.AftShield / 255f, Palette.Cyan, "AS");
         DrawLabelledBar(spriteBatch, pixel, left, top + (spacing * 2), width, height, Fuel / (float)EliteRemake.Core.Universe.Outfitting.MaxFuel, Palette.Yellow, "FU");
         DrawLabelledBar(spriteBatch, pixel, left, top + (spacing * 3), width, height, sim.CabinTemperature / 255f, Palette.Red, "CT");
         DrawLabelledBar(spriteBatch, pixel, left, top + (spacing * 4), width, height, sim.LaserTemperature / 255f, Palette.Red, "LT");
+        DrawLabelledBar(spriteBatch, pixel, left, top + (spacing * 5), width, height, sim.Altitude / 255f, Palette.Cyan, "AL");
 
         // Missile indicators: four boxes that fill in as missiles are armed
         _missiles.Clear();
@@ -369,6 +375,20 @@ public sealed class HudRenderer
     /// <summary>The gap between a panel and the scanner's edge.</summary>
     private float PanelGap => MathF.Max(6f, 22 * Scale);
 
+    /// <summary>
+    /// One of the dashboard's indicator bulbs: a lit lamp when the thing it watches is on, and a
+    /// dark one when it is not. The disc's ECBLB and SPBLB draw the "E" and "S" lamps as solid
+    /// or erased character blocks.
+    /// </summary>
+    private void DrawBulb(SpriteBatch spriteBatch, Texture2D pixel, float x, float y, string label, bool lit)
+    {
+        float size = MathF.Max(6f, Scale * 8f);
+        var box = new Rectangle((int)(x - (size / 2)), (int)(y - (size / 2)), (int)size, (int)size);
+        spriteBatch.Draw(pixel, box, lit ? Palette.Yellow : Off);
+        DrawOutline(spriteBatch, pixel, box, Frame);
+        _text.Draw(spriteBatch, label, box.Right + (int)(3 * Scale), box.Top, TextScale, Frame);
+    }
+
     /// <summary>Energy banks, speed and the roll and pitch indicators.</summary>
     private void DrawRightPanel(SpriteBatch spriteBatch, Texture2D pixel, FlightSim sim)
     {
@@ -384,6 +404,11 @@ public sealed class HudRenderer
         float height = MathF.Max(4f, Dashboard.Height * 0.07f);
         float spacing = Dashboard.Height * 0.105f;
         float left = right - width;
+
+        // The two indicator bulbs that sit above the energy banks: "E" lights while the E.C.M. is
+        // running, and "S" lights while the space station is about — the disc's ECBLB and SPBLB
+        DrawBulb(spriteBatch, pixel, left + (width * 0.25f), top - (spacing * 0.5f), "E", sim.EcmActive);
+        DrawBulb(spriteBatch, pixel, left + (width * 0.75f), top - (spacing * 0.5f), "S", sim.StationIsPresent);
 
         // Four energy banks, drawn from the right, filled to the commander's current energy
         for (int i = 0; i < 4; i++)

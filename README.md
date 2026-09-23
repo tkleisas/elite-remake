@@ -86,9 +86,9 @@ missions, die. What is left is the long tail, and it is listed rather than hidde
 | Hyperspace, galactic hyperdrive, witchspace and Thargoids | complete |
 | Missions: offer rules, hints, briefings and debriefings **as text** | complete |
 | Missions: the briefing *screens* (incoming message, rotating ship, key waits) | complete — staged as the disc's BRIEF and BRP run them; the bay's backdrop picture is the one image not shipped |
-| Rendering: authentic dial geometry | not yet (the close-ship detail edges are) |
+| Rendering: authentic dial geometry | complete — the altitude bar, the E.C.M. and station bulbs, the disc's cross crosshair and the planet's meridians |
 | Death sequence, some rare-state behaviour | not yet |
-| Audio | flight effects and title music; the full sound table has not been audited |
+| Audio | complete — all ten of the disc's SFX entries, byte-verified in the tests, with every trigger wired |
 
 A measured way to read that table: the disc version consists of **447 distinct subroutines**; 161 of
 them are named in this repository. That is a lower bound rather than a coverage figure — many of the
@@ -154,8 +154,9 @@ While paused, the disc's own configuration keys answer: `Q` silences the sound, 
 `A` toggles the keyboard's auto-recentre and `CAPS LOCK` toggles flight damping — the two toggles the
 disc's pause screen owns. `DELETE` resumes.
 
-A gamepad works in flight as well: the left stick steers, `A` and `B` are the throttle, and the right
-shoulder button fires. The remaining flight keys have no gamepad mapping yet.
+A gamepad works in flight as well: the left stick steers, `A` and `B` are the throttle, the right
+shoulder fires, the left shoulder locks a missile, `X` fires one, `Y` fires the E.C.M., Start engages
+the docking computer, Back cancels it, and the right stick looks through the four windows.
 
 ## Command line options
 

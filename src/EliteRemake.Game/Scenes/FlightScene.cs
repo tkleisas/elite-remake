@@ -118,6 +118,10 @@ public sealed class FlightScene : IScene
                 else
                 {
                     Session.Flight.ApplyDockingBump(ship);
+
+                    // EXNO3 is the disc's own pair of explosion entries, 16 and 24 — "the sound
+                    // of colliding with the other ship"
+                    Sounds?.Play(Core.Audio.SoundEffect.Explosion);
                     Sounds?.Play(Core.Audio.SoundEffect.HitOrDeath);
                 }
 
@@ -277,12 +281,18 @@ public sealed class FlightScene : IScene
     /// Which space view a key press asks for, or null if none of the four is being pressed. The
     /// original's keys are red keys f0 to f3, which are F1 to F4 on a PC keyboard.
     /// </summary>
-    private SpaceView? ViewKeyPressed(KeyboardState keys)
+    private SpaceView? ViewKeyPressed(KeyboardState keys, GamePadState pad)
     {
         if (keys.IsKeyDown(Settings.ViewFrontKey)) return SpaceView.Front;
         if (keys.IsKeyDown(Settings.ViewRearKey)) return SpaceView.Rear;
         if (keys.IsKeyDown(Settings.ViewLeftKey)) return SpaceView.Left;
         if (keys.IsKeyDown(Settings.ViewRightKey)) return SpaceView.Right;
+
+        // The right stick looks through the four windows, as the views' keys do
+        if (pad.ThumbSticks.Right.Y > 0.5f) return SpaceView.Front;
+        if (pad.ThumbSticks.Right.Y < -0.5f) return SpaceView.Rear;
+        if (pad.ThumbSticks.Right.X < -0.5f) return SpaceView.Left;
+        if (pad.ThumbSticks.Right.X > 0.5f) return SpaceView.Right;
         return null;
     }
 
@@ -717,12 +727,12 @@ public sealed class FlightScene : IScene
     public bool DockingComputerEngaged { get; set; }
 
     /// <summary>Engages or disengages the docking computer when the key is tapped.</summary>
-    private void UpdateDockingComputer(Microsoft.Xna.Framework.Input.KeyboardState keys)
+    private void UpdateDockingComputer(bool dockingKey, bool cancelDockingKey)
     {
         // "C" hands the ship over, and only ever hands it over: the disc version's branch is a
         // straight STA auto with the key ANDed with the fitting, so pressing it twice asks twice.
         // The remake used to toggle, which left no key for the original's own way out.
-        if (keys.IsKeyDown(Settings.DockingComputerKey) && !_dockingComputerPressed)
+        if (dockingKey && !_dockingComputerPressed)
         {
             _dockingComputerPressed = true;
 
@@ -731,19 +741,19 @@ public sealed class FlightScene : IScene
                 DockingComputerEngaged = true;
             }
         }
-        else if (!keys.IsKeyDown(Settings.DockingComputerKey))
+        else if (!dockingKey)
         {
             _dockingComputerPressed = false;
         }
 
         // "P" is the original's cancel-docking-computer key — "LDA KY20 / BEQ MA78 / LDA #0 /
         // STA auto" — and it is the only way to take the controls back.
-        if (keys.IsKeyDown(Settings.CancelDockingKey) && !_cancelDockingPressed)
+        if (cancelDockingKey && !_cancelDockingPressed)
         {
             _cancelDockingPressed = true;
             DockingComputerEngaged = false;
         }
-        else if (!keys.IsKeyDown(Settings.CancelDockingKey))
+        else if (!cancelDockingKey)
         {
             _cancelDockingPressed = false;
         }
@@ -914,19 +924,30 @@ public sealed class FlightScene : IScene
                 }
             }
 
+            // The gamepad joins the keyboard for the flight's actions, alongside its steering and
+            // throttle: the left shoulder locks a missile, X fires one, Y fires the E.C.M., Start
+            // engages the docking computer, Back cancels it, and the right stick looks through
+            // the four windows
+            GamePadState pad = GamePad.GetState(PlayerIndex.One);
+            bool targetKey = keys.IsKeyDown(Settings.TargetKey) || pad.IsButtonDown(Buttons.LeftShoulder);
+            bool missileKey = keys.IsKeyDown(Settings.MissileKey) || pad.IsButtonDown(Buttons.X);
+            bool ecmKey = keys.IsKeyDown(Settings.EcmKey) || pad.IsButtonDown(Buttons.Y);
+            bool dockingKey = keys.IsKeyDown(Settings.DockingComputerKey) || pad.IsButtonDown(Buttons.Start);
+            bool cancelDockingKey = keys.IsKeyDown(Settings.CancelDockingKey) || pad.IsButtonDown(Buttons.Back);
+
             // T locks the missile onto whatever is in the crosshairs, as the original does
-            if (keys.IsKeyDown(Settings.TargetKey) && !_targetPressed)
+            if (targetKey && !_targetPressed)
             {
                 _targetPressed = true;
                 Session.Flight.MissileLock = FindTargetInCrosshairs();
             }
-            else if (!keys.IsKeyDown(Settings.TargetKey))
+            else if (!targetKey)
             {
                 _targetPressed = false;
             }
 
             // M fires a missile, E fires the E.C.M.
-            if (keys.IsKeyDown(Settings.MissileKey) && !_missilePressed)
+            if (missileKey && !_missilePressed)
             {
                 _missilePressed = true;
                 if (Session.Flight.FireMissile())
@@ -934,7 +955,7 @@ public sealed class FlightScene : IScene
                     Sounds?.Play(Core.Audio.SoundEffect.Missile);
                 }
             }
-            else if (!keys.IsKeyDown(Settings.MissileKey))
+            else if (!missileKey)
             {
                 _missilePressed = false;
             }
@@ -942,7 +963,7 @@ public sealed class FlightScene : IScene
             // C hands the ship to the docking computer, as the original's DOKEY does: it needs the
             // computer fitted and a station in range, and it refuses to fly us in to one we have
             // annoyed. Pressing it again takes the controls back.
-            UpdateDockingComputer(keys);
+            UpdateDockingComputer(dockingKey, cancelDockingKey);
 
             // H jumps to the nearest system we can reach, until the charts arrive. Holding CTRL
             // as well forces the jump to go wrong, as the original's own mis-jump key does.
@@ -979,19 +1000,19 @@ public sealed class FlightScene : IScene
                 _bombPressed = false;
             }
 
-            if (keys.IsKeyDown(Settings.EcmKey) && !_ecmPressed)
+            if (ecmKey && !_ecmPressed)
             {
                 _ecmPressed = true;
                 Session.Flight.FireEcm();
             }
-            else if (!keys.IsKeyDown(Settings.EcmKey))
+            else if (!ecmKey)
             {
                 _ecmPressed = false;
             }
 
             // The four space views, on the original's own keys: f0 to f3 on a BBC Micro, which are
             // F1 to F4 here because a PC keyboard has no f0
-            if (ViewKeyPressed(keys) is { } wanted)
+            if (ViewKeyPressed(keys, pad) is { } wanted)
             {
                 SetView(wanted);
             }
@@ -1352,7 +1373,8 @@ public sealed class FlightScene : IScene
                 Camera,
                 new System.Numerics.Vector3(bx, by, bz),
                 body.Type == ShipTypes.Sun,
-                body.Type == SystemArrival.PlanetTypeB ? 1f : 0f);
+                body.Type == SystemArrival.PlanetTypeB ? 1f : 0f,
+                body.Orientation);
         }
 
         spriteBatch.End();

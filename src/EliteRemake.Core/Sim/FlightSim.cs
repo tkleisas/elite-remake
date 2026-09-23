@@ -1177,6 +1177,13 @@ public sealed class FlightSim
     public bool HitABody { get; private set; }
 
     /// <summary>
+    /// Our altitude above the planet's surface, which the dashboard shows as the altitude bar: 255
+    /// is a long way above, 0 is the surface itself. Part 15 sets it every 32 iterations, "our
+    /// altitude in ALTIT".
+    /// </summary>
+    public int Altitude { get; private set; } = 255;
+
+    /// <summary>
     /// The altitude check the original runs every 32 iterations of its main loop: if we are close
     /// enough to a planet for the top byte of its position to be zero, the squares of the high bytes
     /// of the position say how far above its surface we are, and if they come to no more than the
@@ -1188,6 +1195,10 @@ public sealed class FlightSim
     /// its own death, by heat rather than by impact, in <see cref="UpdateSunHeatAndScooping"/>. Leaving
     /// the sun in this loop killed us at the impact radius instead, which is further out than the heat
     /// death, so the cabin temperature never had the chance to rise.
+    ///
+    /// The same check sets ALTIT for the dashboard: "LDA #&amp;FF / STY ALTIT" first, so a planet too
+    /// far to reach leaves the bar full, and otherwise MAS3's sum of squared high bytes, less the
+    /// planet's 36, through LL5's square root.
     /// </remarks>
     private void UpdateAltitudeChecks()
     {
@@ -1196,6 +1207,10 @@ public sealed class FlightSim
         {
             return;
         }
+
+        // "LDY #&FF / STY ALTIT": the bar starts at the maximum, and a planet too far away for the
+        // top-byte test leaves it there
+        Altitude = 255;
 
         foreach (Ship body in _bubble)
         {
@@ -1211,16 +1226,22 @@ public sealed class FlightSim
                 continue;
             }
 
-            // We are close, so the high bytes are the significant ones. The planet's radius in
-            // these units is 36, and the original subtracts 37 so that the surface itself counts.
+            // We are close, so the high bytes are the significant ones. The original's SBC #36 runs
+            // with the carry clear, which subtracts 37: "so the test in the next instruction will
+            // ensure we crash even if we are exactly one planet radius away" — and the same value
+            // goes through LL5's square root to become ALTIT
             int xHi = Math.Abs(x) >> 8 & 0xFF;
             int yHi = Math.Abs(y) >> 8 & 0xFF;
             int zHi = Math.Abs(z) >> 8 & 0xFF;
             // The original divides the sum of the squares by 256 so it fits in a byte, which is
             // what makes the planet's radius come out as 36 rather than 9216
-            int altitude = ((xHi * xHi) + (yHi * yHi) + (zHi * zHi)) / 256;
+            int squared = ((xHi * xHi) + (yHi * yHi) + (zHi * zHi)) / 256;
+            int above = squared - PlanetRadiusSquared - 1;
+            Altitude = Math.Clamp((int)MathF.Sqrt(Math.Max(0, above)), 0, 255);
 
-            if (altitude <= PlanetRadiusSquared + 1)
+            // "BCC MA28": the subtraction going negative is the crash — we are at or under the
+            // surface — and otherwise A is our altitude, squared, for the square root
+            if (above < 0)
             {
                 HitABody = true;
                 PlayerDied = true;
