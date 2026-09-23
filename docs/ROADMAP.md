@@ -3505,3 +3505,36 @@ assertions about the property instead of one about the implementation.
 compounds or oscillates. A few percent a turn in one direction empties a coordinate within a couple of
 hundred turns; oscillating around the true value stays bounded. That is one script, and given this
 round's lesson it should be measured rather than reasoned about.
+
+## The rounding does not compound — measured over five thousand turns
+
+The open question from last round was whether the rigid path's rounding accumulates or cancels. It was
+one script, and the answer is unambiguous:
+
+| turns | distance from the origin | error |
+| --- | --- | --- |
+| 0 | 1973.6 | +0.06% |
+| 1000 | 1970.0 | −0.12% |
+| 2000 | 1968.1 | −0.21% |
+| 3000 | 1973.4 | +0.06% |
+| 4000 | 1969.3 | −0.15% |
+| 5000 | 1969.0 | −0.17% |
+
+**The error oscillates between about 0.35% below and 0.06% above where it started, and returns.** It does
+not walk in one direction, so a long session stays sane: five thousand turns is over an hour of
+continuous rolling at the fastest rate the ship has, and the worst excursion is a third of a percent.
+
+That is what bounded rounding on a rotation looks like — each step truncates toward zero, and the
+truncations are as likely to be in one direction as the other, so they cancel rather than accumulate.
+**The concern was reasonable and is now answered by measurement**, which is the pattern this round was
+meant to follow.
+
+**And it is a test.** `TheRoundingDoesNotCompoundOverManyTurns` runs the five thousand turns and requires
+the distance to stay within one part in a hundred, which is a bound compounding would have broken long
+before — empty coordinates, not a third of a percent.
+
+**Where the rotation question now stands.** The rigid path is kept as a departure, its reason is in the
+code, its precision is bounded and measured, and the original's method is recorded as drifting without
+the two possible causes being separated. That last item is the only part still unresolved, and it is
+unresolved because separating them means modelling `MLTU2` exactly, which two attempts have failed to
+get right from the listing — so it waits for a reason to care, rather than for a free round.
