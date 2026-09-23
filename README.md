@@ -85,7 +85,7 @@ missions, die. What is left is the long tail, and it is listed rather than hidde
 | Docked screens: market, equipment, charts, data, status, save/load | complete |
 | Hyperspace, galactic hyperdrive, witchspace and Thargoids | complete |
 | Missions: offer rules, hints, briefings and debriefings **as text** | complete |
-| Missions: the briefing *screens* (incoming message, rotating ship, key waits) | text and the actions they ask for are done; the game layer does not stage them yet |
+| Missions: the briefing *screens* (incoming message, rotating ship, key waits) | complete — staged as the disc's BRIEF and BRP run them; the bay's backdrop picture is the one image not shipped |
 | Rendering: authentic dial geometry | not yet (the close-ship detail edges are) |
 | Death sequence, some rare-state behaviour | not yet |
 | Audio | flight effects and title music; the full sound table has not been audited |

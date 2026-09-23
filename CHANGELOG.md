@@ -107,6 +107,14 @@ comparing the port with the disc version's own routines, and each carries a test
 * The charts' O and F keys: O snaps the crosshairs onto the current system (the disc's ping), and F
   searches the galaxy for a system by name (the disc docked code's HME2), saying "UNKNOWN PLANET" to
   a low beep when there is no such system.
+* **The mission briefings are staged.** The disc's five screens are the port's: BRIEF for mission 1's
+  offer — which accepts the mission before it prints anything, as the disc's own bit-setting does —
+  with the INCOMING MESSAGE banner, the rotating Constrictor (64 iterations of undamped roll and
+  pitch, then BRL2's drift to the top of the screen), and token 10's text waiting at the points the
+  printer reports; BRIEF2's initial contact, BRIEF3's plans, and the two debriefs' thank-yous. Each
+  ends at the Status Mode screen, as BRP does. Finding it fixed a latent bug in the printer: the
+  event positions were recorded before the tidy, and the briefing's last event fell past the end of
+  the tidied text, which crashed the pagination.
 * CTRL-L loads the commander from any docked screen, which is the load half of the disc's docked
   file menu; CTRL-S already saves from all of them.
 * **The development harness.** `--dev-server <port>` runs a small HTTP server that drives the live
