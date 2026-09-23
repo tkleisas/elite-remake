@@ -33,7 +33,11 @@ jobs:
       tag: ${{ steps.version.outputs.tag }}
 
     steps:
+      # The ref matters for the hand-run path: a dispatch starts on the default branch, and the
+      # point of rebuilding a release is to rebuild *that tag*, not whatever master has become
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Read the tag and the version, and check they match
         id: version
@@ -67,7 +71,11 @@ jobs:
     needs: check
 
     steps:
+      # The ref matters for the hand-run path: a dispatch starts on the default branch, and the
+      # point of rebuilding a release is to rebuild *that tag*, not whatever master has become
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -90,7 +98,11 @@ jobs:
             os: windows-latest
 
     steps:
+      # The ref matters for the hand-run path: a dispatch starts on the default branch, and the
+      # point of rebuilding a release is to rebuild *that tag*, not whatever master has become
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -148,7 +160,11 @@ jobs:
     needs: [check, package]
 
     steps:
+      # The ref matters for the hand-run path: a dispatch starts on the default branch, and the
+      # point of rebuilding a release is to rebuild *that tag*, not whatever master has become
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
       - uses: actions/download-artifact@v4
         with:
