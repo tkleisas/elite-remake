@@ -2103,6 +2103,11 @@ public class MissionTests
         return Missions.ConstrictorTarget(seeds);
     }
 
+    /// <summary>The system where mission 2's plans are collected: (215, 84) in the third galaxy.</summary>
+    private static StarSystem PlansSystem() =>
+        Galaxy.GenerateGalaxy(Galaxy.GalaxySeeds(Missions.PlansGalaxy))
+            .First(s => s.X == Missions.PlansX && s.Y == Missions.PlansY);
+
     [Fact]
     public void TheStatusByteIsTheOriginals()
     {
@@ -2125,7 +2130,7 @@ public class MissionTests
         missions.AcceptMission2();
         Assert.Equal(6, missions.StatusByte); // bit 2: on our way to the plans
 
-        missions.PickUpPlans(ConstrictorSystem(), Missions.ConstrictorGalaxy);
+        missions.PickUpPlans(PlansSystem(), Missions.PlansGalaxy);
         Assert.Equal(10, missions.StatusByte); // bit 3: carrying the plans, bit 2 cleared
 
         // And the byte rebuilds the same state

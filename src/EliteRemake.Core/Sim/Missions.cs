@@ -260,11 +260,45 @@ public sealed class Missions
         return true;
     }
 
-    /// <summary>Where the plans are collected: the original uses the Constrictor's galaxy.</summary>
-    public static bool IsPlansSystem(StarSystem system, int galaxyNumber) =>
-        IsConstrictorSystem(system, galaxyNumber);
+    /// <summary>The galaxy mission 2's plans and delivery both belong to: the third.</summary>
+    public const int PlansGalaxy = 2;
 
-    /// <summary>Where the plans are delivered, back in the first galaxy.</summary>
+    /// <summary>Where the plans are collected: the original's <c>CMP #215</c> and <c>CMP #84</c>.</summary>
+    public const int PlansX = 215;
+    public const int PlansY = 84;
+
+    /// <summary>Where they are delivered: the original's <c>CMP #63</c> and <c>CMP #72</c>.</summary>
+    public const int DeliveryX = 63;
+    public const int DeliveryY = 72;
+
+    /// <summary>
+    /// True at the system where mission 2's plans are collected.
+    /// </summary>
+    /// <remarks>
+    /// DOENTRY checks the galaxy and then the coordinates:
+    ///
+    /// <code>
+    /// LDA GCNT / CMP #2 / BNE EN4      \ the third galaxy, and nowhere else
+    /// LDA QQ0 / CMP #215 / BNE EN4     \ and the system at (215, 84)
+    /// LDA QQ1 / CMP #84 / BNE EN4
+    /// </code>
+    ///
+    /// That is Ceerdi, at index 83 of the third galaxy. This used to reuse the Constrictor's system,
+    /// which is Orarra in the *second* galaxy — so the plans could never be collected at all, because
+    /// the two conditions can never hold in the same place.
+    /// </remarks>
+    public static bool IsPlansSystem(StarSystem system, int galaxyNumber) =>
+        galaxyNumber == PlansGalaxy && system.X == PlansX && system.Y == PlansY;
+
+    /// <summary>
+    /// True at the system where the plans are delivered.
+    /// </summary>
+    /// <remarks>
+    /// DEBRIEF2's own test, with the coordinates the disc also demands: (63, 72) in the third galaxy.
+    /// That is Birera, at index 36 — the system the mission text names ("the plans we need to take to
+    /// Birera", and the Thargoid intercept token that names it too). This used to be Lave, which is
+    /// in the first galaxy, so the delivery could never be made either.
+    /// </remarks>
     public static bool IsDeliverySystem(StarSystem system, int galaxyNumber) =>
-        galaxyNumber == 0 && system.X == 20 && system.Y == 173; // Lave
+        galaxyNumber == PlansGalaxy && system.X == DeliveryX && system.Y == DeliveryY;
 }

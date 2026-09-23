@@ -1696,3 +1696,36 @@ documented table exactly — 8, 16, 32, 64, 128, 256, 512, 2560, 6400.
 **The tally is ten.** Two tests asserted the old behaviour and now assert the original's, and one of
 them — `TheStatusByteIsTheOriginals` — was already checking the `%10` state that the code could not
 actually reach.
+
+## Mission 2 could never be completed, at either end
+
+Reading the mission 2 chain against `DOENTRY` found both of its systems wrong, in a way that made the
+mission impossible rather than merely inaccurate.
+
+**The plans are not where the Constrictor was.** `DOENTRY` checks the galaxy and then the
+coordinates:
+
+```
+LDA GCNT / CMP #2 / BNE EN4      \ the third galaxy, and nowhere else
+LDA QQ0 / CMP #215 / BNE EN4     \ and the system at (215, 84)
+LDA QQ1 / CMP #84 / BNE EN4
+```
+
+That is **Ceerdi, index 83 of the third galaxy**. The code reused the Constrictor's system instead,
+which is **Orarra, index 193 of the second galaxy** — a different galaxy and a different system, so
+the pickup condition could never hold anywhere at all.
+
+**The delivery is not Lave.** `DEBRIEF2`'s own test wants **(63, 72) in the third galaxy**, which is
+**Birera, index 36** — the system the mission text names, in the brief ("the plans we need to take to
+Birera") and in the Thargoid intercept token that names it too. The code delivered to Lave, in the
+first galaxy, so the delivery could never be made either.
+
+Between them the whole of mission 2 was unreachable: the plans could not be collected and, had they
+been, could not have been handed over. The chain now runs correctly — status byte `6` on the way,
+`10` carrying the plans, `2` once delivered — and the Thargoid intercept chance rises to 56/256 while
+carrying them.
+
+**The tally is eleven.** And this one is worth naming for what it was: not a subtle divergence but a
+feature that could not be used. The tests covered `PickUpPlans` and `DeliverPlans` as functions — they
+took a system and returned a bool, and did so correctly — but every test passed them the *Constrictor's*
+system with the Constrictor's galaxy, so the predicate was never asked about the place it was for.
