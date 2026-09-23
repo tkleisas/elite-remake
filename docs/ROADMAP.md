@@ -2104,3 +2104,36 @@ Six faults from one systematic read, after three rounds in which the same faults
 from symptoms. The lesson is not subtle but it is worth writing down: **when a project has a
 conditionally-compiled source, the set of branches for your build is a thing you can enumerate, and
 enumerating it beats waiting for each one to bite.**
+
+## The docking cone is wider on the disc, and ours was the other version's
+
+The comment sweep found a threshold that is version-specific, and we had the wrong version:
+
+```
+IF ...every other version...
+ CMP #89               \ not in the 22.0 degree safe cone of approach
+ELIF _DISC_VERSION OR _ELITE_A_VERSION
+ CMP #86               \ not in the 26.3 degree safe cone of approach
+ENDIF
+```
+
+The disc's safe cone of approach is **26.3 degrees**; every other version's is 22.0. Ours was 0.9272,
+which is the cosine of 22.0 — the *other* versions' value, encoded as a hand-written constant with a
+comment confidently naming the wrong angle. It is now `86.0 / 128.0`, which is what the disc's own
+constant gives and which reproduces the 26.3 the source's comment states.
+
+**And the level check was wrong in the same way.** The original tests `|roofv_x_hi| >= 80` against
+orientation vectors whose unit is 128, so the threshold is `80/128`; ours was 0.8028, whose comment
+said "36.6 degrees" and which is nowhere near either the raw constant or the angle. It is now
+`80.0/128.0`. Both constants had been written as cosines of angles rather than as the source's own
+ratios, and both had drifted.
+
+**The lesson is about how the constants were derived.** A cosine of an angle looks like a faithful
+port and reads like one, but it is one step removed from what the original tests, and that step is
+where the error came in — twice, in the same file, in adjacent constants. The original's own unit
+(128 for a unit vector) is the thing to encode, because it can be checked against the source
+character for character.
+
+**The tally is eighteen**, and both faults were found by reading the source's *comments* rather than
+its instructions — which is the third distinct source of faults this session, after the code itself
+and the guards around it.

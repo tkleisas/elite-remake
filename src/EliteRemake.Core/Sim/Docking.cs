@@ -46,11 +46,23 @@ public static class Docking
     /// <summary>The cosine of 26 degrees: the station's slot must face us this squarely.</summary>
     public const double SlotFacingCosine = 0.8988;
 
-    /// <summary>The cosine of 22 degrees: the safe cone of approach to the slot.</summary>
-    public const double ApproachCosine = 0.9272;
+    /// <summary>
+    /// The safe cone of approach to the slot.
+    /// </summary>
+    /// <remarks>
+    /// The original tests the z-axis of the normalized vector to the station against a constant, and
+    /// the constant is version-specific: <c>CMP #89</c> for a 22.0 degree cone in every other version
+    /// and <c>CMP #86</c> for a 26.3 degree cone on this one. The disc's cone is therefore the wider
+    /// of the two, and ours was the narrower — 0.9272, which is the 89. The source's own comment
+    /// gives the two angles, and 86/128 is what reproduces the disc's.
+    /// </remarks>
+    public const double ApproachCosine = 86.0 / 128.0;
 
-    /// <summary>The cosine of 36.6 degrees: how level the slot must be.</summary>
-    public const double LevelCosine = 0.8028;
+    /// <summary>
+    /// How level the slot must be: the original tests <c>|roofv_x_hi| >= 80</c>, so the threshold is
+    /// 80 in the same 8-bit unit the orientation vectors use, which is 128 for a unit vector.
+    /// </summary>
+    public const double LevelCosine = 80.0 / 128.0;
 
     /// <summary>
     /// Works out whether we are docking or crashing. The station's orientation is what defines the
