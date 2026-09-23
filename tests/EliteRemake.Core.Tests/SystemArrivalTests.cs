@@ -39,17 +39,60 @@ public class SystemArrivalTests
         return count;
     }
 
+    /// <summary>
+    /// Arriving in a system leaves the planet and the sun in the sky and **no station**: the
+    /// original spawns the station from the flight loop when we reach the planet's orbit, which is
+    /// what makes crossing a system to find one part of the game rather than a formality.
+    /// </summary>
     [Fact]
-    public void Arriving_PutsTheSunThePlanetAndTheStationInTheSky()
+    public void Arriving_PutsTheSunAndThePlanetInTheSkyAndNoStation()
     {
         FlightSim sim = CreateSim();
         StarSystem[] systems = TwoSystems();
 
-        SystemArrival.ArriveInSystem(sim, systems[0], 3000, 64);
+        SystemArrival.ArriveInSystem(sim, systems[0]);
 
         Assert.Equal(1, CountOf(sim, ShipTypes.Sun));
         Assert.Equal(1, CountOf(sim, SystemArrival.PlanetTypeA));
-        Assert.Equal(1, CountOf(sim, ShipTypes.Coriolis));
+        Assert.Equal(0, CountOf(sim, ShipTypes.Coriolis));
+    }
+
+    /// <summary>A station distance is the development shortcut, and puts one where it is asked for.</summary>
+    [Fact]
+    public void AStationDistancePlacesOneWhereItWasAskedFor()
+    {
+        FlightSim sim = CreateSim();
+        StarSystem[] systems = TwoSystems();
+
+        SystemArrival.ArriveInSystem(sim, systems[0], 3000, SystemArrival.StationRollCounter);
+
+        Ship station = Assert.Single(sim.Bubble, s => s.Type == ShipTypes.Coriolis);
+        Assert.Equal(3000, station.GetPosition().Z);
+    }
+
+    /// <summary>
+    /// The station is spawned one planetary radius above the surface, along the planet's own nose
+    /// vector: the planet's centre plus twice the 96-scaled nose vector, doubled into a 16-bit value.
+    /// The planet's nose points back at us, so the station is 49152 units nearer to us than the
+    /// planet is — two nose vectors, which is 2 * 96 * 256 units.
+    /// </summary>
+    [Fact]
+    public void TheSpawnPointIsOneRadiusAboveTheSurfaceAlongThePlanetsNose()
+    {
+        StarSystem[] systems = TwoSystems();
+        Ship planet = SystemArrival.CreatePlanet(systems[0]);
+        planet.SetPosition(1000, -2000, 60000);
+
+        ((int x, int y, int z), bool inRange) = SystemArrival.StationSpawnPoint(planet);
+
+        Assert.Equal((1000, -2000, 60000 - (2 * 96 * 256)), (x, y, z));
+        Assert.True(inRange, "a planet 60000 ahead puts the station's orbit within reach");
+
+        // And a planet far enough ahead puts the spawn point out of reach: at twice the orbit's
+        // distance the station would be exactly 192 * 256 units away in z, which is the limit
+        planet.SetPosition(0, 0, 4 * 96 * 256);
+        (_, bool tooFar) = SystemArrival.StationSpawnPoint(planet);
+        Assert.False(tooFar);
     }
 
     [Fact]
@@ -106,17 +149,7 @@ public class SystemArrivalTests
         Assert.Equal(1, CountOf(sim, ShipTypes.Coriolis));
     }
 
-    [Fact]
-    public void Arriving_PlacesTheStationWhereItWasAsked()
-    {
-        FlightSim sim = CreateSim();
-        StarSystem[] systems = TwoSystems();
 
-        SystemArrival.ArriveInSystem(sim, systems[0], 9000, 64);
-
-        Ship station = Assert.Single(sim.Bubble, s => s.Type == ShipTypes.Coriolis);
-        Assert.Equal(9000, station.GetPosition().Z);
-    }
     /// <summary>
     /// The planet sits ahead of us and up to the right at 3 to 7 steps of 65536, as SOLAR places it:
     /// the distance comes from bits 0-1 of s0_hi plus 3 plus the carry, and the same value halved

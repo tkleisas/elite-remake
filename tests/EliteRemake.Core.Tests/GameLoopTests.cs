@@ -100,6 +100,37 @@ public class GameLoopTests
         Assert.Equal(2, session.Launches);
     }
 
+    /// <summary>
+    /// Launching builds the sky TT110 builds: the planet dead ahead at one step of 65536, the station
+    /// 256 units behind us so that we come out of its slot, no sun — the station took its slot — and
+    /// a launch speed of 12.
+    /// </summary>
+    /// <remarks>
+    /// This is a reset rather than a continuation: the original calls RES2 to throw the flight
+    /// variables and workspaces away, so a launch is a fresh sky rather than the one we docked out
+    /// of. The remake used to keep whatever was about, which meant the planet could be anywhere.
+    /// </remarks>
+    [Fact]
+    public void LaunchingBuildsTheSkyTheOriginalBuilds()
+    {
+        GameSession session = NewSession();
+        session.Flight.Commander = session.Commander;
+
+        session.Dock();
+        session.Launch();
+
+        Assert.Equal(GameSession.LaunchSpeed, session.Flight.Speed);
+
+        Ship planet = Assert.Single(session.Flight.Bubble, s => s.Type == SystemArrival.PlanetTypeA);
+        Assert.Equal((0, 0, GameSession.PlanetAheadOnLaunch), planet.GetPosition());
+
+        Ship station = Assert.Single(session.Flight.Bubble, s => s.Type == Combat.SpaceStationType);
+        Assert.Equal((0, 0, -GameSession.StationBehindOnLaunch), station.GetPosition());
+        Assert.False(station.IsHostile, "the station we launch from is not angry with us");
+
+        Assert.DoesNotContain(session.Flight.Bubble, s => s.Type == ShipTypes.Sun);
+    }
+
     /// <summary>Runs a hyperspace countdown to its end, returning whether the jump completed.</summary>
     private static bool CompleteJump(GameSession session)
     {
@@ -492,12 +523,16 @@ public class GameLoopTests
         Assert.Equal(Missions.ConstrictorGalaxy, sim.GalaxyNumber);
         Assert.Same(session.Missions, sim.Missions);
 
-        // The Constrictor appears, and only because we are in the right place
+        // The Constrictor appears, and only because we are in the right place. Flying clear of the
+        // station comes first: nothing spawns while one is in the bubble, because the original
+        // funnels every spawn path through MTT1 and that leaves the main loop while SSPR is set.
+        // The test used to wait at a standstill for four thousand iterations and pass on a race —
+        // the station it launched from happened to drift out of range just inside the limit.
         session.Launch();
         Ship? constrictor = null;
-        for (int i = 0; i < 4_000 && constrictor is null; i++)
+        for (int i = 0; i < 20_000 && constrictor is null; i++)
         {
-            sim.Step();
+            sim.Step(new FlightInput(SpeedUp: true));
             constrictor = sim.Bubble.FirstOrDefault(s => s.Type == Missions.ConstrictorType);
         }
 

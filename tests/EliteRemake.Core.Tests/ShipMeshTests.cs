@@ -179,7 +179,7 @@ public class ShipMeshTests
             $"the slot should face us, but the nose vector points {nose} while we are at {toUs}");
 
         // And the original's own docking test agrees once we are lined up in front of the slot
-        Ship close = SystemArrival.CreateStation(200, spinRoll: 64);
+        Ship close = SystemArrival.CreateStation(100, spinRoll: 64);
         (int cx, int cy, int cz) = close.GetPosition();
         Assert.Equal(
             DockingResult.Docking,

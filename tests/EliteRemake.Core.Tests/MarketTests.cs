@@ -2786,6 +2786,16 @@ public class DockingTests
             stationHostile: false);
 
         Assert.Equal(DockingResult.TooFar, result);
+
+        // And the check is per axis, as the original's is: off to one side by more than the range
+        // counts as too far even when the distance happens to be smaller than the diagonal allows
+        result = Docking.Check(
+            station,
+            (Docking.ContactRange, 0, -1),
+            new System.Numerics.Vector3(0, 0, -1),
+            stationHostile: false);
+
+        Assert.Equal(DockingResult.TooFar, result);
     }
 
     [Fact]
@@ -2822,10 +2832,11 @@ public class DockingTests
     {
         Ship station = Station();
 
-        // Beside the station rather than in front of the slot
+        // Beside the station rather than in front of the slot, and inside the 128 units the checks
+        // run within
         var result = Docking.Check(
             station,
-            (200, 0, 0),
+            (100, 0, 0),
             new System.Numerics.Vector3(-1, 0, 0),
             stationHostile: false);
 

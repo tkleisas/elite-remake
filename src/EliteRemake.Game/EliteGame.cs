@@ -281,6 +281,16 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
             HandleGameOverKeys();
         }
 
+        // The original's own docked keys work from every docked screen, so the three that our merged
+        // screens answer to are handled here rather than once in each of them: f1 buys cargo, f2
+        // sells cargo and f3 shows the equipment shop, which is where the original puts them. The
+        // rest — f4 and f5 for the charts, f6 for the data, f7 for the market prices, f8 for the
+        // status screen and f9 for the inventory — are each screen's own business.
+        if (_session.Mode == GameMode.Docked && _scene is not TitleScene)
+        {
+            HandleDockedFunctionKeys();
+        }
+
         var updateClock = System.Diagnostics.Stopwatch.StartNew();
         if (!_options.Paused && !(_session.GameOver && _session.Mode == GameMode.Flying))
         {
@@ -345,6 +355,34 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
     /// Waits for the player to say what happens after they die: the original's GAME OVER screen
     /// offers a new commander or the way out.
     /// </summary>
+    /// <summary>
+    /// The original's docked keys that every docked screen answers to: f1 and f2 for the market,
+    /// which the original splits into a buying screen and a selling one, and f3 for the equipment
+    /// shop.
+    /// </summary>
+    private void HandleDockedFunctionKeys()
+    {
+        KeyboardState keys = Microsoft.Xna.Framework.Input.Keyboard.GetState();
+
+        if (IsNewPress(keys, Keys.F1) || IsNewPress(keys, Keys.F2))
+        {
+            _session.Screen = DockedScreen.Market;
+        }
+
+        if (IsNewPress(keys, Keys.F3))
+        {
+            _session.Screen = DockedScreen.Equipment;
+        }
+
+        _dockedKeys = keys;
+    }
+
+    /// <summary>True the first frame a key goes down, so a held key does not repeat.</summary>
+    private bool IsNewPress(KeyboardState keys, Keys key) =>
+        keys.IsKeyDown(key) && !_dockedKeys.IsKeyDown(key);
+
+    private KeyboardState _dockedKeys;
+
     private void HandleGameOverKeys()
     {
         Microsoft.Xna.Framework.Input.KeyboardState keys = Microsoft.Xna.Framework.Input.Keyboard.GetState();

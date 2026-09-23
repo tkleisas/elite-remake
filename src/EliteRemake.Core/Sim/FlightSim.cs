@@ -162,6 +162,12 @@ public sealed class FlightSim
     /// <summary>Removes a ship from the local bubble.</summary>
     public bool Remove(Ship ship) => _bubble.Remove(ship);
 
+    /// <summary>
+    /// Throws the whole bubble away, which is what the original's RES2 does to the flight variables
+    /// and workspaces when we launch or arrive somewhere new.
+    /// </summary>
+    public void ClearBubble() => _bubble.Clear();
+
     /// <summary>Removes every ship whose status has marked it for removal.</summary>
     /// <summary>
     /// Removes the ships that have been destroyed, releasing the missile lock if it was on one.
@@ -484,6 +490,10 @@ public sealed class FlightSim
 
             Mveit(ship, slot);
         }
+
+        // The station appears when we reach the planet, which is part 14 of the original's flight
+        // loop running once every thirty-two iterations
+        UpdateStationSpawn();
 
         // Recharge the energy banks and, above half full, the shields, as the original does at
         // the end of its flight loop
@@ -1178,6 +1188,93 @@ public sealed class FlightSim
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Spawns the space station when we reach the planet, which is the original's own way of
+    /// putting one in the sky: part 14 of the flight loop runs every thirty-two iterations, and if
+    /// there is no station in the bubble — SSPR is clear — and we are close enough to the point one
+    /// planetary radius above the planet's surface along its nose vector, it puts a station there.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is why arriving in a system leaves you with a planet and no station: the station is in
+    /// orbit, and it appears when you get there. The remake used to put one three thousand units
+    /// ahead of us the moment we arrived, which made every system a two-minute errand and meant the
+    /// planet, whose orbit the station turns with, never had anything to do with docking.
+    /// </para>
+    /// <para>
+    /// The sun goes when the station arrives, because in the original they share a ship slot: NWSPS
+    /// clears the second slot of the FRIN table — the sun's — so that the new station is created
+    /// into it, and the sun's own comment says the slot is "reserved for the sun (or space station)".
+    /// That is also why the cabin temperature check is skipped while a station is about, which this
+    /// simulation already did.
+    /// </para>
+    /// </remarks>
+    private void UpdateStationSpawn()
+    {
+        if ((MainLoopCounter & 31) != 0 || StationIsPresent)
+        {
+            return;
+        }
+
+        foreach (Ship body in _bubble)
+        {
+            if (!IsPlanet(body.Type))
+            {
+                continue;
+            }
+
+            // The planet itself has to be within 65536 units in every axis before its orbit is in
+            // reach: "JSR MAS2 ... if it's non-zero, jump to MA23S ... too far from the planet to
+            // bump into a space station"
+            (int px, int py, int pz) = body.GetPosition();
+            if (TopByteCap(px, py, pz) != 0)
+            {
+                return;
+            }
+
+            ((int x, int y, int z), bool inRange) = SystemArrival.StationSpawnPoint(body);
+            if (!inRange)
+            {
+                return;
+            }
+
+            var station = SystemArrival.CreateStation(0, SystemArrival.StationRollCounter);
+            station.SetPosition(x, y, z);
+            Spawn(station);
+
+            // "The sun and the space station can't both be about": the station takes the sun's slot
+            RemoveTheSun();
+            return;
+        }
+    }
+
+    /// <summary>Takes the sun out of the bubble, as NWSPS clearing the FRIN table's second slot does.</summary>
+    private void RemoveTheSun()
+    {
+        foreach (Ship ship in _bubble.ToArray())
+        {
+            if (ship.Type == ShipTypes.Sun)
+            {
+                Remove(ship);
+            }
+        }
+    }
+
+    /// <summary>The station the original spawns, for callers that need to place one themselves.</summary>
+    public Ship? SpawnStationAt(int x, int y, int z)
+    {
+        var station = SystemArrival.CreateStation(0, SystemArrival.StationRollCounter);
+        station.SetPosition(x, y, z);
+
+        if (!Spawn(station))
+        {
+            return null;
+        }
+
+        RemoveTheSun();
+        return station;
     }
 
     /// <summary>True while a space station is in the local bubble, which is the original's SSPR.</summary>

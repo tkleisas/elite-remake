@@ -4571,3 +4571,90 @@ parked at the slot with the rings up and the ship alive.
 **Verified from the command line**: `--launch` starts by taking the station's own route out — dock,
 then launch — so the sixteen-ring tunnel and its sound can be seen, and the autopilot's docking run
 was caught at the frame the eight-ring tunnel comes up. 392 tests pass.
+
+## The station only exists when you reach the planet
+
+**The remake put a station three thousand units ahead of us the moment we arrived**, in every system,
+for ever. The original has none: SOLAR sets up the planet and the sun when you jump in, and the
+station is spawned by **part 14 of the flight loop**, which runs every thirty-two iterations and does
+this:
+
+* if a station is already in the bubble — `SSPR` — do nothing;
+* if the planet's top byte is non-zero in any axis, we are too far away to reach its orbit: do nothing;
+* otherwise work out the point **one planetary radius above the planet's surface along the planet's
+  nose vector** — `MAS1`'s `(x) += (nosev_x) * 2` per axis, a 16-bit add of twice the 96-scaled vector
+  — and if that point is within 192 * 256 units of us on every axis, put the station there.
+
+**Two details decide whether it ever happens.** The first is that the station's orbit turns with the
+**planet**: the nose vector it is measured along is the planet's own, and the planet spins (SOLAR gives
+it roll and pitch counters of 127 so its rotation never damps), so the station's orbit swings round
+the planet as we approach — verified from the command line, where the spawned station ended up 50136
+units from the planet's centre in a direction the planet had turned to.
+
+The second is that **the planet's nose points back at us**. That is ZINF's identity: "sidev = (1, 0,
+0), roofv = (0, 1, 0), nosev = (0, 0, -1). The negative nosev makes the ship point towards us, as the
+z-axis points into the screen." The port had it pointing away, which puts the station's orbit on the
+**far** side of the planet — where the check that decides whether we are close enough can never pass,
+so a station could never appear at all. One sign, and the whole mechanic is dead.
+
+**The sun goes when the station arrives.** NWSPS clears the second slot of the FRIN table so that the
+new station is created into it, and the sun's own workspace comment says the slot is "reserved for the
+sun (or space station)". That is why the cabin temperature check is skipped while a station is about —
+which this simulation already did — and why the sun is not there any more when you launch.
+
+**Nothing spawns while the station is in the bubble.** Every spawn path in the original funnels
+through MTT1, which leaves the main loop while SSPR is set. The mission-1 test had been passing on a
+race because of it: it launched, waited at a standstill for four thousand iterations, and the station
+it launched from drifted out of range just inside the limit, letting the Constrictor appear. It now
+flies clear of the station first, which is what a commander does.
+
+**`--station-distance` is what is left of the shortcut**: zero by default, which is the original's
+rule, and a distance when a test flight wants a station to fly at without crossing a system to reach
+one. The flight loop's own version is what the game uses.
+
+## Launching builds the sky TT110 builds
+
+**A launch is a reset, not a continuation.** TT110 calls RES2 to throw the flight variables and
+workspaces away and then builds what it wants us to see:
+
+* the **planet dead ahead at one step of 65536** — "INC INWK+8 ... so the planet appears at a z_sign of
+  1 in front of us when we launch" — which is why the view through the slot is filled by the planet;
+* the **station 256 units behind us** — "LDA #128 / STA INWK+8" for the sign and "INC INWK+7" for the
+  high byte, "so it's only just behind us" — which is what puts us outside its slot;
+* **our launch speed set to 12** — "LDA #12 / STA DELTA" — so we are shot clear of the station;
+* and **no sun**, because the station took its slot.
+
+The port kept whatever sky it had when we docked, so the planet could be anywhere. Ours now builds the
+same sky, and one thing had to be fixed before it could: the docking checks used to run for a station
+within 256 units, which is **exactly** the distance TT110 parks it behind us, so our own check that the
+station is in front of us read the launch as a crash into the station we had just left and killed us at
+the first frame. The original's part 7 gate is tighter and per axis: the high byte of every axis must
+be zero, and bit 7 of the OR of the three low bytes must be clear, which is the same as saying the
+station must be within **128 units on every axis** — inside its slot, and not 256 units behind us.
+
+## The docking computer has two keys, not one
+
+**"P" cancels it and "C" only ever engages it.** The disc's branch is a straight `STA auto` with the
+key ANDed with the fitting, so pressing C twice asks twice; the remakes's C-key toggled, which left no
+key at all for the original's own way out — "LDA KY20 / BEQ MA78 / LDA #0 / STA auto" — of an
+autopilot flying us at a station we have annoyed. Both are now wired as the original has them, and
+"P" is a rebindable control in the settings screen.
+
+## A development autopilot, so the whole loop can be flown from the command line
+
+`--fly-to-planet` turns us towards the planet and holds the speed up, using the same roll and pitch
+controls a player has rather than setting the orientation, so the run from arriving in a system to
+seeing the station appear can be measured: 40000 iterations of it takes Lave's planet from 321060
+units to under a thousand and brings the station up in orbit, which is the first time this remake has
+been able to get from a hyperspace jump to a station by flying.
+
+## The station, the launch and the docking range in one line each
+
+Three more smaller things came out of the same sweep of the flight loop:
+
+* **The original's docked keys f1, f2 and f3** — buy cargo, sell cargo and the equipment shop — now
+  reach our market and shop screens from every docked screen. Our market is one screen where the
+  original has three, which is recorded as a departure; what was not recorded was that two of its
+  three keys did nothing at all.
+* **"P" cancels the docking computer and "C" only engages it**, which is in the section above.
+* **`--fly-to-planet`** exists so that all of this can be measured rather than argued about.

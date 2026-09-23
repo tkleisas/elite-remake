@@ -243,7 +243,19 @@ public static class SceneFactory
                 ApplyBlueprint(ship);
             }
         };
-        scene.ArriveInSystem(session.System, options.StationDistance);
+        // No station unless the command line asked for one: arriving in a system leaves the planet
+        // and the sun in the sky, and the station appears when we reach the planet's orbit.
+        //
+        // An empty bubble is what says we have not arrived anywhere yet. Starting by launching has
+        // already built the sky TT110 builds — the planet dead ahead and the station just behind us
+        // — and arriving over the top of it threw that away and left us looking at an arrival sky
+        // with no station in it.
+        if (session.Flight.Bubble.Count == 0)
+        {
+            scene.ArriveInSystem(session.System, options.StationDistance);
+        }
+
+        scene.FollowPlanet = options.FlyToPlanet;
 
         // --view: start looking through one of the other three windows
         scene.SetView(options.StartView switch

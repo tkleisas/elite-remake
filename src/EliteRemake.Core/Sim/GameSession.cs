@@ -721,7 +721,35 @@ public sealed class GameSession
         // We launch looking out of the front window, which is TT110: it reaches LOOK1 with X = 0
         // whether it is launching us or bringing us out of a hyperspace jump.
         Flight.View = SpaceView.Front;
+
+        // TT110 resets the flight variables with RES2 and then builds the sky it wants us to see:
+        // the planet dead ahead at one step of 65536 — "INC INWK+8 ... so the planet appears at a
+        // z_sign of 1 in front of us when we launch" — and the station just behind us, at 256 units,
+        // so that we come out of its slot. The sun does not come back: the station took its slot.
+        //
+        // Our launch speed is DELTA = 12, which is what shoots us clear of the station.
+        Flight.Speed = LaunchSpeed;
+        Flight.ClearBubble();
+        Flight.Spawn(SystemArrival.CreatePlanet(System, ArrivalStatusCarry).MovedTo(0, 0, PlanetAheadOnLaunch));
+        Flight.SpawnStationAt(0, 0, -StationBehindOnLaunch);
     }
+
+    /// <summary>
+    /// The speed TT110 gives us as we leave the station: "LDA #12 / STA DELTA".
+    /// </summary>
+    public const byte LaunchSpeed = 12;
+
+    /// <summary>
+    /// How far ahead of us TT110 puts the planet when we launch: "INC INWK+8 ... a z_sign of 1 in
+    /// front of us", which is one step of 65536 units.
+    /// </summary>
+    public const int PlanetAheadOnLaunch = 65536;
+
+    /// <summary>
+    /// How far behind us TT110 puts the station when we launch: "LDA #128 / STA INWK+8" for the sign
+    /// and "INC INWK+7" for the high byte, so it is 256 units behind us, "only just behind us".
+    /// </summary>
+    public const int StationBehindOnLaunch = 256;
 
     /// <summary>
     /// Buys an equipment item from the station's shop, applying its effect to the commander.

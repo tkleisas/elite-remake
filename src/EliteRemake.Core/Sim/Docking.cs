@@ -48,8 +48,22 @@ public enum DockingResult
 /// </remarks>
 public static class Docking
 {
-    /// <summary>How close we must be for docking or a collision to be considered.</summary>
-    public const int ContactRange = 256;
+    /// <summary>
+    /// How close the station must be, in units on any one axis, before docking or a collision is
+    /// considered at all.
+    /// </summary>
+    /// <remarks>
+    /// The original's part 7 skips any ship whose high byte is non-zero — "JSR MAS4 / BNE MA65", the
+    /// OR of x_hi, y_hi and z_hi — and then skips it a second time if bit 7 of the OR of the three
+    /// low bytes is set, which it is once any axis reaches 128. Both tests have to pass, so the
+    /// docking checks only ever run for a station inside 128 units on every axis, which is to say
+    /// inside its slot.
+    ///
+    /// This used to be a distance of 256, and that is exactly far enough out to include the station
+    /// the original parks 256 units behind us when we launch: our check that the station is in front
+    /// of us then read the launch itself as a crash into the station we had just left.
+    /// </remarks>
+    public const int ContactRange = 128;
 
     /// <summary>How close we must be to actually dock, which is inside the slot itself.</summary>
     public const int SlotRange = 120;
@@ -92,11 +106,15 @@ public static class Docking
         bool stationHostile)
     {
         (int sx, int sy, int sz) = stationPosition;
-        double distance = Math.Sqrt(((double)sx * sx) + ((double)sy * sy) + ((double)sz * sz));
-        if (distance > ContactRange)
+
+        // Per axis, as the original tests it, and not by distance: a station 100 units away on all
+        // three axes is 173 units away but is still close enough for the checks to run
+        if (Math.Abs(sx) >= ContactRange || Math.Abs(sy) >= ContactRange || Math.Abs(sz) >= ContactRange)
         {
             return DockingResult.TooFar;
         }
+
+        double distance = Math.Sqrt(((double)sx * sx) + ((double)sy * sy) + ((double)sz * sz));
 
         // 1. A hostile station will not let us in
         if (stationHostile)

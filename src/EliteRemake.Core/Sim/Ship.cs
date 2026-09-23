@@ -301,6 +301,13 @@ public sealed class Ship
     public (int X, int Y, int Z) GetPosition() =>
         (GetCoordinate(ShipDataBlock.X), GetCoordinate(ShipDataBlock.Y), GetCoordinate(ShipDataBlock.Z));
 
+    /// <summary>Moves the ship, for callers that want to place one in one expression.</summary>
+    public Ship MovedTo(int x, int y, int z)
+    {
+        SetPosition(x, y, z);
+        return this;
+    }
+
     /// <summary>Sets the ship's position.</summary>
     public void SetPosition(int x, int y, int z)
     {

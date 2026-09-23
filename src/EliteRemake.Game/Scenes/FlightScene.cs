@@ -59,6 +59,7 @@ public sealed class FlightScene : IScene
     private bool _unarmPressed;
     private bool _inSystemJumpPressed;
     private bool _escapePodPressed;
+    private bool _cancelDockingPressed;
 
     /// <summary>
     /// Runs the original's docking checks: fly through the station's slot and we dock, hit the
@@ -435,11 +436,85 @@ public sealed class FlightScene : IScene
 
         for (int i = 0; i < frames; i++)
         {
-            _sim.Step(input);
+            // --fly-to-planet steers during the warmup as well, which is what makes the whole
+            // arrival-to-station run reachable from the command line
+            _sim.Step(FollowPlanet ? SteerTowardsPlanet() ?? input : input);
         }
 
         LastInput = input;
         _starfield.Update(_sim.Speed * frames);
+    }
+
+    /// <summary>
+    /// True to fly towards the planet, which is a development autopilot: reaching the planet is what
+    /// makes the station appear, and crossing a system by hand takes minutes.
+    /// </summary>
+    /// <remarks>
+    /// It steers with the same controls a player has — roll and pitch held one way or the other —
+    /// rather than setting the orientation, so what it exercises is the real flight model. The
+    /// deadband is a few degrees, so it arrives with a slight weave, as a pilot would.
+    /// </remarks>
+    public bool FollowPlanet { get; set; }
+
+    /// <summary>A control input that turns us towards the planet, or null if there is no planet.</summary>
+    private FlightInput? SteerTowardsPlanet()
+    {
+        Ship? planet = null;
+        foreach (Ship ship in _sim.Bubble)
+        {
+            if (ship.Type is SystemArrival.PlanetTypeA or SystemArrival.PlanetTypeB)
+            {
+                planet = ship;
+                break;
+            }
+        }
+
+        if (planet is null)
+        {
+            return null;
+        }
+
+        (int x, int y, int z) = planet.GetPosition();
+        double distance = Math.Sqrt(((double)x * x) + ((double)y * y) + ((double)z * z));
+        if (distance < 1)
+        {
+            return new FlightInput(SlowDown: true);
+        }
+
+        // The direction to the planet in our own frame, since the universe is stored as if we were
+        // looking forward
+        var wanted = new System.Numerics.Vector3((float)(x / distance), (float)(y / distance), (float)(z / distance));
+        System.Numerics.Vector3 nose = Unit(ship: _sim.Player, Orientation.Nosev);
+        System.Numerics.Vector3 roof = Unit(ship: _sim.Player, Orientation.Roofv);
+        System.Numerics.Vector3 side = Unit(ship: _sim.Player, Orientation.Sidev);
+
+        const float deadband = 0.03f;
+        float aimSide = System.Numerics.Vector3.Dot(wanted, side);
+        float aimRoof = System.Numerics.Vector3.Dot(wanted, roof);
+        float aimNose = System.Numerics.Vector3.Dot(wanted, nose);
+
+        // Once we are pointing at it, slow down instead of charging through: the station appears on
+        // the near side of the planet, and flying past it at speed 40 leaves it behind
+        bool close = aimNose > 0.999f && distance < 200000;
+
+        return new FlightInput(
+            RollLeft: aimSide < -deadband,
+            RollRight: aimSide > deadband,
+            PullUp: aimRoof > deadband,
+            PitchDown: aimRoof < -deadband,
+            SpeedUp: !close,
+            SlowDown: close && _sim.Speed > 8);
+    }
+
+    /// <summary>Reads one of a ship's orientation vectors as a unit vector.</summary>
+    private static System.Numerics.Vector3 Unit(Ship ship, int vector)
+    {
+        var value = new System.Numerics.Vector3(
+            (float)ship.Orientation.GetUnity(vector, Orientation.X),
+            (float)ship.Orientation.GetUnity(vector, Orientation.Y),
+            (float)ship.Orientation.GetUnity(vector, Orientation.Z));
+
+        return value.LengthSquared() > 0 ? System.Numerics.Vector3.Normalize(value) : new System.Numerics.Vector3(0, 0, 1);
     }
 
     /// <summary>
@@ -534,27 +609,33 @@ public sealed class FlightScene : IScene
     /// <summary>Engages or disengages the docking computer when the key is tapped.</summary>
     private void UpdateDockingComputer(Microsoft.Xna.Framework.Input.KeyboardState keys)
     {
-        if (!keys.IsKeyDown(Settings.DockingComputerKey) || _dockingComputerPressed)
+        // "C" hands the ship over, and only ever hands it over: the disc version's branch is a
+        // straight STA auto with the key ANDed with the fitting, so pressing it twice asks twice.
+        // The remake used to toggle, which left no key for the original's own way out.
+        if (keys.IsKeyDown(Settings.DockingComputerKey) && !_dockingComputerPressed)
         {
-            if (!keys.IsKeyDown(Settings.DockingComputerKey))
+            _dockingComputerPressed = true;
+
+            if (DockingComputer.CanEngage(StationInBubble(), Session?.Commander.DockingComputer == true))
             {
-                _dockingComputerPressed = false;
+                DockingComputerEngaged = true;
             }
-
-            return;
+        }
+        else if (!keys.IsKeyDown(Settings.DockingComputerKey))
+        {
+            _dockingComputerPressed = false;
         }
 
-        _dockingComputerPressed = true;
-
-        if (DockingComputerEngaged)
+        // "P" is the original's cancel-docking-computer key — "LDA KY20 / BEQ MA78 / LDA #0 /
+        // STA auto" — and it is the only way to take the controls back.
+        if (keys.IsKeyDown(Settings.CancelDockingKey) && !_cancelDockingPressed)
         {
+            _cancelDockingPressed = true;
             DockingComputerEngaged = false;
-            return;
         }
-
-        if (DockingComputer.CanEngage(StationInBubble(), Session?.Commander.DockingComputer == true))
+        else if (!keys.IsKeyDown(Settings.CancelDockingKey))
         {
-            DockingComputerEngaged = true;
+            _cancelDockingPressed = false;
         }
     }
 
@@ -683,6 +764,11 @@ public sealed class FlightScene : IScene
             SlowDown = ReadInput().SlowDown || HeldInput.SlowDown,
             Fire = ReadInput().Fire || HeldInput.Fire,
         };
+
+        if (FollowPlanet && Session is not null && SteerTowardsPlanet() is { } steering)
+        {
+            HeldInput = steering;
+        }
 
         if (Session is not null)
         {

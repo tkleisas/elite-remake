@@ -59,6 +59,14 @@ public static class SystemArrival
         planet.SetCoordinate(ShipDataBlock.X, offset << 16);
         planet.SetCoordinate(ShipDataBlock.Y, offset << 16);
 
+        // The planet's nose points back at us, which is the identity orientation ZINF leaves behind:
+        // "sidev = (1, 0, 0), roofv = (0, 1, 0), nosev = (0, 0, -1). The negative nosev makes the
+        // ship point towards us, as the z-axis points into the screen." It is not decoration: the
+        // station is spawned two nose vectors out from the planet's centre, so a planet facing away
+        // from us would put the station's orbit on the far side, where the check that decides whether
+        // we are close enough for it to appear can never pass.
+        planet.Orientation.SetUnity(Orientation.Nosev, Orientation.Z, -1);
+
         // The original sets the pitch and roll counters to 127 so the planet turns slowly and
         // never damps to a stop
         planet.Data[ShipDataBlock.RollCounter] = 127;
@@ -107,9 +115,23 @@ public static class SystemArrival
     }
 
     /// <summary>
-    /// Arrives in a system: the old bubble is thrown away and the new system's sun, planet and
-    /// station take its place.
+    /// Arrives in a system: the old bubble is thrown away and the new system's sun and planet take
+    /// its place.
     /// </summary>
+    /// <param name="sim">The simulation to arrive in.</param>
+    /// <param name="system">The system we have arrived in.</param>
+    /// <param name="stationDistance">
+    /// A station to place this far ahead of us, or zero for the original's rule, which is that
+    /// arriving in a system puts **no station in the sky at all**: the station is spawned by the
+    /// flight loop when we reach the planet, which is what <see cref="FlightSim"/> does every thirty
+    /// two iterations. A non-zero distance is a development shortcut for flying at a station without
+    /// crossing a system to reach one; the command line's <c>--station-distance</c> is its only
+    /// caller.
+    /// </param>
+    /// <param name="stationSpinRoll">The roll counter for a placed station.</param>
+    /// <param name="statusCarry">
+    /// The carry from SOLAR's halving of our legal status, which the planet's distance picks up.
+    /// </param>
     /// <remarks>
     /// This exists as one method because the order is load-bearing and was got wrong twice by
     /// callers that cleared the bubble themselves. The planet and the sun live in the same bubble
@@ -121,8 +143,8 @@ public static class SystemArrival
     public static void ArriveInSystem(
         FlightSim sim,
         StarSystem system,
-        int stationDistance,
-        byte stationSpinRoll,
+        int stationDistance = 0,
+        byte stationSpinRoll = StationRollCounter,
         int statusCarry = 0)
     {
         foreach (Ship ship in sim.Bubble.ToArray())
@@ -135,8 +157,62 @@ public static class SystemArrival
         sim.InWitchspace = false;
 
         AddSystemBodies(sim, system, statusCarry);
-        sim.Spawn(CreateStation(stationDistance, stationSpinRoll));
+
+        if (stationDistance > 0)
+        {
+            sim.Spawn(CreateStation(stationDistance, stationSpinRoll));
+        }
     }
+
+    /// <summary>
+    /// The distance from the planet's surface at which the original spawns the station: the planet's
+    /// centre plus twice its nose vector, which is a point one planetary radius above the surface.
+    /// </summary>
+    /// <remarks>
+    /// The original's MAS1 forms a 16-bit value from the nose vector's high and low bytes and doubles
+    /// it, so the addition is 2 * 96 * 256 units along the vector the planet is facing — the vector
+    /// in the planet's own data block, which is why the station's orbit turns with the planet.
+    /// </remarks>
+    public const int StationOrbitMultiplier = 2;
+
+    /// <summary>
+    /// How close we must be to that point for the station to appear: the original's <c>FAROF2</c>
+    /// against 192, which is 192 * 256 units in each axis.
+    /// </summary>
+    public const int StationSpawnRange = 192 << 8;
+
+    /// <summary>
+    /// The station's position for the moment the original spawns it: the planet's centre plus
+    /// <see cref="StationOrbitMultiplier"/> times its nose vector.
+    /// </summary>
+    /// <returns>The position, and whether we are close enough for the station to appear.</returns>
+    public static ((int X, int Y, int Z) Position, bool InRange) StationSpawnPoint(Ship planet)
+    {
+        (int x, int y, int z) = planet.GetPosition();
+
+        // "MAS1: (x_sign x_hi x_lo) += (nosev_x_hi nosev_x_lo) * 2", one axis at a time
+        int sx = x + (StationOrbitMultiplier * planet.Orientation.GetValue(Orientation.Nosev, Orientation.X));
+        int sy = y + (StationOrbitMultiplier * planet.Orientation.GetValue(Orientation.Nosev, Orientation.Y));
+        int sz = z + (StationOrbitMultiplier * planet.Orientation.GetValue(Orientation.Nosev, Orientation.Z));
+
+        // Each axis is checked as it is worked out: "BNE MA23S ... we are too far from the planet in
+        // the x-direction to bump into a space station" is a test on the sign byte, so the point has
+        // to be within 65536 units in every axis...
+        if (TopByte(sx) != 0 || TopByte(sy) != 0 || TopByte(sz) != 0)
+        {
+            return ((sx, sy, sz), false);
+        }
+
+        // ...and then the three high bytes are compared against 192, which is 49152 units
+        bool inRange = Math.Abs(sx) < StationSpawnRange &&
+                       Math.Abs(sy) < StationSpawnRange &&
+                       Math.Abs(sz) < StationSpawnRange;
+
+        return ((sx, sy, sz), inRange);
+    }
+
+    /// <summary>The original's MAS2: the magnitude of a coordinate's top byte.</summary>
+    private static int TopByte(int value) => (Math.Abs(value) >> 16) & 0x7F;
 
     /// <summary>
     /// Creates the space station for a system, placed ahead of us as the original does.

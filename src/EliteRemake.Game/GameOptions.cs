@@ -41,8 +41,13 @@ public sealed class GameOptions
     /// <summary>Distance to place the ship from the camera in the viewer.</summary>
     public float? ViewerDistance { get; private set; }
 
-    /// <summary>How far ahead of us to place the space station in the flight scene.</summary>
-    public int StationDistance { get; private set; } = 3000;
+    /// <summary>
+    /// How far ahead of us to place a space station in the flight scene, or zero for the original's
+    /// rule, which is that arriving in a system leaves no station in the sky at all: the flight loop
+    /// spawns it when we reach the planet. A distance here is a development shortcut, so that a test
+    /// flight can start next to a station instead of crossing a system to find one.
+    /// </summary>
+    public int StationDistance { get; private set; }
 
     /// <summary>If set, the flight scene starts with an empty system.</summary>
     public bool EmptySystem { get; private set; }
@@ -82,6 +87,12 @@ public sealed class GameOptions
     /// without a keyboard to press the launch key with.
     /// </summary>
     public bool StartByLaunching { get; private set; }
+
+    /// <summary>
+    /// If set, fly towards the planet, so the run from arriving in a system to finding the station
+    /// can be made from the command line.
+    /// </summary>
+    public bool FlyToPlanet { get; private set; }
 
     /// <summary>
     /// True to open on the start screen. It is the default, and the options that ask for a
@@ -243,6 +254,10 @@ public sealed class GameOptions
                     options.StartView = (Next() ?? "front").ToLowerInvariant();
                     options.ShowTitle = false;
                     break;
+                case "--fly-to-planet":
+                    options.FlyToPlanet = true;
+                    options.ShowTitle = false;
+                    break;
                 case "--launch":
                     options.StartByLaunching = true;
                     options.ShowTitle = false;
@@ -309,7 +324,8 @@ public sealed class GameOptions
               --viewer-heading <deg>  hold the viewed ship at this heading
               --viewer-pitch <deg>    hold the viewed ship at this pitch
               --viewer-distance <d>   place the viewed ship this far away
-              --station-distance <d>  place the space station this far ahead (default 3000)
+              --station-distance <d>  place a station this far ahead (default: none, as the
+                                      original leaves the sky empty until you reach the planet)
               --empty                 start the flight scene with an empty system
               --sim-warmup <frames>   run the flight simulation this many frames before drawing
               --hold <controls>       hold controls during the warmup: left, right, up, down,
@@ -325,6 +341,7 @@ public sealed class GameOptions
               --in-system-jump <n>    make n in-system jumps as the flight scene starts
               --buy <item>[,<view>]   buy an equipment item, e.g. 13,rear, and report the result
               --launch                start by launching from the station, to see the tunnel
+              --fly-to-planet         turn towards the planet and fly there, a development autopilot
               --dock [screen]         start docked, at the market or the equipment shop
               --laser <type>          fit a pulse, beam, military or none laser to the front
               --fully-equipped        start with every piece of equipment

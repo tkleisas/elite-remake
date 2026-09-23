@@ -280,6 +280,48 @@ public class FlightSimTests
         Assert.Equal(FlightSim.MaxShipsInBubble, sim.Bubble.Count);
     }
     /// <summary>
+    /// The station appears when we reach the planet, and takes the sun's place: part 14 of the
+    /// original's flight loop runs every thirty-two iterations and spawns it one radius above the
+    /// planet's surface along the planet's nose vector.
+    /// </summary>
+    [Fact]
+    public void TheStationAppearsWhenWeReachThePlanetsOrbit()
+    {
+        var (sim, planet, sun) = CreateSystemSim();
+
+        // Close enough for the spawn point to be within 192 * 256 units of us in every axis. The
+        // planet's nose points at us, so the station's orbit is 49152 units nearer than the planet:
+        // a planet 60000 ahead puts the spawn point 10848 ahead of us
+        planet.SetPosition(0, 0, 60000);
+
+        // The spawn runs on the thirty-second iteration of the original's main loop
+        for (int i = 0; i < 32; i++)
+        {
+            sim.Step();
+        }
+
+        Ship station = Assert.Single(sim.Bubble, s => s.Type == Combat.SpaceStationType);
+        Assert.Equal((0, 0, 60000 - (2 * 96 * 256)), station.GetPosition());
+        Assert.DoesNotContain(sim.Bubble, s => s.Type == ShipTypes.Sun);
+        Assert.DoesNotContain(sun, sim.Bubble);
+    }
+
+    /// <summary>No station while the planet is out of reach, however long we fly.</summary>
+    [Fact]
+    public void TheStationStaysAwayWhileThePlanetIsFar()
+    {
+        var (sim, planet, _) = CreateSystemSim();
+        planet.SetPosition(2 << 16, 2 << 16, 5 << 16);
+
+        for (int i = 0; i < 500; i++)
+        {
+            sim.Step();
+        }
+
+        Assert.DoesNotContain(sim.Bubble, s => s.Type == Combat.SpaceStationType);
+    }
+
+    /// <summary>
     /// The in-system jump, WARP: the planet and the sun move one step of 65536 away along our own z
     /// axis, and nothing else in the sky moves at all.
     /// </summary>

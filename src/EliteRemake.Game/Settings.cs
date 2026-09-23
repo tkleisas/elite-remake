@@ -41,6 +41,17 @@ public sealed class Settings
     [JsonPropertyName("dockingComputer")]
     public string DockingComputer { get; set; } = nameof(Keys.C);
 
+    /// <summary>
+    /// Cancel the docking computer, on the original's "P".
+    /// </summary>
+    /// <remarks>
+    /// The disc version has two docking keys, not one: "C" hands the ship over and "P" takes it
+    /// back. The remake had only the toggle, so the original's own way out of an autopilot that is
+    /// flying us at a station we have annoyed did not exist.
+    /// </remarks>
+    [JsonPropertyName("cancelDocking")]
+    public string CancelDocking { get; set; } = nameof(Keys.P);
+
     /// <summary>The in-system jump, on the original's "J".</summary>
     [JsonPropertyName("inSystemJump")]
     public string InSystemJump { get; set; } = nameof(Keys.J);
@@ -139,6 +150,7 @@ public sealed class Settings
         ("VIEW RIGHT", () => ViewRight, v => ViewRight = v),
         ("HYPERSPACE", () => Hyperspace, v => Hyperspace = v),
         ("DOCKING COMPUTER", () => DockingComputer, v => DockingComputer = v),
+        ("CANCEL DOCKING", () => CancelDocking, v => CancelDocking = v),
         ("ROLL LEFT", () => RollLeft, v => RollLeft = v),
         ("ROLL RIGHT", () => RollRight, v => RollRight = v),
         ("PULL UP", () => PullUp, v => PullUp = v),
@@ -191,6 +203,7 @@ public sealed class Settings
     public Keys ViewLeftKey => Key(ViewLeft, Keys.F3);
     public Keys ViewRightKey => Key(ViewRight, Keys.F4);
     public Keys DockingComputerKey => Key(DockingComputer, Keys.C);
+    public Keys CancelDockingKey => Key(CancelDocking, Keys.P);
     public Keys InSystemJumpKey => Key(InSystemJump, Keys.J);
     public Keys UnarmMissileKey => Key(UnarmMissile, Keys.U);
     public Keys EscapePodKey => Key(EscapePod, Keys.Escape);
