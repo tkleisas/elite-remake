@@ -4307,3 +4307,32 @@ iterations; five tonnes of slaves brings 43 packs and a full hold of twenty tonn
 fly Vipers, out of the same hordes routine, with a type range of zero.
 
 **Three tests hold it**: clean is left alone, contraband brings them, and a record alone does not.
+
+## The sky did not turn with the ship
+
+**The stardust only moved towards us.** Our starfield drifted in z and nothing else, so rolling swung the
+ships, the station and the planet round the view while the dust hung exactly where it was. That removes
+the one cue the eye uses to tell that the ship is turning: in the original the dust streams round you as
+you roll, and the sensation of turning comes mostly from the dust rather than from the models.
+
+**The original applies our pitch and roll to every particle**, and its header says why: *"applies our
+current pitch and roll to each particle of dust, so the stardust moves correctly when we steer our ship"*
+— `y = y + alpha * x / 256`, `x = x - alpha * y / 256`, and the same in beta for the pitch.
+
+Ours now puts the dust through **the same arithmetic the simulation applies to a ship's location**, in
+the same order, using the simulation's own signed angles — so the dust and the ships turn together rather
+than by two approximately-equal rules. Verified by measuring one particle: at full roll deflection a
+particle at (100, 0, 1000) moves to (99, −12, 1000) in an iteration, a turn of about seven degrees, which
+is the 31/256 of a radian the roll angle asks for.
+
+**The density is a separate question and is recorded as a departure.** The original shows **eighteen**
+particles in normal space and **three** in witchspace; ours shows many more. That is presentation — a
+widescreen view with eighteen dots looks empty — and it is now in `DIVERGENCES.md` beside the solid
+shading and the dotted scanner. What was *not* presentation was the rotation, and the starfield's own
+comment used to claim it reproduced the original while doing neither thing.
+
+**This is the fourth fault found by asking what the loop does rather than what the code says.** Mapping
+the original's main game loop and its sixteen-part flight loop onto the port is what turned up the police
+that never came, the traders and the station traffic that were never launched, and now the dust that
+never moved. The flight loop's parts are all accounted for after this: laser pulsing, E.C.M. drain,
+docking, collisions, the altitude checks, scooping and the stardust were the whole list.

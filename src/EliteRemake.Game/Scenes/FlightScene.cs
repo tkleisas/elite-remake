@@ -490,6 +490,13 @@ public sealed class FlightScene : IScene
         }
     }
 
+    /// <summary>
+    /// An angle and its sign byte as one signed value, which is how the original keeps ALPHA and
+    /// BETA: the magnitude with bit 7 holding the sign.
+    /// </summary>
+    private static int Signed(byte angle, byte sign) =>
+        (sign & 0x80) != 0 ? (sbyte)(angle | 0x80) : angle;
+
     /// <summary>The space station in the local bubble, or null when there is none.</summary>
     private Ship? StationInBubble()
     {
@@ -748,7 +755,8 @@ public sealed class FlightScene : IScene
             steps++;
         }
 
-        _starfield.Update(_sim.Speed * steps);
+        // The dust is turned by the same angles the ships are, so the sky swings when we steer
+        _starfield.Update(_sim.Speed * steps, Signed(_sim.RollAngle, _sim.RollSign), Signed(_sim.PitchAngleValue, _sim.PitchSign));
 
         // Spawn whatever the last destroyed ship left behind
         if (_sim.DropsThisFrame.Count > 0 && Session is not null)

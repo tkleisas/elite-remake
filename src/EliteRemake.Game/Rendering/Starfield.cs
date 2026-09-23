@@ -4,13 +4,27 @@ using Microsoft.Xna.Framework.Graphics;
 namespace EliteRemake.Game.Rendering;
 
 /// <summary>
-/// The starfield of the space view: a fixed set of stars in the local bubble that drift past us as
-/// we fly, reproducing the original's twinkling backdrop.
+/// The stardust of the space view: a pool of particles around us that streams past as we fly and
+/// swings round as we turn.
 /// </summary>
 /// <remarks>
-/// The original keeps a pool of stars in the K% workspace and moves them towards us every frame,
-/// respawning any that pass behind us. The remake does the same, in floating point, because the
-/// starfield has no effect on the simulation.
+/// <para>
+/// The original keeps a pool of dust particles in the K% workspace, moves them towards us every
+/// iteration and applies our current pitch and roll to each one — "so the stardust moves correctly
+/// when we steer our ship" — recycling any that rushes past into a new particle ahead. This is the
+/// same idea in floating point, because the dust has no effect on the simulation.
+/// </para>
+/// <para>
+/// <b>The rotation is not decoration.</b> It was missing: the dust only moved in z, so rolling the
+/// ship swung the ships and the planets round the view while the dust hung still, which is the one
+/// thing the eye uses to tell that it is turning. The angles are the simulation's own, put through
+/// the same arithmetic it applies to a ship's location, so the dust and the ships turn together.
+/// </para>
+/// <para>
+/// The count is a presentation choice: the original shows eighteen particles in normal space and
+/// three in witchspace, where ours shows many more. The density is what a modern widescreen view
+/// wants, and it is recorded as a departure rather than passed off as a port.
+/// </para>
 /// </remarks>
 public sealed class Starfield
 {
@@ -30,7 +44,10 @@ public sealed class Starfield
     }
 
     /// <summary>Moves the stars towards us by the distance travelled this frame.</summary>
-    public void Update(float distanceTravelled)
+    /// <param name="distanceTravelled">How far we have moved this frame.</param>
+    /// <param name="rollAngle">Our roll angle, as the original's ALPHA: a signed value.</param>
+    /// <param name="pitchAngle">Our pitch angle, as the original's BETA: a signed value.</param>
+    public void Update(float distanceTravelled, int rollAngle = 0, int pitchAngle = 0)
     {
         for (int i = 0; i < StarCount; i++)
         {
@@ -39,6 +56,30 @@ public sealed class Starfield
             {
                 _stars[i] = NewStar(anyDepth: false);
             }
+        }
+
+        if (rollAngle == 0 && pitchAngle == 0)
+        {
+            return;
+        }
+
+        for (int i = 0; i < StarCount; i++)
+        {
+            // Exactly the arithmetic the simulation applies to a ship's location, so the dust and the
+            // ships turn together. It is the original's own sequence, and the order of it matters:
+            // each step works from the value the step before it left.
+            float x = _stars[i].X;
+            float y = _stars[i].Y;
+            float z = _stars[i].Z;
+
+            float k2 = y - ((x * rollAngle) / 256f);
+            z += (pitchAngle * k2) / 256f;
+            y = k2 - ((pitchAngle * z) / 256f);
+            x += (rollAngle * y) / 256f;
+
+            _stars[i].X = x;
+            _stars[i].Y = y;
+            _stars[i].Z = z;
         }
     }
 
