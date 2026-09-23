@@ -5,7 +5,7 @@ All notable changes to this project are recorded here. The format follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html) — see [`docs/VERSIONING.md`](docs/VERSIONING.md)
 for what the three numbers mean for a faithful port.
 
-## [1.0.0] — 2026-02-14
+## [1.0.0] — 2026-09-23
 
 The first release: BBC Micro disc Elite, rebuilt from its own 6502 sources, flying and trading end to
 end, with the mission texts printing word for word.

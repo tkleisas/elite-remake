@@ -19,14 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-Elite was written by Ian Bell and David Braben and is copyright (c) Acornsoft
-1984. This project is an independent remake and is not affiliated with or
-endorsed by the authors or the copyright holders. It ships no original assets:
-the ship geometry, the universe, the text and the market tables are extracted
-from the published assembly sources by this repository's own tool, the artwork
-is generated at run time, and the sounds are synthesized from the original's
-own sound-chip parameters. "Elite" is used here only to say what this is a
-remake of.

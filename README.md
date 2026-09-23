@@ -283,7 +283,8 @@ in [`docs/VERSIONING.md`](docs/VERSIONING.md).
 
 ## Licence and credits
 
-The code in this repository is MIT licensed — see [`LICENSE`](LICENSE).
+The code in this repository is **MIT licensed** — see [`LICENSE`](LICENSE). The notices about Elite
+itself, and about the work this was built on, are in [`NOTICE.md`](NOTICE.md).
 
 Elite was written by **Ian Bell** and **David Braben** and is copyright © Acornsoft 1984. This is an
 independent remake, not affiliated with or endorsed by them. It ships no original assets: the
