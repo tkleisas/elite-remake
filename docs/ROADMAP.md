@@ -3251,3 +3251,36 @@ our own work against a 20 ms budget.
 and before that nothing at all from several rounds of auditing. That is not an argument against auditing;
 it is an argument that **the log is a different instrument and was being ignored.** It reports state that
 no test asserts and no audit inspects, and it is generated free on every single run.
+
+## Round 129: the objective's requirements, one by one
+
+The goal has been running for 129 rounds, so it is worth stating what is demonstrated against what was
+asked for, and what is not.
+
+| the objective asks for | state |
+| --- | --- |
+| C# / MonoGame on .NET 10 | .NET 10, MonoGame.Framework.DesktopGL 3.8.5.1 |
+| identical procedural universe — 8 galaxies, 256 systems, original seeds, economy and text | 1024 systems across four galaxies render descriptions; canonical values checked (Lave's coordinates, economy, tech level, population, radius; 24/24 RUPLA systems by index) |
+| original mechanics — fixed-point flight model, ship AI, combat, trading, missions | the flight model is the 6502 fixed-point arithmetic; the AI, combat, market and mission rules are read from the source and tested |
+| flat-shaded solid 3D from the original blueprint geometry | 31 blueprints, 527 XX21 slots and 204 blueprints verified **byte for byte** against the assembled binary |
+| widescreen with an authentic HUD | the dashboard letters, the dotted scanner, the compass and the bars; verified at 320x240 and 1920x1200 |
+| synthesized recreations of the beeper effects | all ten of the disc's SFX entries, byte for byte, and all ten now played |
+| multi-project solution | five: Core, Data, Game, extractor, tests — 93 source files |
+| commits per milestone, per-milestone reporting | 147 commits, one per round or fix |
+
+**What is not demonstrated.** One thing, and it is the same thing it has been for thirty rounds: **the
+reported wobble.** Two faults that could account for it are fixed — a non-rigid render basis, and a
+visibility scale that stopped docking slots being drawn at all — and the measurements say the frame is
+now rigid and the slots now draw. They cannot say the picture is right, and only a person looking at the
+screen can. **Two independent probes have failed to reproduce it**, which is evidence about my probes
+rather than about the wobble.
+
+**So the goal stays active**, not because work is outstanding that I can name, but because there is one
+question the project has been asked and has not answered. Marking it complete would mean asserting
+something I have measured around rather than through.
+
+**What 129 rounds have produced beyond the game.** Five areas where a check exists permanently instead
+of in my head — the blueprints, the text tokens, the index spaces, the combat rates and the ship types
+and sounds — and a set of hard-won rules about how this port goes wrong. The most expensive of them:
+**a check that supplies its own inputs cannot find a fault in the thing that supplies them**, which cost
+three rounds and two shipped bugs to learn.
