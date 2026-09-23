@@ -579,6 +579,17 @@ public sealed class FlightScene : IScene
         _starfield.Draw(spriteBatch, pixel, Camera);
         spriteBatch.End();
 
+        // The hyperspace tunnel covers everything while the drive is counting down, as the
+        // original's LL164 clears the screen and draws its rings over the top
+        if (Session is { HyperspaceCountdown: > 0 })
+        {
+            spriteBatch.Begin();
+            HyperspaceTunnel.Draw(spriteBatch, pixel, Camera, Palette.White);
+            spriteBatch.End();
+            _hud.Draw(spriteBatch, pixel, Camera, _sim);
+            return;
+        }
+
         // The planet and the sun are circles rather than models, and they are so large and distant
         // that they are always behind the ships, so they are drawn first as the backdrop
         spriteBatch.Begin();

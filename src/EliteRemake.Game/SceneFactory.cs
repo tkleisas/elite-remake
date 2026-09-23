@@ -169,7 +169,47 @@ public static class SceneFactory
             sim.Spawn(ApplyBlueprint(Ship.Create(12, "python", "Python", -0.3f, -0.05f, -2500, 400, 7000)));
         }
 
+        // --jump begins a jump at once, so the hyperspace tunnel can be seen without flying to the
+        // charts and picking a destination first
+        if (options.StartHyperspace)
+        {
+            session.SelectedSystem = session.System.Seeds == session.Commander.CurrentSystem.Seeds
+                ? FindNearestReachable(session)
+                : session.SelectedSystem;
+
+            if (!session.StartHyperspace())
+            {
+                // Nothing was in range, so jump to nowhere in particular to show the effect anyway
+                session.ForceHyperspaceForDisplay();
+            }
+        }
+
         return scene;
+    }
+
+    /// <summary>The nearest system the commander's fuel will reach, for the --jump option.</summary>
+    private static EliteRemake.Core.Universe.StarSystem FindNearestReachable(GameSession session)
+    {
+        EliteRemake.Core.Universe.StarSystem best = session.System;
+        int bestDistance = int.MaxValue;
+
+        foreach (EliteRemake.Core.Universe.StarSystem candidate in
+                 EliteRemake.Core.Universe.Galaxy.GenerateGalaxy(session.System.Seeds))
+        {
+            if (candidate.Seeds == session.System.Seeds)
+            {
+                continue;
+            }
+
+            int distance = EliteRemake.Core.Universe.Galaxy.DistanceTenths(session.System, candidate);
+            if (distance <= session.Commander.Fuel && distance < bestDistance)
+            {
+                bestDistance = distance;
+                best = candidate;
+            }
+        }
+
+        return best;
     }
 
     /// <summary>Copies a blueprint's stats onto a spawned ship, as the original's NWSHP does.</summary>

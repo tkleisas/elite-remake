@@ -1215,3 +1215,33 @@ whole byte range, so the rule cannot drift into an approximation of itself.
 
 Still to do here, and deliberately left for its own round: the tunnel *animation* is played as a
 sound rather than drawn, and the manual CTRL mis-jump is not wired to a key.
+
+## The hyperspace tunnel: ported, and not yet on screen
+
+The rings themselves are ported from HFS2 and the reasoning is recorded here so the remaining fault
+is a small one to find. LL164 sets the ring step to 4 — "so there are more sections in the rings and
+they are quite round", against the launch rings' 8 — and calls HFS2, which draws **eight sets** of
+rings. Within a set every ring is twice the radius of the one before, starting at 8 to 15 depending
+on the set, and a set stops once a ring's radius reaches 160:
+
+```
+.HFL1  LDA XX4 / AND #7 / CLC / ADC #8 / STA K   \ the starting radius, 8 to 15
+.HFL2  ... draw a circle of radius K
+       ASL K                                     \ double it
+       BCS HF8                                   \ off-screen, so stop
+       LDA K / CMP #160 / BCC HFL2               \ past 160, so stop
+```
+
+The rings are all on screen together — a tunnel seen down its length rather than an animation of one
+ring — so they are drawn every frame for as long as the countdown lasts.
+
+`HyperspaceTunnel` implements that shape in the view's own units, `--jump` starts a jump from the
+command line so the effect can be looked at without flying to the charts first, and the flight scene
+draws the tunnel in place of the space view while the countdown runs.
+
+**It does not appear yet.** The countdown is running and the drawing code is reached — confirmed by
+tracing — but none of its output arrives on screen, and neither does a deliberate forty-pixel red
+block drawn from the same place, which is what rules out the ring arithmetic and points at the
+drawing itself. The next step is to find why that batch's output is not surviving to the saved
+frame: the `SpriteBatch.Begin`/`End` pair and the early return in `FlightScene.Draw` are the two
+places to look.

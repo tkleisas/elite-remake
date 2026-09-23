@@ -200,6 +200,20 @@ public sealed class GameSession
     /// <param name="randomByte">The random byte, which the original gets from DORND.</param>
     public static bool IsMisjump(int randomByte) => (randomByte & 0xFF) >= MisjumpThreshold;
 
+    /// <summary>
+    /// Starts a jump for display purposes, without a destination or fuel to pay for it.
+    /// </summary>
+    /// <remarks>
+    /// This exists so the hyperspace tunnel can be looked at from the command line. Nothing else
+    /// should use it: a real jump goes through <see cref="StartHyperspace"/>, which checks the fuel.
+    /// </remarks>
+    public void ForceHyperspaceForDisplay()
+    {
+        InWitchspace = false;
+        HyperspaceCountdown = 20;
+        Message = "Hyperspace drive engaged.";
+    }
+
     /// <summary>Advances the hyperspace countdown, returning true when the jump completes.</summary>
     public bool TickHyperspace()
     {

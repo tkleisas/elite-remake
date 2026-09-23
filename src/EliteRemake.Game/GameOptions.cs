@@ -59,6 +59,12 @@ public sealed class GameOptions
     /// <summary>If set, ignore any saved commander and start a new one.</summary>
     public bool NewCommander { get; private set; }
 
+    /// <summary>
+    /// If set, begin a hyperspace jump as soon as the flight scene starts, so the tunnel can be
+    /// seen without flying to the charts first.
+    /// </summary>
+    public bool StartHyperspace { get; private set; }
+
     /// <summary>If set, start docked at the station rather than in flight.</summary>
     public bool StartDocked { get; private set; }
 
@@ -156,6 +162,9 @@ public sealed class GameOptions
                 case "--hold":
                     options.WarmupInput = ParseControls(Next() ?? string.Empty);
                     break;
+                case "--jump":
+                    options.StartHyperspace = true;
+                    break;
                 case "--help":
                 case "-h":
                     PrintHelp();
@@ -216,6 +225,7 @@ public sealed class GameOptions
                                       faster, slower, fire (comma separated)
               --font-sheet            draw every character in the font and exit
               --new-commander         ignore any saved commander and start fresh
+              --jump                  begin a hyperspace jump at once, to see the tunnel
               --dock [screen]         start docked, at the market or the equipment shop
               --laser <type>          fit a pulse, beam, military or none laser to the front
               --fully-equipped        start with every piece of equipment
