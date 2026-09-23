@@ -970,3 +970,48 @@ at 0.890 against the 0.8988 (26 degrees) the check wants, because the station is
 roll as the ship arrives. That is the original's own tolerance being genuinely tight rather than a
 control fault, and the approach is otherwise perfect - lateral offset 1 unit at contact. It stays
 open as a tuning question rather than a bug.
+
+## The extended system descriptions: seeded, gated, and a hint that pointed past the table
+
+The description generator was already written and wired in, but it was producing the same sentence
+for every system and the Data on System screen showed a single stray word. Reading PDESC properly
+settled both, and turned up a third thing worth recording.
+
+**PDESC reseeds the generator from the system's own seeds.** Before printing, it copies `QQ15+2` to
+`QQ15+5` — s1 and s2 — into `RAND`, "so we get the same extended description for each system every
+time we call PDESC". Sharing one running generator instead makes every system read alike, because
+each screen advances it to a different point and the phrases are chosen from wherever it happens to
+be. `EliteRandom` now has a byte-wise `Reseed`, and the Data screen seeds it from `Seeds.ToBytes()`
+offset 2 before each description. Measured, the same seed always gives the same sentence, and the
+galaxy now reads like this:
+
+| system | description |
+| --- | --- |
+| Tibedied | reasonably notable for its funny mountains but ravaged by frequent earthquakes |
+| Lave | The planet Lave is reasonably fabled for juice and the edible wasp |
+| Riedquat | most fabled for its exciting cat meat but ravaged by a killer disease |
+| Leesti | most fabled for ice karate but cursed by dreadful civil war |
+| Diso | This planet is a dull world |
+
+**The disc version only shows extended descriptions when docked**, which is a fact about the original
+rather than a choice: TT25's own commentary says the extended descriptions are shown in the enhanced
+versions "though in the disc version they are only shown when docked, as the PDESC routine isn't
+present in the flight code due to memory restrictions". Our Data screen is only reachable while
+docked, so that falls out for free — and it is worth knowing, because it means there is nothing to
+implement for the in-flight case.
+
+**The stray word was a hint pointing past the end of its table.** Lave was showing "ANCIENT" instead
+of a description because `TokenFor(7, 0, true)` returned 26, and there is no token 26 in the disc's
+RUTOK. The source explains why: the Lave and Riedquat overrides sit inside
+
+```
+IF _6502SP_VERSION
+IF _SOURCE_DISC    EQUB 7    \ Lave = Token 26
+ELIF _EXECUTIVE    EQUB 7    EQUB 46   \ Lave, Riedquat = tokens 26, 27
+```
+
+so they belong to the 6502SP, Executive and Master builds and **not to the BBC disc**, which is why
+RUTOK there stops at token 25. The extractor reads the tables without evaluating those guards, so it
+picked up 29 hints for 26 tokens. The hint list now keeps only entries whose token the disc actually
+has — 25 of them — and the test that asserted 29 has been corrected with the reason. The extractor's
+gap is real and is noted below.

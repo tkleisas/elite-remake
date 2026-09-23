@@ -14,9 +14,14 @@ namespace EliteRemake.Game.Scenes;
 /// <remarks>
 /// The original's TT25 screen prints the distance, economy, government, tech level, population,
 /// productivity and average radius, and then a description of the system generated from its seeds.
-/// This screen shows the same data in the same order. The description is the one part still to come:
-/// the phrases live in the original's extended token table and are assembled by its extended text
-/// system, which is a substantial subsystem of its own.
+/// This screen shows the same data in the same order, and generates the description the same way:
+/// the phrases come from the original's extended token table and are assembled by its extended text
+/// system, seeded from the system's own s1 and s2 so the same system always reads the same.
+///
+/// The disc version only shows the extended description when docked. Its PDESC routine says so
+/// directly — the routine is not in the flight code at all, "as the PDESC routine isn't present in
+/// the flight code due to memory restrictions" — and this screen is only reachable while docked,
+/// so that falls out for free.
 /// </remarks>
 public sealed class DataScene : IScene
 {
@@ -61,6 +66,12 @@ public sealed class DataScene : IScene
             _session.System,
             _session.Commander.GalaxyNumber,
             _session.Missions.Mission1Active);
+
+        // PDESC seeds the generator from the system's own s1 and s2 seeds before printing, so the
+        // same system always gets the same description however many times it is read. Sharing one
+        // running generator instead makes every system read alike, because each screen advances it
+        // to a different point and the phrases are chosen from wherever it happens to be.
+        _session.DescriptionRandom.Reseed(system.Seeds.ToBytes().AsSpan(2));
 
         string text = hint != 0
             ? EliteRemake.Data.DescriptionData.Hint(hint, system.Name, _session.DescriptionRandom)

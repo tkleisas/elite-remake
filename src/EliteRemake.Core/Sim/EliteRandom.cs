@@ -40,6 +40,31 @@ public sealed class EliteRandom
     }
 
     /// <summary>
+    /// Sets the generator state from four bytes, as the original does when it copies them straight
+    /// into RAND.
+    /// </summary>
+    /// <remarks>
+    /// PDESC seeds the generator from a system's own s1 and s2 seeds before printing its extended
+    /// description, "so we get the same extended description for each system every time we call
+    /// PDESC". The bytes go in unaltered, so the guard against an all-zero feeder sequence is
+    /// applied here too.
+    /// </remarks>
+    public void Reseed(ReadOnlySpan<byte> state)
+    {
+        if (state.Length < 4)
+        {
+            throw new ArgumentException("the generator state is four bytes", nameof(state));
+        }
+
+        state[..4].CopyTo(_state);
+
+        if (_state[0] == 0 && _state[2] == 0)
+        {
+            _state[0] = 0x2B;
+        }
+    }
+
+    /// <summary>
     /// DORND: advances the generator by one step, returning the new main-sequence low byte in
     /// <paramref name="a"/> and the previous one in <paramref name="x"/>, exactly as the original's
     /// callers receive them.

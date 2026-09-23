@@ -365,8 +365,15 @@ public class MissionHintTests
     {
         var hints = Data.DescriptionData.Hints;
 
-        // The original's RUPLA table has 29 entries
-        Assert.Equal(29, hints.Count);
+        // The disc version has 25 hints. The source's RUPLA and RUGAL tables hold 29 entries, but
+        // four of them are behind platform guards the disc does not assemble - Lave and Riedquat
+        // are overridden only in the 6502SP, Executive and Master builds - and their tokens 26 and
+        // 27 live inside the same guards. Keeping them would make PDESC print past the end of the
+        // table, which is what it used to do for Lave.
+        Assert.Equal(25, hints.Count);
+
+        // Lave has no hint in the disc version
+        Assert.Equal(0, hints.TokenFor(7, 0, true));
 
         // The first galaxy's trail, by system number
         Assert.Equal(2, hints.TokenFor(150, 0, true));  // Xeer
