@@ -2180,3 +2180,41 @@ comparison-direction error.
 
 **The tally stays at eighteen**, and the sweep's classification gains a fifth row: one rule that is a
 subsystem rather than an adjustment.
+
+## The render basis was not rigid — measured, and fixed on reasoning rather than on a visible before/after
+
+Chasing the wobble a player reported, the basis the renderer builds from a ship's orientation vectors
+turned out not to be orthonormal. Measured over 96 frames of rolling, with the vectors encoded the way
+the game encodes them:
+
+| | fresh | worst observed |
+| --- | --- | --- |
+| `|nose|` | 1.0000 | **0.9131** |
+| `|side|` | 1.0000 | **0.9014** |
+| `det` | +1.0000 | **+0.8229** |
+
+A basis whose vectors swing between 90% and 100% of unit length is not a rotation, and the transform
+it defines shears the whole body — and shears it *differently* as the ship rolls, which is the wobble.
+
+**Where it comes from.** The original's `TIDY` rebuilds one component of `roofv` and then normalises by
+`NORM`, which divides by `LL5` — an approximated square root whose reciprocal is off by a few percent.
+So the original's own basis is not exactly rigid either. It can afford that because it draws a
+**wireframe**, where a few percent of scale error moves the ends of lines slightly and nothing else.
+Filling the faces exposes it.
+
+**The fix** is Gram-Schmidt in `FromEliteOrientation`: the nose is kept as the reference direction
+because it is the ship's forward axis and its length is the scale, the roof is made perpendicular to
+it, and the side is taken as their cross product, so the frame is exactly rigid however the
+fixed-point arithmetic left the vectors.
+
+**What I have not shown, and am not claiming.** I could not demonstrate a visible difference. The
+station's silhouette area and bounding box measure the same to the pixel before and after — 352x355 at
+every heading, area within 3.6% — so whatever the shear was doing, it is below what these measurements
+resolve, and I have not confirmed that it is what the player is seeing. The defect is real and
+measured; the improvement is reasoned and unproven. It is committed on that basis with this note
+attached, rather than described as a fix for the reported symptom.
+
+**Four of my probes have now been wrong before the code was** — the RUPLA galaxy check, the
+galaxy-number false alarm, the `E%` signature, and the basis test's vector encoding. This round added
+a fifth lesson of the same family: a change can be correct and still not be the change that matters,
+and the difference is only visible if the before/after is measured rather than assumed.

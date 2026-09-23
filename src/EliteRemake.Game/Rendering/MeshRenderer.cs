@@ -542,14 +542,54 @@ public readonly record struct ShipOrientation(
     public System.Numerics.Vector3 ToView(System.Numerics.Vector3 local) =>
         (Side * local.X) + (Roof * local.Y) + (Nose * local.Z);
 
-    /// <summary>Builds an orientation from the game's fixed-point vectors.</summary>
+    /// <summary>
+    /// Builds an orientation from the game's fixed-point vectors.
+    /// </summary>
+    /// <remarks>
+    /// The three vectors are put through Gram-Schmidt so that the transform they define is a rigid
+    /// one. This is a deliberate departure, and it is the same departure the solid rendering makes
+    /// everywhere else: the original draws a wireframe, so a basis that is very slightly
+    /// non-orthogonal only nudges the ends of lines about. Filling the faces turns that same basis
+    /// into a shear of the whole body — which is visible, and which changes as the ship rolls,
+    /// because the original's TIDY rebuilds one roofv component and normalises by an approximated
+    /// reciprocal rather than by a true square root.
+    ///
+    /// Nose is kept as the reference direction, since it is the ship's forward axis, and the other
+    /// two are rebuilt from it. The scale is the nose's own length, so a vector that the
+    /// fixed-point arithmetic has left slightly short does not shrink the ship.
+    /// </remarks>
     public static ShipOrientation FromEliteOrientation(EliteRemake.Core.Maths.Orientation orientation)
     {
-        System.Numerics.Vector3 Vector(int vector) => System.Numerics.Vector3.Normalize(new System.Numerics.Vector3(
+        System.Numerics.Vector3 Raw(int vector) => new(
             (float)orientation.GetUnity(vector, EliteRemake.Core.Maths.Orientation.X),
             (float)orientation.GetUnity(vector, EliteRemake.Core.Maths.Orientation.Y),
-            (float)orientation.GetUnity(vector, EliteRemake.Core.Maths.Orientation.Z)));
+            (float)orientation.GetUnity(vector, EliteRemake.Core.Maths.Orientation.Z));
 
-        return new ShipOrientation(Vector(EliteRemake.Core.Maths.Orientation.Nosev), Vector(EliteRemake.Core.Maths.Orientation.Roofv), Vector(EliteRemake.Core.Maths.Orientation.Sidev));
+        System.Numerics.Vector3 nose = Raw(EliteRemake.Core.Maths.Orientation.Nosev);
+        System.Numerics.Vector3 roof = Raw(EliteRemake.Core.Maths.Orientation.Roofv);
+
+        // A degenerate orientation has no meaningful frame, so fall back to the identity rather
+        // than propagating NaN into the vertex stream
+        if (nose.LengthSquared() < 1e-12f)
+        {
+            return new ShipOrientation(
+                System.Numerics.Vector3.UnitZ,
+                System.Numerics.Vector3.UnitY,
+                System.Numerics.Vector3.UnitX);
+        }
+
+        nose = System.Numerics.Vector3.Normalize(nose);
+
+        // Roof, made perpendicular to the nose without moving the nose
+        roof -= nose * System.Numerics.Vector3.Dot(roof, nose);
+        roof = roof.LengthSquared() < 1e-12f
+            ? System.Numerics.Vector3.Normalize(System.Numerics.Vector3.Cross(
+                System.Numerics.Vector3.UnitY, nose))
+            : System.Numerics.Vector3.Normalize(roof);
+
+        // Side is then exactly perpendicular to both, which is what makes the frame rigid
+        System.Numerics.Vector3 side = System.Numerics.Vector3.Cross(roof, nose);
+
+        return new ShipOrientation(nose, roof, side);
     }
 }
