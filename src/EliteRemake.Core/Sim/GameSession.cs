@@ -191,12 +191,14 @@ public sealed class GameSession
         }
 
         int distance = SelectedDistance;
-        if (distance > Commander.Fuel)
+
+        // The commander spends the fuel through the same method the rest of the game uses, so the
+        // check and the deduction cannot come apart. This was a hand-written check and subtraction
+        // beside a tested UseFuel that nothing called.
+        if (!Commander.UseFuel(distance))
         {
             return false;
         }
-
-        Commander.Fuel -= distance;
 
         // The jump can go wrong. The fuel is spent either way, but a mis-jump leaves us in
         // witchspace rather than at the destination, which is what the caller's arrival then has to

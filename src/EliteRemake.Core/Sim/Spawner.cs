@@ -56,8 +56,12 @@ public static class Spawner
     /// <summary>The z distance, in units, that a newly spawned ship appears at.</summary>
     public const int SpawnDistance = 38 * 256;
 
-    /// <summary>How many frames the extra-vessels counter delays the next spawn by.</summary>
-    public const int SpawnDelay = 64;
+    /// <summary>
+    /// How many iterations of the main loop pass between spawn decisions: the original decrements its
+    /// main loop counter and only reaches the spawning code when it reaches zero, which is every 256
+    /// iterations.
+    /// </summary>
+    public const int MainLoopDecisionPeriod = 256;
 
     /// <summary>
     /// The random byte at or above which nothing spawns: the disc version tests <c>CMP #120</c>,

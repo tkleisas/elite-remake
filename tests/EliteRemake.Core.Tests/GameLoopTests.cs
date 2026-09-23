@@ -1249,3 +1249,62 @@ public class OurRollTurnsTheUniverseTests
         Assert.True(some > none, $"more roll should counter more of the spin: {none:0.00} then {some:0.00}");
     }
 }
+
+/// <summary>
+/// Checks how often the sky is repopulated, which is a number the original fixes and a number that is
+/// very easy to get wrong by a large factor.
+/// </summary>
+/// <remarks>
+/// The original only reaches its spawning code when its main loop counter comes round to zero, which
+/// is once every 256 iterations — "we only get here once every 256 iterations of the main loop" — and
+/// its extra-vessels counter then delays the next decision by the size of the pack it just sent. The
+/// port made a decision every iteration, gated only by that counter, so a roll that said "nothing
+/// spawns" was retried immediately instead of waiting another 256: the sky carried several times the
+/// traffic it should have.
+/// </remarks>
+public class SpawnCadenceTests
+{
+    [Fact]
+    public void SpawnDecisionsComeRoundEveryTwoHundredAndFiftySixIterations()
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = true,
+            Commander = Commander.CreateDefault(),
+            System = Galaxy.GenerateGalaxy(Galaxy.GalaxySeeds(0))[7],   // Lave
+            GalaxySeeds = Galaxy.GalaxySeeds(0),
+        };
+
+        var seen = new List<int>();
+        SpawnKind previous = SpawnKind.None;
+        int previousJunk = 0;
+
+        for (int i = 0; i < 20_000; i++)
+        {
+            sim.Step();
+
+            bool spawnedShip = sim.LastSpawn != SpawnKind.None && previous == SpawnKind.None;
+            bool spawnedJunk = sim.LastJunkSpawned != 0 && previousJunk != sim.LastJunkSpawned;
+            if (spawnedShip || spawnedJunk)
+            {
+                seen.Add(i);
+            }
+
+            previous = sim.LastSpawn;
+            previousJunk = sim.LastJunkSpawned;
+        }
+
+        Assert.NotEmpty(seen);
+
+        // Every decision lands on a multiple of 256, give or take the iteration the step is counted in
+        foreach (int at in seen)
+        {
+            Assert.True(at % 256 <= 1,
+                $"a spawn decision came at iteration {at}, which is not a 256-iteration boundary");
+        }
+
+        // And they are rare: with the original's cadence this is a couple of handfuls in twenty
+        // thousand iterations, where the port used to manage hundreds
+        Assert.InRange(seen.Count, 5, 60);
+    }
+}

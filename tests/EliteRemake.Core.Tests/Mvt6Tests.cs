@@ -17,6 +17,11 @@ namespace EliteRemake.Core.Tests;
 /// It had no test at all before this, which is why the fault survived a round that claimed to have
 /// fixed it and a round that read the listing twice.
 /// </remarks>
+/// <remarks>
+/// MVT6 is not called by the simulation: the location rotation it exists for is done in 24-bit
+/// integers instead, as a documented departure. These tests keep the port honest against the
+/// original's own routine, and they are the reference for what that departure departs from.
+/// </remarks>
 public class Mvt6Tests
 {
     private static byte[] Coordinate(long value)

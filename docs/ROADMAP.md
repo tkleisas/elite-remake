@@ -4171,3 +4171,44 @@ thing the autopilot has to match and the one thing about a station that differs 
 **And it was checked in the game, not only in the simulation**: `--autopilot` hands the ship over at
 once, and the run ends on the market screen at Lave, having flown there rather than having been placed
 there by `--dock`.
+
+## The sky had several times the traffic it should have
+
+**The original does not decide whether to spawn every frame.** It decrements its main loop counter and
+jumps out of the whole spawning section unless it has reached zero — *"we only get here once every 256
+iterations of the main loop"* — and its extra-vessels counter, `EV`, counts those 256-iteration
+boundaries rather than iterations: `DEC EV` and skip while it is not negative, `INC EV` to bring it back,
+and a pack of pirates stores **its own size** in `EV` so a bigger pack keeps the sky quiet for longer.
+
+The port made a decision every iteration, gated only by a counter of 64 *iterations*. That is worse than
+it sounds, because a decision that ends in "nothing spawns" — 47% of them — was retried on the very next
+iteration instead of waiting another 256. **Measured over 200,000 iterations the sky was being decided
+136 times where it used to be decided 2,344 times: seventeen times the original's traffic.**
+
+The three rates were each right on their own and the whole was wrong, which is why no test caught it:
+the 13.7% branch into the trader-or-junk roll, the 50% split inside it, and the 47% roll for whether a
+pirate appears at all were all faithful. It was the *cadence* that was missing.
+
+**One measurement of mine was wrong on the way to finding it**, in the usual way: `LastJunkSpawned` is
+not cleared every iteration, only on the paths that reach it, so counting "junk spawned" once per
+iteration counted one rock thirty-two times and made junk look like 80% of everything. Counting the
+decisions instead of the flags is what showed the real shape.
+
+## Housekeeping: rules written twice
+
+Auditing which of the simulation's own methods nothing calls turned up three places where a rule existed
+twice — once as a tested helper and once written out by hand at the place that used it:
+
+- **The Constrictor's rule.** `Missions.ShouldSpawnConstrictor` had five tests and no callers; the
+  simulation spelled the same four conditions out inline. The tests were testing the copy the game never
+  ran. The simulation now calls the tested one.
+- **Spending fuel.** `Commander.UseFuel` checks the tank and deducts in one step, and was used only by
+  its own tests, while hyperspace checked and subtracted by hand beside it. The jump now spends the fuel
+  through the commander's own method.
+- **`Mvt6`**, the original's primitive for turning a ship's location by our pitch and roll. It is a
+  faithful port, and it is **not called**: the port does that rotation in 24-bit integers instead, as a
+  documented departure, because Mvt6's signed-byte arithmetic loses the low bits of a large coordinate.
+
+That last one corrects an earlier entry in this file. A previous round recorded Mvt6 as the cause of the
+station's wobble and "fixed" it there; since nothing calls it, that change cannot have been what improved
+the measurement — the integer rotation was. Mvt6 and its tests now say plainly that they are superseded.

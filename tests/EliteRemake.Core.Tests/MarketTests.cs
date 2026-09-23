@@ -485,7 +485,9 @@ public class CombatTests
         Assert.Equal(120, Spawner.AnySpawnThreshold);
         Assert.Equal(100, Spawner.PackThreshold);
         Assert.Equal(38 * 256, Spawner.SpawnDistance);   // "Set z_hi = 38 (far away)"
-        Assert.Equal(64, Spawner.SpawnDelay);
+
+        // "We only get here once every 256 iterations of the main loop"
+        Assert.Equal(256, Spawner.MainLoopDecisionPeriod);
     }
 
     [Fact]

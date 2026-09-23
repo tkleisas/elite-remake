@@ -1316,10 +1316,10 @@ public sealed class FlightSim
 
         int constrictors = _bubble.Count(s => s.Type == Missions_ConstrictorType);
 
-        bool here = GalaxyNumber == Missions.ConstrictorGalaxy
-            && Missions.IsConstrictorSystem(System.Value, GalaxySeeds);
-
-        if (here && Missions.Mission1Active && !Missions.Mission1Complete && constrictors == 0)
+        // The rule lives in Missions, where it can be read and tested in one place. It used to be
+        // written out again here, with the tests exercising only the copy that the game never
+        // called — two statements of one rule, either of which could have been changed alone.
+        if (Missions.ShouldSpawnConstrictor(System.Value, GalaxyNumber, constrictors))
         {
             var constrictor = new Ship(
                 Missions_ConstrictorType,
@@ -1404,11 +1404,27 @@ public sealed class FlightSim
             return;
         }
 
-        if (_spawnDelay > 0)
+        // "We only get here once every 256 iterations of the main loop": the original decrements its
+        // main loop counter and jumps out of the whole spawning section unless it has reached zero,
+        // so this is not a per-frame decision at all. Making it one — which is what the port did,
+        // gated only by the extra-vessels counter — put several times the original's traffic in the
+        // sky, because a roll that said "nothing spawns" was simply retried on the next iteration
+        // instead of waiting another 256 of them.
+        if ((MainLoopCounter & (Spawner.MainLoopDecisionPeriod - 1)) != 0)
         {
-            _spawnDelay--;
             return;
         }
+
+        // EV, the extra-vessels counter, counts decision boundaries rather than iterations: "DEC EV
+        // and if it is still positive, jump to MLOOPS to stop spawning; INC EV, so EV is negative,
+        // so bump it up again"
+        _spawnDelay--;
+        if (_spawnDelay >= 0)
+        {
+            return;
+        }
+
+        _spawnDelay++;
 
         // A mission ship comes before the ordinary traffic
         if (SpawnMissionShip())
@@ -1438,7 +1454,6 @@ public sealed class FlightSim
                 Spawn(Spawner.Create(SpawnKind.Trader, System.Value, Random));
                 LastSpawn = SpawnKind.Trader;
                 LastJunkSpawned = 0;
-                _spawnDelay = Spawner.SpawnDelay;
                 return;
             }
 
@@ -1446,7 +1461,6 @@ public sealed class FlightSim
             Spawn(Debris.CreateJunk(junkType, Random));
             LastSpawn = SpawnKind.None;
             LastJunkSpawned = junkType;
-            _spawnDelay = Spawner.SpawnDelay / 2;
             return;
         }
 
@@ -1458,7 +1472,8 @@ public sealed class FlightSim
             return;
         }
 
-        // A pack of pirates arrives together, up to the original's four in a group
+        // A pack of pirates arrives together, up to the original's four in a group. The pack size is
+        // what the original stores in EV, so a bigger pack keeps the sky quiet for longer.
         int count = kind == SpawnKind.Pirates ? 1 + (Random.Next() % 4) : 1;
         for (int i = 0; i < count; i++)
         {
@@ -1469,7 +1484,7 @@ public sealed class FlightSim
         }
 
         LastSpawn = kind;
-        _spawnDelay = Spawner.SpawnDelay;
+        _spawnDelay = kind == SpawnKind.Pirates ? count : 0;
     }
 
     /// <summary>

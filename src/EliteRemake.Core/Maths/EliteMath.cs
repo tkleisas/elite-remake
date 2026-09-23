@@ -524,6 +524,20 @@ public static class EliteMath
     /// MVT6: add the 24-bit value (A, P+2, P+1) to the coordinate at <paramref name="offset"/>,
     /// where A is the sign byte and (P+2, P+1) the magnitude.
     /// </summary>
+    /// <remarks>
+    /// <b>Superseded, and not called by anything but its tests.</b> The original uses MVT6 three
+    /// times in MVEIT part 5 to turn a ship's location by our pitch and roll, and this is a faithful
+    /// port of it — but the port does that rotation in 24-bit integers instead
+    /// (<see cref="EliteRemake.Core.Sim.ShipMovement.RotateLocationByOurPitchAndRoll"/>), which is a
+    /// documented departure: MVT6's signed-byte arithmetic loses the low bits of a large coordinate
+    /// and the drift that causes is visible as a wobble on a nearby object.
+    /// </remarks>
+    /// <remarks>
+    /// It is kept because it is a correct port of an original routine and the reference for what the
+    /// departure departs from. An earlier round of this port recorded MVT6 as the cause of that
+    /// wobble and "fixed" it here; since nothing calls it, that change could not have been what
+    /// improved the measurement — the integer rotation was.
+    /// </remarks>
     /// <param name="coordinate">A 24-bit coordinate as three bytes: lo, hi, sign.</param>
     /// <param name="offset">Offset of the coordinate's low byte.</param>
     /// <param name="a">The sign byte of the value to add.</param>
