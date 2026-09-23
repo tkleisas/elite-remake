@@ -2693,3 +2693,30 @@ the port and not read by the part that should use it: the escape pod's fuel, the
 callback, and now the hostile bit. A rule that is implemented and not connected is indistinguishable
 from one that is not implemented, and the way to tell them apart is to ask **who reads this** whenever
 a new piece of state is written.
+
+## Applying "who reads this" rather than only stating it
+
+The rule from last round — a rule implemented and not connected is indistinguishable from one that is
+not implemented — is worth applying rather than repeating, so every NEWB bit was checked for a reader:
+
+| bit | meaning | read by |
+| --- | --- | --- |
+| 0 | trader | `Tactics.DecideRole` |
+| 1 | bounty hunter | `Tactics.DecideRole` |
+| 2 | hostile | `Tactics.WantsToAttack` |
+| 5 | innocent | `FlightSim.MakeAngry` (which turns the station hostile) |
+| 6 | cop | `GameSession.RegisterKill` (which sets our legal status to 64) |
+
+All five have one, which was not true a round ago. The audit is cheap and it is the kind that would
+have caught the hostile bit at the time it was written rather than two rounds later.
+
+**And the link now has a test that can fail.** `AHostileShipEngagesUsAndANonHostileOneDoesNot` flies
+both cases — a ship lined up on us with the hostile bit and the same ship without it — and requires
+damage in the first and none in the second. Restoring the bug makes it fail, which was checked rather
+than assumed. The test flies the thing rather than asserting the flags, because neither half looks
+wrong on its own: the role rules set the bit correctly and the attack rule reads the AI flag correctly,
+and the fault was entirely in the gap between them.
+
+**That is the general shape of the three faults in this family** — the escape pod's fuel, the
+Anaconda's callback, the hostile bit. Each half was right. A test written against either half passes;
+only one that exercises the seam finds them.

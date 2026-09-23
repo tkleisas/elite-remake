@@ -130,6 +130,59 @@ public class GameLoopTests
     }
 
     /// <summary>
+    /// A hostile ship engages us and a non-hostile one does not — the link between the NEWB hostile
+    /// bit and the decision to fight.
+    /// </summary>
+    /// <remarks>
+    /// This is the check that caught the hostile bit being written and never read: the role rules set
+    /// it, and the decision to attack was made from the AI flag alone, so a trader that "turned
+    /// pirate" went on behaving like a trader. Nothing about either half looks wrong on its own, which
+    /// is why the test has to fly it rather than check the flags.
+    /// </remarks>
+    [Fact]
+    public void AHostileShipEngagesUsAndANonHostileOneDoesNot()
+    {
+        static (FlightSim Sim, Ship Enemy) SetUp(bool hostile)
+        {
+            var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+            {
+                Commander = Commander.CreateDefault(),
+            };
+            sim.Player.Energy = 255;
+            sim.Player.ForeShield = 255;
+            sim.Player.AftShield = 255;
+            sim.LaserPowerProvider = ship => ship.Type == 17 ? 10 : 0;
+
+            Ship enemy = Ship.Create(17, "sidewinder", "Sidewinder", 0, 0, 0, 0, 1500);
+            enemy.AiFlag = 0xF8;                    // as aggressive as it gets
+            enemy.NewbFlags = hostile ? Ship.NewbHostile : (byte)0;
+            enemy.Orientation.SetUnity(EliteRemake.Core.Maths.Orientation.Nosev, EliteRemake.Core.Maths.Orientation.Z, -1.0);
+            enemy.Energy = 70;
+            sim.Spawn(enemy);
+
+            return (sim, enemy);
+        }
+
+        static int DamageOver(FlightSim sim, int frames)
+        {
+            int damage = 0;
+            for (int i = 0; i < frames; i++)
+            {
+                sim.Step();
+                damage += sim.DamageTakenThisFrame;
+            }
+
+            return damage;
+        }
+
+        (FlightSim hostileSim, _) = SetUp(hostile: true);
+        Assert.True(DamageOver(hostileSim, 400) > 0, "a hostile ship lined up on us should open fire");
+
+        (FlightSim peacefulSim, _) = SetUp(hostile: false);
+        Assert.Equal(0, DamageOver(peacefulSim, 400));
+    }
+
+    /// <summary>
     /// A trader turns out to be a pirate 39% of the time, and a bounty hunter only comes for the
     /// nearly wanted.
     /// </summary>
