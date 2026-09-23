@@ -2064,3 +2064,43 @@ the condition around it, and the only defence is to measure the rate rather than
 of disc Elite, in which asteroids never appeared"*. That is a fix we would have to decide whether to
 take: the disc build this port follows is the Stairway to Hell variant, and whether its `_VARIANT=2`
 includes the fix is the next thing to establish rather than assume.
+
+## The asteroid fix: our variant has it, and we behave accordingly
+
+The last disc-only branch, and the one where the question was which disc we follow rather than what
+the code says:
+
+```
+IF _DISC_FLIGHT
+IF _STH_DISC OR _SRAM_DISC
+ NOP / NOP / NOP        \ In the first version of disc Elite, asteroids never appeared; it turned
+                        \ out that the authors had put in a jump to force traders to spawn, so
+                        \ they could test them
+ELIF _IB_DISC
+ JMP MTT4               \ the development jump itself
+ENDIF
+```
+
+**The Stairway to Hell disc — the `_VARIANT=2` this port follows — takes the `NOP` branch**, so the
+jump is patched out and the code falls through to the path that spawns rocks. Asteroids *do* appear in
+the build we are porting, and they appear in ours: `Debris.ChooseJunk` rolls them at the original's
+rates, and `FlightSim` checks for junk before it considers ships, as the original does.
+
+So there was nothing to change, and that is worth stating plainly: the branch looked like a candidate
+fault and turned out to be a variant question that resolves in favour of what we already do. Recording
+it closes the disc-only sweep with no open items.
+
+**The sweep, in total.** Every `IF _DISC_FLIGHT` branch in the shared library has now been read and
+classified:
+
+| classification | count | examples |
+| --- | --- | --- |
+| rules we had already | 3 | the Constrictor's AI flag, the station's safe zone, the escape pod's cargo |
+| rules we were missing | **6** | the Constrictor's armour, ANGRY, the missile lock, Anacondas' Worms, the E.C.M. chance, the bounty hunter's AI |
+| platform plumbing | 4 | loading the docked overlay, reloading the disc catalogue, reading the keyboard, the view branch in `hyp` |
+| variant questions | 1 | the asteroid fix, settled above |
+
+Six faults from one systematic read, after three rounds in which the same faults arrived one at a time
+from symptoms. The lesson is not subtle but it is worth writing down: **when a project has a
+conditionally-compiled source, the set of branches for your build is a thing you can enumerate, and
+enumerating it beats waiting for each one to bite.**
