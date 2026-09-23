@@ -3284,3 +3284,45 @@ of in my head — the blueprints, the text tokens, the index spaces, the combat 
 and sounds — and a set of hard-won rules about how this port goes wrong. The most expensive of them:
 **a check that supplies its own inputs cannot find a fault in the thing that supplies them**, which cost
 three rounds and two shipped bugs to learn.
+
+## The wobble, reproduced: the universe is not being rotated rigidly
+
+Thirty rounds after it was first reported, and after two failed probes, the reported wobble is
+reproduced in the simulation — and the measurement says exactly what is wrong.
+
+**The test.** A ship is a station at a known offset, and we roll. A rigid rotation of the universe about
+us must keep the station at a **constant distance** and turn it smoothly. Ours does not:
+
+```
+station at (500, 0, 1500), rolling at the fastest rate:
+  xy-radius over one full turn ranged 94.0 to 507.6, having started at 500
+```
+
+**The radius collapses to a fifth of its value.** A rotation cannot do that — it is the definition of a
+rotation that it preserves length. What we have is a **spiral**, and it is the same for a station at
+`z=200` and at `z=1500`, so it is the rotation of the location and not the depth that is at fault.
+
+**And a smaller version of the same thing is visible in the first second**, which is what a player would
+actually see:
+
+```
+rolling with the station 1500 ahead and 500 off to one side:
+  after 300 frames the xy-radius is 434 where it started at 500 — a drift of 13%
+```
+
+Thirteen percent over six seconds is a body that visibly **does not stay where it should** as the ship
+turns, which is the reported wobble. The two previous probes looked at the *orientation* — whether the
+render basis was rigid, whether faces flickered — and were both clean; this is the **location**, a
+different vector entirely, and it is the one that is broken.
+
+**Narrowed, not yet fixed.** The fault is in the rotation path that carries ordinary ships:
+`ShipMovement.RotateLocationByOurPitchAndRoll`, which uses two-byte coordinates and writes the third
+byte as a sign, and `EliteMath.Mvt6`, which supplies the sign handling for each component. The
+planet and the sun take a separate 24-bit path (`RotateBodyLocationByOurPitchAndRoll`) and were not
+tested here — a useful next measurement, because if they are rigid and the ships are not, the fault is
+confined to the two-byte routine.
+
+**What made this findable, after so long.** Not a new instrument: the same technique the last several
+rounds have used, applied to the right quantity. **I had been measuring the wrong vector.** The
+renderer's basis, the face culling, the visibility scale and the flicker were all about how a body is
+*drawn*; the wobble is about *where it is*, and a body drawn perfectly in the wrong place still wobbles.
