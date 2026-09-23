@@ -3093,3 +3093,32 @@ rather than asserted are: the blueprints against the binary byte for byte, every
 reachability, every description and hint rendering, the index spaces, the combat rates, and now the
 ship-type constants. Each was written because a fault had already been found in that area — which is
 the honest order of events, though not the ideal one.
+
+## The ship data block's offsets, checked the same way
+
+The Thargon's type drifted from the data, and the fix was to write the comparison out. The ship data
+block's byte offsets are the same kind of hand-written table — fifteen constants mirroring a layout the
+source documents in prose — so they were checked next, and all of them line up:
+
+| ours | the source calls it |
+| --- | --- |
+| `X = 0`, `Y = 3`, `Z = 6` | byte #2 is `x_sign`, so the coordinate runs 0-2 and the next at 3 |
+| `Orientation = 9` | the three orientation vectors follow the nine coordinate bytes |
+| `Speed = 27` | "the ship's speed byte #27" |
+| `Acceleration = 28` | byte #28 |
+| `RollCounter = 29`, `PitchCounter = 30` | bytes #29 and #30 |
+| `Flags = 31` | byte #31 |
+| `Ai = 32` | "the ship's byte #32 (AI flag)" |
+| `Scanner = 33`, `ExplosionCounter = 34`, `Energy = 35` | bytes #33 to #35 |
+| `NewbFlags = 36` | "the ship's NEWB flags from byte #36" |
+
+**Nothing was wrong**, which is the expected result for a table written straight off a documented
+layout. It is worth having checked, though, because the Thargon's was also written straight off
+something and was wrong — and unlike the Thargon, a bad offset would corrupt a ship's state rather than
+merely mis-name it.
+
+**Why this one is cheaper to trust than the ship types.** The block offsets are confirmed by the
+routines that use them: `MVEIT` reads byte #27 for speed and byte #32 for the AI flag, and `ANGRY` reads
+byte #36 for the NEWB flags. A constant that disagreed would break those routines visibly, whereas a
+ship type constant that disagrees breaks nothing at all until a specific thing is tried. **The
+difference between the two tables is not care, it is whether anything would notice.**
