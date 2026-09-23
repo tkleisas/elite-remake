@@ -2285,3 +2285,39 @@ could not show was visible, while the real fault — a whole feature missing —
 same file. The measurement I had been taking, a silhouette's bounding box, is **blind to a hole in the
 middle of the shape**. Measuring a feature means measuring the thing the feature is, not the outline
 around it: `queued detail edges` found this in one line of output, having been printed all along.
+
+## Every detail edge on every ship, checked reachable
+
+The docking-slot fault was a whole feature culled at every distance, so the natural follow-up is to ask
+whether any other detail edge is unreachable. Swept all twenty-two ships with detail edges across four
+headings and three pitches, counting the blueprint's detail edges against the most that ever queue:
+
+| ship | detail edges | most ever queued |
+| --- | --- | --- |
+| Coriolis, Dodo | 4 | 4 |
+| Cobra Mk III | 14 | 14 |
+| Python, Adder, Asp Mk II | 4 | 4 |
+| Viper | 6 | 6 |
+| Sidewinder | 4 | 4 |
+| Shuttle | 10 | 6 |
+| Transporter | 18 | 16 |
+| Fer-de-Lance | 9 | 6 |
+| Moray, Krait | 5, 10 | 5, 10 |
+| Mamba | 20 | 16 |
+| Gecko, Thargoid | 2 | 2 |
+
+Nothing is unreachable. The counts below the total are edge cases of *viewing* rather than of the gate —
+only the detail on faces pointing at us can ever be drawn — and they are consistent with that: adding
+the pitch axis is what brought the Shuttle, Fer-de-Lance and Mamba up.
+
+**And one apparent fault that was mine.** The Constrictor reported **6 detail edges and 0 queued at
+every heading**, which looked like the slot fault repeating. It is not: all six decorate **face 9**,
+whose normal is `(0, -27, 0)` — straight down — and they are on the hull's underside, so they can only
+be seen from below. Rendering with a negative pitch queues all six. The face's normal points outward,
+as it should, and the check was right.
+
+**That is the sixth probe of mine to be wrong before the code was**, and the same mistake as the
+docking slot from the other direction: last time I measured the outline and missed a hole in the
+middle; this time I measured one axis of the camera and missed a whole hemisphere. Both were fixed by
+asking what the measurement *cannot* see. It is the only reliable move I have found, and it is now
+recorded here in those terms rather than as a resolution to be careful.
