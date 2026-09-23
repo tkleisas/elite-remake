@@ -53,8 +53,20 @@ public static class Tactics
     /// so the comparison always has the high bit set, and compares it against the ship's AI flag:
     /// if the random value is greater than or equal to the flag, the ship is peaceful.
     /// </summary>
+    /// <remarks>
+    /// The ship also has to be hostile, which is the NEWB bit the role rules rewrite. Without this
+    /// the bit had no effect at all: <see cref="DecideRole"/> set it for a trader that turned out to
+    /// be a pirate, and nothing read it, so the trader went on behaving like a trader while its flags
+    /// said otherwise. The original reaches the fight by the same route — TACTICS branches on the
+    /// hostile bit and sends a non-hostile ship off to the planet instead.
+    /// </remarks>
     public static bool WantsToAttack(Ship ship, EliteRandom random)
     {
+        if (!ship.IsHostile)
+        {
+            return false;
+        }
+
         int roll = random.Next() | 0x80;
         return roll < ship.AiFlag;
     }

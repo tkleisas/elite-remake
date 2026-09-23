@@ -2663,3 +2663,33 @@ Token 209 is the system name in the hint phrases, and token 198 is **genuinely e
 `EQUB VE` with the comment `Token 198: ""` — so an empty token in the table is correct rather than a
 second extraction fault. Worth checking, because an empty token is exactly what a broken extraction
 looks like.
+
+## The hostile bit had no effect
+
+Round 108 implemented the trader-to-pirate rule and tested its rates, and the last check was whether
+anything *read* the bit it sets. Nothing did.
+
+`DecideRole` set `NewbHostile` for a trader that turned out to be a pirate, and for a bounty hunter
+once we were wanted — and `WantsToAttack` decided whether to fight from the ship's **AI flag** alone.
+So a trader that "became a pirate" went on behaving like a trader while its own flags said otherwise: a
+flag written and never read, which is the same shape as the escape pod's missing refuel and the
+Anaconda's Worm before that.
+
+**The fix is the link, not a new rule.** `WantsToAttack` now requires the ship to be hostile as well as
+aggressive, which is the route the original takes: TACTICS branches on the hostile bit and sends a
+non-hostile ship off towards the planet rather than into a fight. Four tests needed their enemies
+marking hostile, which is itself the evidence that the flag is what decides — they had been relying on
+an AI flag alone and passing.
+
+**Verified by flying it.** A hostile pirate lined up on us and a non-hostile trader beside it, four
+hundred frames: **374 damage taken**, and the pirate confirmed hostile. The harness's first run took no
+damage at all, which was the harness's fault rather than the code's — `LaserPowerProvider` defaults to
+zero, so neither ship had a laser until it was set. That is the eleventh diagnostic of mine to be wrong
+before the code was, and it cost one run because the output said "NOTHING ENGAGED — suspect" rather
+than reporting a bare zero.
+
+**The pattern worth naming.** Three of the last several faults have been a value written by one part of
+the port and not read by the part that should use it: the escape pod's fuel, the Anaconda's spawn
+callback, and now the hostile bit. A rule that is implemented and not connected is indistinguishable
+from one that is not implemented, and the way to tell them apart is to ask **who reads this** whenever
+a new piece of state is written.

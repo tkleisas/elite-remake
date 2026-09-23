@@ -596,6 +596,9 @@ public class TacticsTests
 
         Ship enemy = Ship.Create(17, "sidewinder", "Sidewinder", 0, 0, 0, 0, 2000);
         enemy.AiFlag = aiFlag;
+        // Hostile, which is what lets it fight at all: TACTICS branches on the NEWB bit and sends a
+        // non-hostile ship off towards the planet instead
+        enemy.NewbFlags = Ship.NewbHostile;
         enemy.Energy = 70;
         sim.Spawn(enemy);
         return (sim, enemy);
@@ -608,7 +611,7 @@ public class TacticsTests
         // The aggression test compares a random byte with bit 7 set against the AI flag, so a
         // flag of &F8 makes a ship attack almost every frame, while a flag below &80 means it
         // never does
-        var pirate = new Ship(17, "sidewinder", "Pirate") { AiFlag = 0xF8 };
+        var pirate = new Ship(17, "sidewinder", "Pirate") { AiFlag = 0xF8, NewbFlags = Ship.NewbHostile };
         var trader = new Ship(12, "python", "Trader") { AiFlag = 0x10 };
 
         int pirateAttacks = 0;
@@ -674,7 +677,8 @@ public class TacticsTests
             sim.LaserPowerProvider = _ => 0;
 
             Ship enemy = Ship.Create(17, "sidewinder", "Sidewinder", 0, 0, 0, 0, 2000);
-            enemy.AiFlag = 0xF8;   // as aggressive as it gets
+            enemy.AiFlag = 0xF8;                        // as aggressive as it gets
+            enemy.NewbFlags = Ship.NewbHostile;         // and hostile, which is what lets it fight
             enemy.Energy = 70;
             sim.Spawn(enemy);
 
