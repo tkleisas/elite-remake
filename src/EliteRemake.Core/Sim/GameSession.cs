@@ -496,10 +496,19 @@ public sealed class GameSession
     public bool GameOver { get; private set; }
 
     /// <summary>
-    /// How much bounty a ship type is worth, from its blueprint. Set by the game, because the
-    /// simulation does not know about blueprints.
+    /// How much bounty a ship is worth, in tenths of a credit.
     /// </summary>
-    public Func<Ship, int> BountyProvider { get; set; } = _ => 0;
+    /// <remarks>
+    /// The default answers from the blueprints, which the core now carries, so a kill is worth
+    /// something without the game wiring anything up. The game may still override it.
+    ///
+    /// The original's bounty byte is in whole credits and the commander's cash is in tenths, so the
+    /// value is multiplied by ten — which is why a Sidewinder's blueprint 50 is 5.0 credits. The
+    /// game layer had this multiplication and the core default returned zero, so a session without
+    /// the game was paid nothing for anything it destroyed.
+    /// </remarks>
+    public Func<Ship, int> BountyProvider { get; set; } =
+        ship => BlueprintDefaults.For(ship.Type).Bounty * 10;
 
     /// <summary>
     /// Awards the bounty for a destroyed ship and counts the kill, as the original's KILLSHP and

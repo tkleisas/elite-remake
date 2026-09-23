@@ -2891,3 +2891,43 @@ zero was carried into the game and the ship never moved. So:
 Both are fixed, and it matters which was which — a defect list that does not distinguish them cannot be
 used to judge how much of the game was actually affected. Two rounds of flying found the first one;
 one search of the field next to it found the second.
+
+## Completing the blueprint table, and not leaving a field unread
+
+The search moved on to the remaining blueprint fields a ship needs, and two more belonged in the same
+place:
+
+* **targetable area**, which the original stores as a squared radius — 9025 is a Cobra's 95 — and which
+  the hit test uses.
+* **bounty**, which is what a kill pays.
+
+`BlueprintDefaults` now carries six fields, and the two new ones have readers rather than sitting in the
+table:
+
+| field | reader |
+| --- | --- |
+| speed, max energy, max speed, visibility | the spawner, as NWSHP applies them |
+| targetable area | `FlightSim.TargetableAreaProvider`, now defaulting to the blueprint instead of a constant `95 * 95` |
+| bounty | `GameSession.BountyProvider`, now defaulting to the blueprint instead of zero |
+
+**Adding a field with no reader is the exact fault this session has spent five rounds finding**, and I
+came within one edit of doing it: the bounty went into the table and the provider went on returning
+zero. The check that caught it is the one from round 110 — grep for the readers — applied to my own
+change within the same round rather than several rounds later.
+
+**Verified by paying a kill in a core-only session**, with nothing wired up by a game layer:
+
+```
+type 17  Sidewinder      50.0 credits
+type 18  Mamba          150.0
+type 29  Thargoid       500.0
+type 24  Cobra Mk III (pirate)  175.0
+type 11  Cobra Mk III     0.0   (a trader, not worth shooting)
+```
+
+The zero for the trader is the part worth keeping: the table is not a difficulty curve, it is the
+original's own data, and it says a plain Cobra is worth nothing.
+
+**The targetable area is now the blueprint's for the core as well**, where it had been a constant
+`95 * 95` — which is the Cobra's value, so every ship in a core-only session was exactly as easy to hit
+as a Cobra. That is the same class as the speed and the energy, found by the same search.

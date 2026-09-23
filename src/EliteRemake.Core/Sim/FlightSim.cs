@@ -1241,7 +1241,13 @@ public sealed class FlightSim
     }
 
     /// <summary>The targetable area of a ship, which the hit test uses.</summary>
-    public Func<Ship, int> TargetableAreaProvider { get; set; } = _ => 95 * 95;
+    /// <summary>
+    /// The area a hit test uses for a ship, defaulting to its blueprint value rather than to a
+    /// constant. The original takes it from the blueprint, so a core-only session should too — a
+    /// constant here would make every ship equally easy to hit and quietly ignore the field.
+    /// </summary>
+    public Func<Ship, int> TargetableAreaProvider { get; set; } =
+        ship => BlueprintDefaults.For(ship.Type).TargetableArea;
 
     /// <summary>
     /// The laser power of a ship, from its blueprint. Enemy ships fire with the power in bits 3-7
