@@ -894,8 +894,27 @@ public class GameLoopTests
         session.Launch();
         session.HandlePlayerDeath();
 
-        Assert.True(session.GameOver);
+        Assert.False(session.GameOver, "the death animation runs first");
+        Assert.True(session.DeathSequenceRunning);
         Assert.Equal(GameMode.Flying, session.Mode);
+
+        RunOutTheDeathSequence(session);
+
+        Assert.True(session.GameOver);
+    }
+
+    /// <summary>
+    /// Runs the disc's D2 loop out — the 5.1 seconds of drifting debris — so the tests can reach
+    /// the game-over screen that DEATH2 shows after it.
+    /// </summary>
+    private static void RunOutTheDeathSequence(GameSession session)
+    {
+        while (session.Flight.DeathSequenceCountdown > 0)
+        {
+            session.Flight.Step();
+        }
+
+        session.TickDeathSequence();
     }
 
     /// <summary>
@@ -1054,12 +1073,31 @@ public class DeathAndRestartTests
         return session;
     }
 
+    /// <summary>
+    /// Runs the disc's D2 loop out — the 5.1 seconds of drifting debris — so the tests can reach
+    /// the game-over screen that DEATH2 shows after it.
+    /// </summary>
+    private static void RunOutTheDeathSequence(GameSession session)
+    {
+        while (session.Flight.DeathSequenceCountdown > 0)
+        {
+            session.Flight.Step();
+        }
+
+        session.TickDeathSequence();
+    }
+
     [Fact]
     public void DeathWithoutAPodEndsTheGame()
     {
         GameSession session = Fly();
 
         session.HandlePlayerDeath();
+
+        Assert.True(session.DeathSequenceRunning, "the disc's D2 loop runs first");
+        Assert.Equal(GameMode.Flying, session.Mode);
+
+        RunOutTheDeathSequence(session);
 
         Assert.True(session.GameOver);
         Assert.Equal(GameMode.Flying, session.Mode);
@@ -1075,6 +1113,7 @@ public class DeathAndRestartTests
         session.Commander.EscapePod = true;
 
         session.HandlePlayerDeath();
+        RunOutTheDeathSequence(session);
 
         Assert.True(session.GameOver);
         Assert.True(session.Commander.EscapePod, "the pod is not spent by a death");
@@ -1103,6 +1142,7 @@ public class DeathAndRestartTests
         // new game began with empty energy banks and no shields
         GameSession session = Fly();
         session.HandlePlayerDeath();
+        RunOutTheDeathSequence(session);
         Assert.True(session.GameOver);
 
         session.Flight.Player.Energy = 0;

@@ -79,6 +79,12 @@ public static class Spawner
     public const int PackThreshold = 100;
 
     /// <summary>
+    /// The random byte at or above which a pirate pack may be the rare large one, of up to eight:
+    /// <c>CMP #248</c>, the 3.1% chance.
+    /// </summary>
+    public const int PackLargeThreshold = 248;
+
+    /// <summary>
     /// Decides whether to spawn anything this iteration and, if so, what.
     /// </summary>
     /// <param name="system">The system we are in.</param>
@@ -108,7 +114,10 @@ public static class Spawner
     /// <summary>Picks the ship type for a spawn, using the original's tables.</summary>
     public static int ShipType(SpawnKind kind, EliteRandom random) => kind switch
     {
-        SpawnKind.Pirates => PackHunterBase + (random.Next() & (PackHunterCount - 1)),
+        // Each pirate in the pack draws its own type: "Set A to the AND of two random numbers, so
+        // each bit has 25% chance of being set, which makes the chances of a smaller number
+        // higher" — and then AND #7, so the low types are the common ones
+        SpawnKind.Pirates => PackHunterBase + (random.Next() & random.Next() & (PackHunterCount - 1)),
         SpawnKind.BountyHunter => BountyHunterBase + (random.Next() & (BountyHunterCount - 1)),
 
         // "a ship type from the following: Cobra Mk III, Python, Boa or Anaconda"

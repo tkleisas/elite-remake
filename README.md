@@ -141,12 +141,18 @@ at all — you reset the machine.
 | `T` `M` `U` | lock / fire / unarm missile | `f7` | market prices |
 | `E` | E.C.M. | `f8` / `f9` | status / inventory |
 | `TAB` | energy bomb | `H` | hyperspace (on the charts) |
-| `C` / `P` | docking computer on / cancel | `CTRL-S` | save the commander |
+| `C` / `P` | docking computer on / cancel | `CTRL-S` / `CTRL-L` | save / load the commander |
 | `J` | in-system jump | `ESC` | launch |
 | `H` | hyperspace | arrow keys | move the chart crosshairs |
+| — | — | `O` / `F` | snap the chart crosshairs home / search for a system by name |
 | `F1`–`F4` | front, rear, left, right view | | |
+| `BACKSPACE` | pause, as the disc's COPY key does | | |
 | `ESCAPE` | escape pod (in flight), launch (docked), quit (title and game over) | | |
 | `F10` | quit, from anywhere | | |
+
+While paused, the disc's own configuration keys answer: `Q` silences the sound, `S` brings it back,
+`A` toggles the keyboard's auto-recentre and `CAPS LOCK` toggles flight damping — the two toggles the
+disc's pause screen owns. `DELETE` resumes.
 
 A gamepad works in flight as well: the left stick steers, `A` and `B` are the throttle, and the right
 shoulder button fires. The remaining flight keys have no gamepad mapping yet.
@@ -183,9 +189,44 @@ dotnet run --project src/EliteRemake.Game -- --dock status --fully-equipped --ex
 | `--fully-equipped`, `--empty`, `--new-commander` | starting states |
 | `--sim-rate <hz>` | run the simulation faster than real time (used by the smoke tests) |
 | `--sim-warmup <n>`, `--hold`, `--stress <n>`, `--jump` | development hooks |
+| `--dev-server <port>` | run the development harness's HTTP server, for driving the live game from a command line |
 | `--viewer` | the ship viewer: the named ship, turning, with its statistics |
 | `--font-sheet` | print the bitmap font, for checking the glyphs |
 | `--help` | the list, from the source rather than from this table |
+
+### The development harness
+
+`--dev-server 5757` starts a small HTTP server on the loopback interface that drives the live game —
+the same update and draw loop a player's display runs — so a command line can advance the
+simulation, act on it and look at it at its own pace, without restarting the game and replaying to a
+frame number for every observation. The screenshot options above replay a run; the harness
+inspects one.
+
+```bash
+dotnet run --project src/EliteRemake.Game -- --skip-title --launch --dev-server 5757 &
+
+curl -s http://127.0.0.1:5757/pause?on=true -d ""        # hold the real loop still
+curl -s -X POST -d "" "http://127.0.0.1:5757/dock"       # run the docking's own sequence
+curl -s -X POST -d "" "http://127.0.0.1:5757/step?frames=8&screenshot=/tmp/rings.png"
+curl -s -X POST -d "" "http://127.0.0.1:5757/step?frames=50&screenshot=/tmp/hangar.png"
+curl -s http://127.0.0.1:5757/status
+```
+
+| Command | What it does |
+|---|---|
+| `GET /status` | the current scene's status line, the mode we are in, and the simulation's main loop counter |
+| `POST /step?frames=n` | advances the game by n drawn frames at a fixed sixtieth of a second each, so the simulation moves on without waiting for real time; the reply comes when the frames have run |
+| `POST /step?frames=n&screenshot=file` | the same, and then the frame at the end of the run is written to a PNG — so a mid-sequence frame (the docking rings, the ship hangar) can be caught atomically |
+| `POST /screenshot?path=file` | writes the next drawn frame to a PNG |
+| `POST /launch` | leaves the station, as the launch key does |
+| `POST /dock` | docks from anywhere, through the docking's own sequence — rings, ship hangar, then the screens |
+| `POST /autopilot?on=true\|false` | hands the ship to the docking computer, or takes the controls back |
+| `POST /pause?on=true\|false` | stops and starts the flight loop, as the disc's COPY pause does; a paused game still answers `/step`, which is how a mid-sequence screenshot is caught |
+
+Everything the harness asks for runs on the game's own thread, through the game's own frame logic:
+the frames it steps are the frames a player's display would have produced, only without waiting for
+the display. A paused game and a `/step` together are the deterministic microscope; a fast `/step`
+against an unpaused game is the real-time behaviour.
 
 ## How it is built
 

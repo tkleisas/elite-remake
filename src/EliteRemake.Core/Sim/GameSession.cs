@@ -718,11 +718,36 @@ public sealed class GameSession
     /// all. The commander's shields and banks go with the wreck: there is no refill here, because
     /// on the disc the only full recharge is RESET, which runs when a new game starts or a dead
     /// commander is replaced.
+    ///
+    /// But the death is not instant. The disc hides the dashboard, prints "GAME OVER", and keeps
+    /// running its flight loop for 5.1 seconds while five bits of debris — canisters and plates,
+    /// half of them exploding — drift away from the wreck. The flight simulation runs that
+    /// animation, and the game is over when it ends.
     /// </remarks>
     public void HandlePlayerDeath()
     {
-        GameOver = true;
+        Flight.StartDeathSequence();
+        _deathSequenceRunning = true;
         Message = "GAME OVER - press ESC or F10 to leave, or N for a new commander";
+    }
+
+    /// <summary>True while the disc's death animation is playing.</summary>
+    public bool DeathSequenceRunning => _deathSequenceRunning;
+
+    private bool _deathSequenceRunning;
+
+    /// <summary>
+    /// Ends the death animation once the flight simulation has run it out, which is the disc's own
+    /// flow: the animation is the disc's D2 loop, and DEATH2 — the game-over screen — comes after
+    /// it.
+    /// </summary>
+    public void TickDeathSequence()
+    {
+        if (_deathSequenceRunning && Flight.DeathSequenceCountdown <= 0)
+        {
+            _deathSequenceRunning = false;
+            GameOver = true;
+        }
     }
 
     /// <summary>Starts again with a fresh commander, as reloading a save does.</summary>

@@ -443,6 +443,15 @@ public sealed class FlightSim
     /// <summary>Advances the simulation by one iteration of the original's main loop.</summary>
     public void Step(FlightInput input = default)
     {
+        // The death sequence is the disc's own D2 loop: the flight loop keeps running to move and
+        // display the debris of our death, but nothing else — the key logger is cleared, the sky
+        // has been emptied, and all that happens is the drift of what we left behind
+        if (DeathSequenceRunning)
+        {
+            StepDeathSequence();
+            return;
+        }
+
         UpdateSpeed(input);
         UpdateRotation(input);
         UpdateLasers(input);
@@ -452,6 +461,8 @@ public sealed class FlightSim
         EscapePodLaunchedThisFrame = null;
         MissileFiredAtUsThisFrame = null;
         StationLaunchedThisFrame = null;
+        ScoopedFuelFromTheSun = false;
+        MissileInSightsThisFrame = Commander is { Missiles: > 0 } && AnyShipInCrosshairs();
 
         // The original's SSPR, which is the count of stations in our bubble and so is true for as
         // long as the station is with us. It guards two things: nothing spawns while it is set, and
@@ -546,6 +557,14 @@ public sealed class FlightSim
             Combat.RechargeEnergy(Player);
         }
 
+        // Scooping and collisions are one pass in the original — part 7 gates every close ship on
+        // the exploding-or-killed bits and the range, part 8 decides between scooping it and
+        // colliding with it, and part 10 applies the answer. The scoop is attempted first, and the
+        // collision pass then only sees what it did not scoop, because a canister we can scoop is
+        // one we do not crash into.
+        ScoopFailedThisFrame = false;
+        UpdateScooping();
+
         // Flying into another ship hurts us badly and annoys it
         UpdateCollisions();
 
@@ -560,8 +579,9 @@ public sealed class FlightSim
         // Missiles home in, and the E.C.M. swats them down
         UpdateMissiles();
 
-        // Scoop anything we are flying at, if we have the equipment for it
-        UpdateScooping();
+        // The energy-low check: once every 32 iterations, part 15 prints "ENERGY LOW{beep}" while
+        // the banks are at 50 or below — "LDA #50 / CMP ENERGY / BCC P%+6" is an inclusive test
+        EnergyLowBeepThisFrame = (MainLoopCounter & 31) == 10 && Player.Energy <= 50;
 
         // Explosion clouds grow and then take the wreck with them, which the original does as it
         // draws each one: "ADC #4 / BCS EX2" on the cloud counter, and EX2 sets the killed bit
@@ -581,6 +601,100 @@ public sealed class FlightSim
 
     /// <summary>True once our ship has been destroyed; the game clears it once it has reacted.</summary>
     public bool PlayerDied { get; set; }
+
+    /// <summary>
+    /// How long the disc's death animation runs: LASCT is set to 255 and spent at 50 vertical
+    /// syncs a second, "so this setting determines how long the death animation lasts (it's 5.1
+    /// seconds)". At the main loop's own rate that is about 64 iterations.
+    /// </summary>
+    public const int DeathSequenceIterations = 64;
+
+    /// <summary>Iterations left on the death animation, or 0 when we are not in it.</summary>
+    public int DeathSequenceCountdown { get; private set; }
+
+    /// <summary>True while the debris of our death is drifting and exploding.</summary>
+    public bool DeathSequenceRunning => DeathSequenceCountdown > 0;
+
+    /// <summary>
+    /// Starts the disc's death animation: RES2 has emptied the sky and set our speed to nothing —
+    /// "as we aren't going anywhere any more" — and the D1 loop adds five bits of debris, a cargo
+    /// canister or an alloy plate on the toss of a coin, pointed away from us at double DELTA
+    /// speed, with half of them already exploding. The game keeps flying the disc's own loop until
+    /// the countdown runs out.
+    /// </summary>
+    public void StartDeathSequence()
+    {
+        DeathSequenceCountdown = DeathSequenceIterations;
+        Speed = 0;
+        ClearBubble();
+
+        for (int i = 0; i < 5; i++)
+        {
+            // The disc's D1 loop: 50% canister, 50% plate, each marked killed half the time so
+            // half the wreckage blows up as it drifts
+            int type = (Random.Next() & 1) == 0 ? Debris.Canister : Debris.AlloyPlate;
+            var wreck = new Ship(type, string.Empty, type == Debris.Canister ? "Cargo canister" : "Alloy plate")
+            {
+                Speed = 6,
+                MaxSpeed = 6,
+                AiFlag = 0,
+            };
+
+            // Ze's own figures: x_lo is a random 0-63, y_lo is x_lo with bits 1, 3 and 5 flipped,
+            // and z_lo has bits 4 and 6 set, which puts the debris at 112-127 ahead of us
+            int x = (Random.Next() >> 2) & 0x3F;
+            int y = x ^ 0b00101010;
+            int z = x | 0b01010000;
+            wreck.SetPosition(x, y, z);
+
+            if ((Random.Next() & 1) == 0)
+            {
+                wreck.StartExplosion();
+            }
+
+            Spawn(wreck);
+        }
+    }
+
+    /// <summary>
+    /// The disc's D2 loop: the flight loop keeps running to move and display the debris, with the
+    /// key logger cleared and every timer stopped — so nothing spawns, nothing collides, and the
+    /// only work is the drift of what we left behind.
+    /// </summary>
+    private void StepDeathSequence()
+    {
+        for (int slot = 0; slot < _bubble.Count; slot++)
+        {
+            Mveit(_bubble[slot], slot);
+        }
+
+        // The clouds grow and take their wrecks with them, which is how the half of the debris
+        // that was already exploding leaves the scene
+        UpdateExplosions();
+        RemoveDistantShips();
+        RemoveKilledShips();
+
+        DeathSequenceCountdown--;
+        MainLoopCounter++;
+    }
+
+    /// <summary>
+    /// The disc's part 11 crosshair test with an armed missile in the rack: "We have missile lock
+    /// and an armed missile, so call BEEP to make a short, high beep". It runs per iteration while
+    /// any ship is in the crosshairs, which is the repeating chirp that tells a pilot to fire.
+    /// </summary>
+    private bool AnyShipInCrosshairs()
+    {
+        foreach (Ship ship in _bubble)
+        {
+            if (Combat.IsInCrosshairs(ship, TargetableArea(ship), View))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>
     /// The system we are flying in, which decides what spawns around us. Set by the game when we
@@ -630,21 +744,32 @@ public sealed class FlightSim
     /// <summary>Scooped cargo this frame, if any, for the game to report.</summary>
     public (int Item, int Amount)? ScoopedThisFrame { get; private set; }
 
-    /// <summary>The commander, so scooping knows what is fitted and where cargo goes.</summary>
-
-    /// <summary>How a canister's contents are decided, from the blueprints.</summary>
     /// <summary>
-    /// What scooping a ship yields, as a commodity number for the hold.
+    /// Set once per iteration when part 15's energy-low check falls due and the banks are at 50 or
+    /// below, for the game to play the beep that token 100 carries.
     /// </summary>
-    /// <remarks>
-    /// The numbering is the original's market item numbering, which it also uses directly as the
-    /// hold's slot number: item 3 is slaves, item 12 is furs, item 16 is alien items. The source's own
-    /// comments for the three scoopable ships are what fix the convention — the escape pod's nibble
-    /// gives 3 and it says slaves, the thargon's gives 16 and it says alien items — and 0 means the
-    /// blueprint names no commodity, which for a cargo canister is what sends the game to the
-    /// original's own random-contents path.
-    /// </remarks>
-    public Func<Ship, int> ScoopItemProvider { get; set; } = _ => 0;
+    public bool EnergyLowBeepThisFrame { get; private set; }
+
+    /// <summary>
+    /// Set when a canister could be scooped but the hold had no room for it and it was destroyed,
+    /// for the game to play EXNO3 — "the sound of the cargo canister being destroyed".
+    /// </summary>
+    public bool ScoopFailedThisFrame { get; private set; }
+
+    /// <summary>
+    /// Set when a canister was successfully scooped from the sun's corona, for the game to print
+    /// "FUEL SCOOPS ON", which the disc prints every iteration the scoops are working.
+    /// </summary>
+    public bool ScoopedFuelFromTheSun { get; private set; }
+
+    /// <summary>
+    /// Set while an armed missile has a target in the crosshairs, for the game to play the disc's
+    /// short, high beep — "We have missile lock and an armed missile, so call BEEP" — and colour
+    /// the missile indicator red.
+    /// </summary>
+    public bool MissileInSightsThisFrame { get; private set; }
+
+    /// <summary>The commander, so scooping knows what is fitted and where cargo goes.</summary>
 
     /// <summary>The missions, which decide whether the Constrictor or extra Thargoids appear.</summary>
     public Missions? Missions { get; set; }
@@ -657,6 +782,13 @@ public sealed class FlightSim
 
     /// <summary>The Thargon, the Thargoid's small companion, which XX21 numbers 30.</summary>
     public const int ThargonType = 30;
+
+    /// <summary>
+    /// The hold slot a scooped ship yields, as a zero-based hold index — the original's own
+    /// indexing, in which 0 is food and 3 is slaves — or a negative value when the ship carries
+    /// nothing of its own, which falls back to what its type is known to give.
+    /// </summary>
+    public Func<Ship, int> ScoopItemProvider { get; set; } = _ => -1;
 
     /// <summary>
     /// True while we are in witchspace, which is the original's MJ flag.
@@ -1231,6 +1363,10 @@ public sealed class FlightSim
 
         int scooped = Speed >> 3;
         commander.Fuel = Math.Min(Outfitting.MaxFuel, commander.Fuel + scooped);
+
+        // The disc prints "FUEL SCOOPS ON" every iteration the scoops are working, full tank or
+        // not: the message follows straight from the BST test, with nothing else gating it
+        ScoopedFuelFromTheSun = true;
     }
 
     /// <summary>
@@ -1412,8 +1548,12 @@ public sealed class FlightSim
         ((Math.Abs(x) >> 16) | (Math.Abs(y) >> 16) | (Math.Abs(z) >> 16)) & 0x7F;
 
     /// <summary>
-    /// The damage we take when we fly into another ship, and the damage we do to it. The original's
-    /// main flight loop applies 128 to us with OOPS and 64 to the ship we hit, and makes it angry.
+    /// The base of the damage we take when we fly into another ship, and the damage we do to it.
+    /// The original's main flight loop applies 64 to the ship we hit, makes it angry, and then
+    /// reads its energy to make our own damage: "Set the amount of damage in A to 128 + A / 2, so
+    /// this is quite a big dent, and colliding with higher energy ships will cause more damage" —
+    /// the energy it reads is the ship's <em>after</em> its own hit, so a ship we just killed
+    /// hurts exactly 128.
     /// </summary>
     public const int CollisionDamageToUs = 128;
 
@@ -1473,9 +1613,10 @@ public sealed class FlightSim
             }
 
             // Which shield takes it comes from the ship's own z_sign, as OOPS does for any attacker:
-            // ramming from behind should not take the forward shield
+            // ramming from behind should not take the forward shield. The amount is 128 plus half
+            // the energy the ship has left, so the wrecks of ships we just killed hurt least
             (_, _, int collisionZ) = ship.GetPosition();
-            if (Combat.TakeDamage(Player, CollisionDamageToUs, fromBehind: collisionZ < 0))
+            if (Combat.TakeDamage(Player, CollisionDamageToUs + (ship.Energy >> 1), fromBehind: collisionZ < 0))
             {
                 PlayerDied = true;
             }
@@ -1495,6 +1636,27 @@ public sealed class FlightSim
         Player.AftShield = 0;
         PlayerDied = true;
     }
+
+    /// <summary>
+    /// The gentle docking failure, which the disc's MA67 handles: our speed was under 5, so we
+    /// "register some damage, but not a huge amount" — the speed is stopped dead at 1, a dent of 5
+    /// goes into our shields by way of OOPS, and the station is none the worse. This is also what
+    /// an annoyed station does to us, because its refusal is the same docking-failure branch.
+    /// </summary>
+    public void ApplyDockingBump(Ship station)
+    {
+        Speed = 1;
+
+        // OOPS takes the damage from the attacker's own z_sign: a station behind us dents the rear
+        (int _, int _, int stationZ) = station.GetPosition();
+        if (Combat.TakeDamage(Player, DockingBumpDamage, fromBehind: stationZ < 0))
+        {
+            PlayerDied = true;
+        }
+    }
+
+    /// <summary>How much a gentle docking failure dents us: the disc's <c>LDA #5</c>.</summary>
+    public const int DockingBumpDamage = 5;
 
     /// <summary>How long the E.C.M. stays on for once fired.</summary>
     public int EcmFrames { get; private set; }
@@ -1660,8 +1822,12 @@ public sealed class FlightSim
     }
 
     /// <summary>
-    /// Scoops up anything scoopable that we are close enough to. The original checks each item in
-    /// the bubble as part of its flight loop and collects it if we have fuel scoops fitted.
+    /// Scoops up what we are flying through, which the original's part 7 gates on three things:
+    /// the item must be within 127 units on every axis of the contact test, we must have fuel
+    /// scoops fitted, and the item must be <em>below</em> us — "LDA BST / AND INWK+5 ... a negative
+    /// value here means the canister is below us". Anything that passes all three is scooped;
+    /// anything else falls through to the collision pass, which is how flying into a canister
+    /// without a scoop hurts.
     /// </summary>
     private void UpdateScooping()
     {
@@ -1680,22 +1846,44 @@ public sealed class FlightSim
             }
 
             (int x, int y, int z) = ship.GetPosition();
-            if (z <= 0)
+
+            // The contact test's range: none of the three magnitudes may be further than 127
+            if (Math.Abs(x) > 127 || Math.Abs(y) > 127 || Math.Abs(z) > 127)
             {
                 continue;
             }
 
-            double distance = Math.Sqrt(((double)x * x) + ((double)y * y) + ((double)z * z));
-            if (distance > Debris.ScoopRange)
+            // "LDA BST / AND INWK+5 / BPL MA58": without scoops, or with the canister above us,
+            // the original gives up on scooping and processes a collision instead
+            if (!Commander.FuelScoops || y >= 0)
             {
                 continue;
             }
 
-            (int Item, int Amount)? scooped = Debris.TryScoop(ship, Commander, ScoopItemProvider(ship));
+            // A cargo canister's contents are drawn now, at scoop time: "JSR DORND / AND #7", so a
+            // canister holds one tonne of a random market item, food to computers. The other
+            // scoopable ships carry the commodity their blueprint names.
+            int commodity = ship.Type == Debris.Canister
+                ? Random.Next() & 7
+                : ScoopItemProvider(ship);
+
+            // tnpr1 decides between collecting the item and destroying it on the room in the hold
+            // for one tonne: no room and the canister is destroyed — "BCS MA59 ... make a sound to
+            // indicate failure, before destroying the canister", and MA60 marks it killed so the
+            // local bubble loses it
+            if (Commander.CargoFree <= 0)
+            {
+                ScoopFailedThisFrame = true;
+                ship.IsKilled = true;
+                continue;
+            }
+
+            (int Item, int Amount)? scooped = Debris.TryScoop(ship, Commander, commodity);
             if (scooped is not null)
             {
+                // The disc prints one scooped item's name per pass, the last one printed winning,
+                // which is what reporting the last scoop here reproduces
                 ScoopedThisFrame = scooped;
-                break;
             }
         }
     }
@@ -1893,9 +2081,23 @@ public sealed class FlightSim
             return;
         }
 
-        // A pack of pirates arrives together, up to the original's four in a group. The pack size is
-        // what the original stores in EV, so a bigger pack keeps the sky quiet for longer.
-        int count = kind == SpawnKind.Pirates ? 1 + (Random.Next() % 4) : 1;
+        // A pack of pirates arrives together, up to the original's four in a group — and rarely
+        // eight, on the 3.1% chance its own code gives the large pack. Each pirate also draws its
+        // own type, and both the pack size and the types are drawn with the AND of two random
+        // bytes, "so the chances of a smaller number are higher". The pack size is what the
+        // original stores in EV, so a bigger pack keeps the sky quiet for longer.
+        int count;
+        if (kind == SpawnKind.Pirates)
+        {
+            byte size = Random.Next();
+            count = size >= Spawner.PackLargeThreshold
+                ? 1 + (Random.Next() & 7)
+                : 1 + (Random.Next() & Random.Next() & 3);
+        }
+        else
+        {
+            count = 1;
+        }
         for (int i = 0; i < count; i++)
         {
             if (!Spawn(Spawner.Create(kind, System.Value, Random, i)))

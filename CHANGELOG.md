@@ -64,6 +64,55 @@ comparing the port with the disc version's own routines, and each carries a test
 * The energy unit is the original's ENGY byte: none, standard, or navy, where it used to be a
   boolean. Save files written by the previous build read unchanged — a saved `true` reads as the
   standard unit.
+* **Cargo scooping is the disc's own pass now.** Part 7 gates every close item on the range — within
+  127 units on every axis — on fuel scoops being fitted, and on the item being *below* us, which the
+  port ignored: it scooped anything in front within 200 units. The consequences of the real rule all
+  follow: a cargo canister holds a random market item drawn at scoop time ("AND #7", food to
+  computers) rather than nothing at all; a full hold destroys the canister with the EXNO3 sound
+  instead of leaving it hanging; and a canister we cannot scoop is something we *collide* with, at
+  the disc's own damage of 128 plus half the energy it has left.
+* **A failed approach to the station is the disc's own MA62.** At a speed of 5 or more it is fatal;
+  below that it is a dent — the speed stops dead at 1 and 5 points of damage go into the shields.
+  An annoyed station's refusal is the same branch, so flying at one politely at a crawl now costs a
+  dent where the port used to refuse politely and hurt nobody, and fast used to cost nothing.
+* **The docking computer's speed cap is hard now**, as DOKEY has it: "the maximum speed during
+  docking is 22", rather than an approach that merely asked to slow down.
+* **Pirate packs are drawn with the disc's own dice.** Each pirate's type is the AND of two random
+  bytes reduced to the pack's range — "which makes the chances of a smaller number higher" — so the
+  Sidewinder leads the pack and the Cobra Mk III (pirate) is its rarest member; the port drew
+  uniformly. Packs can also be the disc's rare large one, of up to eight ships, on its 3.1% chance.
+
+### Added
+
+* The disc's own messages and sounds that the flight loop prints and nobody in the port did:
+  "FUEL SCOOPS ON" every iteration the sun's scoops are working, "DOCKING COMPUTERS ON" on the disc's
+  own cadence (the 15th iteration of every block of 32) while the autopilot flies, the repeating
+  short, high beep of an armed missile with a target in the crosshairs, and the beep that token 100
+  carries every 32 iterations while the banks are at 50 or below.
+* The energy bomb's flash: while it is going off the space screen flashes black and white, which on
+  the BBC is a palette trick and here is the same effect drawn.
+* **The death sequence is the disc's own D2 loop.** The dashboard hides, "GAME OVER" is printed, and
+  the flight loop keeps running for the disc's 5.1 seconds while five bits of debris — a cargo
+  canister or an alloy plate on the toss of a coin, half of them exploding, pointed away from the
+  wreck at double the speed — drift off it. The game-over screen comes after, as DEATH2 does.
+* **The ship hangar.** The disc's DOENTRY shows it while the docked code loads: half the time a group
+  from the HATB table (a Shuttle and a Transporter, three canisters, a Transporter and a Cobra Mk
+  III, a Viper and a Krait), half the time a solitary ship or an empty bay, every ship spun on the
+  deck, with HAS1's own heights off the ground. The port draws the bay's floor as a converging grid,
+  which keeps the ships standing in it.
+* **The disc's pause.** Backspace (for COPY) stops the flight loop and DELETE starts it again, and
+  while it is stopped Q silences the sound, S brings it back, A toggles auto-recentre and CAPS LOCK
+  toggles flight damping — the disc's own configuration keys, and the two toggles the simulation
+  modelled but nothing could reach.
+* The charts' O and F keys: O snaps the crosshairs onto the current system (the disc's ping), and F
+  searches the galaxy for a system by name (the disc docked code's HME2), saying "UNKNOWN PLANET" to
+  a low beep when there is no such system.
+* CTRL-L loads the commander from any docked screen, which is the load half of the disc's docked
+  file menu; CTRL-S already saves from all of them.
+* **The development harness.** `--dev-server <port>` runs a small HTTP server that drives the live
+  game: advance it by drawn frames at a fixed rate, act on it (launch, dock, autopilot, the pause),
+  screenshot it, and ask it where things stand — all without restarting it. The README documents it,
+  because it is how the docking sequence, the hangar and the death animation are checked now.
 
 ## [1.0.0] — 2026-09-23
 

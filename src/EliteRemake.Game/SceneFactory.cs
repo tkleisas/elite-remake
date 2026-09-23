@@ -229,9 +229,10 @@ public static class SceneFactory
         // alien items, which is item 16.
         sim.ScoopItemProvider = ship =>
             ShipCatalog.ByType(ship.Type) is { } scooped &&
-            EliteRemake.Data.Ships.ShipData.ById(scooped.Id) is { } scoopBlueprint
+            EliteRemake.Data.Ships.ShipData.ById(scooped.Id) is { } scoopBlueprint &&
+            scoopBlueprint.Header.ScoopMarketItem > 0
                 ? scoopBlueprint.Header.ScoopMarketItem
-                : 0;
+                : -1;
 
         // Give any ship that spawns a name and a blueprint from the catalogue, so it can be drawn
         sim.ShipSpawned = ship =>

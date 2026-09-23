@@ -83,6 +83,12 @@ public sealed class GameOptions
     public bool StartDocked { get; private set; }
 
     /// <summary>
+    /// The port to run the development harness's HTTP server on, or null for none. It lets a command
+    /// line drive the live game — advance it, act on it, screenshot it — without restarting it.
+    /// </summary>
+    public int? DevServerPort { get; private set; }
+
+    /// <summary>
     /// If set, start by launching from the station, so the launch tunnel and its sound can be seen
     /// without a keyboard to press the launch key with.
     /// </summary>
@@ -166,6 +172,9 @@ public sealed class GameOptions
                     break;
                 case "--exit-after":
                     options.ExitAfterFrames = int.Parse(Next() ?? "60");
+                    break;
+                case "--dev-server":
+                    options.DevServerPort = int.Parse(Next() ?? "5757");
                     break;
                 case "--paused":
                     options.Paused = true;

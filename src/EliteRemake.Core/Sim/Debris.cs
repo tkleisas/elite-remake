@@ -37,9 +37,6 @@ public static class Debris
     /// <summary>The distance a bit of junk appears at, in units.</summary>
     public const int SpawnDistance = 38 * 256;
 
-    /// <summary>How close an item must be to scoop it.</summary>
-    public const int ScoopRange = 200;
-
     /// <summary>True for the types that count as junk in the original's JUNK counter.</summary>
     /// <remarks>
     /// The disc version does not test a list: NWSHP counts a new ship as junk when its type falls in
@@ -64,6 +61,18 @@ public static class Debris
 
     /// <summary>The escape pod's ship type, which scoops as slaves.</summary>
     public const int EscapePod = 3;
+
+    /// <summary>The hold slot an escape pod scoops into, by the original's own indexing.</summary>
+    public const int Slaves = 3;
+
+    /// <summary>The hold slot a splinter scoops into: "Market item when scooped = 11 + 1 = 12".</summary>
+    public const int Minerals = 12;
+
+    /// <summary>The hold slot a Thargon scoops into, which its own comment confirms.</summary>
+    public const int AlienItems = 16;
+
+    /// <summary>What a type with no known commodity yields, which scoops as nothing at all.</summary>
+    private const int NotScoopable = -1;
 
     /// <summary>The Thargon's ship type, which scoops as alien items.</summary>
     /// <summary>
@@ -178,32 +187,33 @@ public static class Debris
     /// </summary>
     /// <param name="item">The item we are flying at.</param>
     /// <param name="commander">The commander, who must have fuel scoops and hold space.</param>
-    /// <param name="marketItem">The commodity a canister of this type carries.</param>
-    public static (int Item, int Amount)? TryScoop(Ship item, Commander commander, int marketItem)
+    /// <param name="holdIndex">
+    /// The commodity the item carries, as a zero-based hold slot — the original's own indexing, in
+    /// which 0 is food and 3 is slaves — or a negative value for the caller to say "this ship
+    /// carries nothing of its own", which falls back to the commodity the ship's type is known to
+    /// yield.
+    /// </param>
+    public static (int Item, int Amount)? TryScoop(Ship item, Commander commander, int holdIndex)
     {
         if (!commander.FuelScoops || item.IsKilled)
         {
             return null;
         }
 
-        // The caller passes a zero-based commodity index, converted from the original's one-based
-        // market item. A zero means the ship cannot be scooped at all. Where no blueprint is
-        // available — the Core used on its own — fall back to the same indices for the three types
-        // the original gives a commodity of their own: slaves, furs and gem-stones.
-        int commodity = marketItem != 0
-            ? marketItem
+        int commodity = holdIndex >= 0
+            ? holdIndex
             : item.Type switch
             {
                 // The source gives the first two explicitly: "Market item when scooped = 11 + 1 = 12
-                // (minerals)" for the splinter, and the escape pod's comment says slaves. The thargon's
-                // nibble of 15 gives 16, alien items, which its comment confirms.
-                Splinter => 12,      // minerals
-                EscapePod => 3,      // slaves
-                Thargon => 16,       // alien items
-                _ => 0,
+                // (minerals)" for the splinter, and the escape pod's comment says slaves. The
+                // thargon's nibble of 15 gives 16, alien items, which its comment confirms.
+                Splinter => Minerals,
+                EscapePod => Slaves,
+                Thargon => AlienItems,
+                _ => NotScoopable,
             };
 
-        if (commodity == 0 || !IsScoopable(item.Type))
+        if (commodity < 0 || !IsScoopable(item.Type))
         {
             return null;
         }
@@ -212,6 +222,7 @@ public static class Debris
         {
             return null; // nowhere to put it
         }
+
         int added = commander.AddCargo(commodity, 1);
         if (added == 0)
         {

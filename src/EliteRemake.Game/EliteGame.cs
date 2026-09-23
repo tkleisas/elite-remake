@@ -31,6 +31,7 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
     private GameSession _session = null!;
     private int _frame;
     private bool _screenshotWritten;
+    private DevServer? _devServer;
 
     public EliteGame(GameOptions options)
     {
@@ -48,6 +49,12 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
         IsMouseVisible = true;
         Window.AllowUserResizing = true;
         Window.Title = "Elite";
+
+        // The dev harness, when it was asked for: a live game a command line can drive
+        if (options.DevServerPort is { } port)
+        {
+            _devServer = new DevServer(this, port);
+        }
     }
 
     /// <summary>The view camera, sized to the current space view.</summary>
@@ -73,6 +80,8 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
         Console.WriteLine($"Loaded {_sound.SoundCount} sounds and the music");
         _session = SceneFactory.CreateSession(_options);
         _scene = CreateSceneForMode();
+
+        _devServer?.Start();
 
         if (_scene is Scenes.FlightScene sounds)
         {
@@ -178,7 +187,10 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
     /// <summary>Builds a chart scene, with the crosshairs starting on the current system.</summary>
     private ChartScene OpenChart(ChartRange range)
     {
-        var scene = new ChartScene(Camera, _session, _text, range);
+        var scene = new ChartScene(Camera, _session, _text, range)
+        {
+            Sounds = _sound,
+        };
         scene.SelectSystem(_session.System);
         return scene;
     }
@@ -224,6 +236,19 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
 
     protected override void Update(GameTime gameTime)
     {
+        RunFrame((float)gameTime.ElapsedGameTime.TotalSeconds);
+
+        // The dev server's work is frames too: a step request runs them at a fixed sixtieth, so the
+        // simulation advances without waiting for real time
+        _devServer?.RunPendingWork();
+    }
+
+    /// <summary>
+    /// Runs one frame of the game, whatever drives it: the display's own clock when a player is
+    /// playing, or the dev harness's fixed sixtieth when a command line is.
+    /// </summary>
+    private void RunFrame(float elapsedSeconds)
+    {
         // ESCAPE leaves the game from the title screen and the game-over screen; docked, each
         // screen's own ESCAPE handler answers it, and in flight it launches an escape pod, which is
         // the original's own use of the key. F10 leaves from anywhere.
@@ -231,10 +256,15 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
         bool inFlight = _session.Mode == GameMode.Flying && !_session.GameOver;
         bool docked = _session.Mode == GameMode.Docked;
         if (pressed.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.F10) ||
-            (pressed.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !inFlight && !docked))
+            (pressed.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !inFlight && !docked && !_paused))
         {
             Exit();
         }
+
+        // The disc's own pause: COPY stops the flight loop and DELETE starts it again, and while it
+        // is stopped the keys of its configuration screen answer. PC keyboards have no COPY, so
+        // backspace stands in for it, beside the DELETE that unpauses it as the original does
+        UpdatePauseKeys(pressed);
 
         UpdateCameraToViewport();
 
@@ -285,9 +315,10 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
         }
 
         var updateClock = System.Diagnostics.Stopwatch.StartNew();
-        if (!_options.Paused && !(_session.GameOver && _session.Mode == GameMode.Flying))
+        if ((!_options.Paused && !_paused || _harnessAdvancing) &&
+            !(_session.GameOver && _session.Mode == GameMode.Flying))
         {
-            _scene.Update((float)gameTime.ElapsedGameTime.TotalSeconds);
+            _scene.Update(elapsedSeconds);
         }
 
         // Being destroyed is resolved after the scene has had its update, so the scene can see the
@@ -302,15 +333,57 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
         }
 
         _updateTicks += updateClock.ElapsedTicks;
-
-        base.Update(gameTime);
     }
+
+    /// <summary>
+    /// Advances the game by whole drawn frames, at a fixed sixtieth of a second each, which is what
+    /// the dev harness's step request runs: the same frames a player's display produces, just
+    /// without waiting for the display. While it advances, the harness's own pause does not stop the
+    /// frames — that is the point of pausing: to hold the real loop still between the harness's own
+    /// steps, so a mid-sequence screenshot catches the frame the harness asked for.
+    /// </summary>
+    public void Advance(int frames)
+    {
+        _harnessAdvancing = true;
+        try
+        {
+            for (int i = 0; i < frames; i++)
+            {
+                RunFrame(1f / 60f);
+            }
+        }
+        finally
+        {
+            _harnessAdvancing = false;
+        }
+    }
+
+    private bool _harnessAdvancing;
 
     protected override void Draw(GameTime gameTime)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
         _scene.Draw(_spriteBatch, _pixel, GraphicsDevice);
         _drawTicks += sw.ElapsedTicks;
+
+        // The dev harness's screenshot lands here, once the frame has been drawn
+        _devServer?.TakeScreenshotIfRequested();
+
+        // The pause overlay sits over whatever is showing, with the state of the disc's own
+        // configuration toggles on it
+        if (_paused)
+        {
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            int scale = Math.Max(2, GraphicsDevice.Viewport.Height / 360);
+            _text.DrawCentred(
+                _spriteBatch,
+                PauseStatus,
+                GraphicsDevice.Viewport.Width / 2,
+                GraphicsDevice.Viewport.Height / 3,
+                scale,
+                Microsoft.Xna.Framework.Color.Yellow);
+            _spriteBatch.End();
+        }
 
         base.Draw(gameTime);
 
@@ -380,10 +453,26 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
 
         // The original saves the commander from the docked screens — its SVE routine saves from
         // whichever screen is up — so CTRL-S is answered here once, for all of them, rather than in
-        // whichever scenes happened to remember it
+        // whichever scenes happened to remember it. Its file menu's load is answered with CTRL-L,
+        // which replaces the commander in play with the saved one, as the disc's load does.
         if (IsNewPress(keys, Keys.S) && MarketScene.ControlHeld(keys))
         {
             _session.Save();
+            Console.WriteLine(_scene.StatusLine);
+        }
+
+        if (IsNewPress(keys, Keys.L) && MarketScene.ControlHeld(keys))
+        {
+            if (_session.TryLoad() is { } loadError)
+            {
+                _session.Message = loadError;
+            }
+            else
+            {
+                _session.SelectedSystem = _session.System;
+            }
+
+            Console.WriteLine(_session.Message);
         }
 
         _dockedKeys = keys;
@@ -394,6 +483,73 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
         keys.IsKeyDown(key) && !_dockedKeys.IsKeyDown(key);
 
     private KeyboardState _dockedKeys;
+
+    /// <summary>True while the flight loop is stopped, which is the disc's COPY pause.</summary>
+    private bool _paused;
+
+    /// <summary>True the first frame a pause key goes down, so a held key does not repeat.</summary>
+    private KeyboardState _pauseKeys;
+
+    /// <summary>
+    /// The disc's pause and its configuration screen: COPY stops the flight loop, DELETE starts it
+    /// again, and while it is stopped Q silences the sound, S brings it back, A toggles the
+    /// keyboard's auto-recentre and CAPS LOCK toggles flight damping, which are the original's own
+    /// toggles on its configuration screen. ESCAPE leaves the game, as it does on the disc's pause
+    /// screen.
+    /// </summary>
+    private void UpdatePauseKeys(KeyboardState keys)
+    {
+        if (keys.IsKeyDown(Keys.Back) && !_pauseKeys.IsKeyDown(Keys.Back))
+        {
+            _paused = true;
+        }
+
+        if (keys.IsKeyDown(Keys.Delete) && !_pauseKeys.IsKeyDown(Keys.Delete))
+        {
+            _paused = false;
+        }
+
+        if (!_paused)
+        {
+            _pauseKeys = keys;
+            return;
+        }
+
+        // The configuration keys, which are the disc's own: Q and S for the sound, and the two
+        // toggles the flight simulation already models but nothing could reach
+        if (keys.IsKeyDown(Keys.Q) && !_pauseKeys.IsKeyDown(Keys.Q))
+        {
+            _sound.Muted = true;
+        }
+
+        if (keys.IsKeyDown(Keys.S) && !_pauseKeys.IsKeyDown(Keys.S))
+        {
+            _sound.Muted = false;
+        }
+
+        if (keys.IsKeyDown(Keys.A) && !_pauseKeys.IsKeyDown(Keys.A))
+        {
+            _session.Flight.AutoRecentre = !_session.Flight.AutoRecentre;
+        }
+
+        if (keys.IsKeyDown(Keys.CapsLock) && !_pauseKeys.IsKeyDown(Keys.CapsLock))
+        {
+            _session.Flight.DampingDisabled = !_session.Flight.DampingDisabled;
+        }
+
+        // ESCAPE on the disc's pause screen ends the game
+        if (keys.IsKeyDown(Keys.Escape) && !_pauseKeys.IsKeyDown(Keys.Escape))
+        {
+            Exit();
+        }
+
+        _pauseKeys = keys;
+    }
+
+    /// <summary>The pause screen's state, for the overlay and for diagnostics.</summary>
+    public string PauseStatus =>
+        $"PAUSED — SOUND {(_sound.Muted ? "OFF" : "ON")}  DAMPING {(_session.Flight.DampingDisabled ? "OFF" : "ON")}  " +
+        $"RECENTER {(_session.Flight.AutoRecentre ? "ON" : "OFF")}  DELETE RESUMES  ESC QUITS";
 
     private void HandleGameOverKeys()
     {
@@ -479,6 +635,49 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
     }
 
     /// <summary>Writes the current back buffer to a PNG file.</summary>
+    /// <summary>Writes the current back buffer to a PNG file, for the dev harness.</summary>
+    public void SaveScreenshotNow(string path) => SaveScreenshot(path);
+
+    /// <summary>What the dev harness's status command answers.</summary>
+    public string DevStatus() =>
+        $"mode {_session.Mode} screen {_session.Screen} frame {_frame} sim step {_session.Flight.MainLoopCounter}\n" +
+        $"{_scene.StatusLine}";
+
+    /// <summary>Launches from the station, as the launch key does, for the dev harness.</summary>
+    public void DevLaunch()
+    {
+        if (_session.Mode == GameMode.Docked)
+        {
+            _session.Launch();
+        }
+    }
+
+    /// <summary>
+    /// Docks instantly, as the debug key does, for the dev harness — which then waits for the
+    /// docking tunnel and the ship hangar to have passed.
+    /// </summary>
+    public void DevDock()
+    {
+        if (_session.Mode == GameMode.Flying && _flightScene is { } flight)
+        {
+            flight.DebugDock();
+        }
+    }
+
+    /// <summary>Hands the ship to the docking computer, or takes the controls back.</summary>
+    public void DevAutopilot(bool engage) => DevAutopilotSet(engage);
+
+    private void DevAutopilotSet(bool engage)
+    {
+        if (_flightScene is { } flight)
+        {
+            flight.DockingComputerEngaged = engage;
+        }
+    }
+
+    /// <summary>Stops and starts the flight loop, as the disc's COPY pause does.</summary>
+    public void DevPause(bool pause) => _paused = pause;
+
     private void SaveScreenshot(string path)
     {
         int width = GraphicsDevice.PresentationParameters.BackBufferWidth;

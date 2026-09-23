@@ -103,21 +103,24 @@ public sealed class FlightScene : IScene
                 return;
             }
 
-            if (result == DockingResult.Hostile)
+            if (result is DockingResult.Collision or DockingResult.Hostile)
             {
-                // The station has been annoyed and is refusing us. This is not fatal: the original
-                // simply will not open the slot, so we fly on and can try again once our record has
-                // improved enough for it to forget.
-                Session.Message = $"{ship.Name} will not let us dock.";
-                Sounds?.Play(Core.Audio.SoundEffect.Beep);
-                return;
-            }
+                // Docking has failed, which on the disc is the same branch however it failed: an
+                // annoyed station's refusal lands here as much as a bad approach does. At a speed
+                // of 5 or more we have crashed into the station and it is fatal; under that we get
+                // a dent instead — "LDA DELTA / CMP #5 / BCC MA67 ... register some damage, but not
+                // a huge amount" — with the speed stopped dead and the station none the worse.
+                if (_sim.Speed >= 5)
+                {
+                    Session.Flight.ApplyStationCollision();
+                    Sounds?.Play(Core.Audio.SoundEffect.Explosion);
+                }
+                else
+                {
+                    Session.Flight.ApplyDockingBump(ship);
+                    Sounds?.Play(Core.Audio.SoundEffect.HitOrDeath);
+                }
 
-            if (result == DockingResult.Collision)
-            {
-                // Hitting the station anywhere but the slot is fatal
-                Session.Flight.ApplyStationCollision();
-                Sounds?.Play(Core.Audio.SoundEffect.Explosion);
                 return;
             }
         }
@@ -158,6 +161,22 @@ public sealed class FlightScene : IScene
         if (_sim.MissileUnarmedThisFrame)
         {
             Sounds.Play(Core.Audio.SoundEffect.Boop);
+        }
+
+        // The disc's part 11 beeps once an iteration while an armed missile has a target in the
+        // crosshairs, and part 15 beeps once every 32 iterations while the banks are at 50 or
+        // below; both are the short, high BEEP
+        if (_sim.MissileInSightsThisFrame || _sim.EnergyLowBeepThisFrame)
+        {
+            Sounds.Play(Core.Audio.SoundEffect.Beep);
+        }
+
+        // A canister we could not collect is destroyed rather than left in the sky, and its sound
+        // is EXNO3's pair — the two explosion entries the death sound shares
+        if (_sim.ScoopFailedThisFrame)
+        {
+            Sounds.Play(Core.Audio.SoundEffect.Explosion);
+            Sounds.Play(Core.Audio.SoundEffect.HitOrDeath);
         }
 
         if (_sim.PlayerDied && !_deathSoundPlayed)
@@ -440,6 +459,83 @@ public sealed class FlightScene : IScene
         return new Color(r + m, g + m, b + m);
     }
 
+    /// <summary>The ships the hangar is showing, parked on the deck for this docking.</summary>
+    private readonly List<(Ship Parked, int X, int Y, int Z)> _hangarShips = [];
+
+    /// <summary>
+    /// The disc's own hangar groups, from the HATB table: half the time one of these four is shown,
+    /// each equally likely, with the ships at the table's own positions in the original's units.
+    /// </summary>
+    /// <remarks>
+    /// The docked code's hangar blueprint table numbers seven ships — cargo canister, Shuttle,
+    /// Transporter, Cobra Mk III, Python, Viper and Krait — which are the flight-code types 5, 9,
+    /// 10, 11, 12, 16 and 19.
+    /// </remarks>
+    private static readonly (int Type, int X, int Z)[][] HangarGroups =
+    [
+        [(9, -84, 315), (10, 130, 432)],          // a Shuttle and a Transporter
+        [(5, -80, 273), (5, 209, 552), (5, 64, 262)],   // three cargo canisters
+        [(10, 96, 400), (11, -16, 465)],          // a Transporter and a Cobra Mk III
+        [(16, 81, 760), (19, -96, 373)],          // a Viper and a Krait
+    ];
+
+    /// <summary>
+    /// Builds what HALL shows this docking: half the time a group from HATB, and half the time a
+    /// solitary ship — or none at all, which the disc's own random type of 0 gives — at a random
+    /// position, with every ship spun on the deck so it faces in any direction.
+    /// </summary>
+    private void BuildHangarShips()
+    {
+        _hangarShips.Clear();
+        System.Random random = Random.Shared;
+
+        if ((random.Next() & 1) == 0)
+        {
+            // A group from the hangar table, one of the four equally likely
+            foreach ((int type, int x, int z) in HangarGroups[random.Next() & 3])
+            {
+                AddHangarShip(type, x, z);
+            }
+        }
+        else
+        {
+            // A solitary ship, or none at all: the disc's random type runs 0 to 7, and 0 draws
+            // nothing, which is one chance in eight of an empty hangar
+            int type = random.Next() & 7;
+            if (type > 0)
+            {
+                AddHangarShip(
+                    type switch { 1 => 5, 2 => 9, 3 => 10, 4 => 11, 5 => 12, 6 => 16, _ => 19 },
+                    (random.Next() & 0x3F) * (random.Next(2) == 0 ? 1 : -1),
+                    256 + (random.Next() & 0xFF));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Parks one ship in the hangar. Its height off the ground is HAS1's own: y is negative, and
+    /// its size is (100 - the square root of the targetable area) / 2, so smaller ships sit closer
+    /// to the ground and larger ones are drawn higher up.
+    /// </summary>
+    private void AddHangarShip(int type, int x, int z)
+    {
+        int area = EliteRemake.Core.Sim.BlueprintDefaults.For(type).TargetableArea;
+        int y = -Math.Max(0, (100 - (int)MathF.Sqrt(area)) / 2);
+
+        var parked = new Ship(type, string.Empty, $"Type {type}")
+        {
+            VisibilityDistance = 255,
+            BlueprintId = ShipCatalog.ByType(type)?.Id ?? string.Empty,
+        };
+
+        // The ship is spun on the deck — a random number of HAS1's 3.6-degree yaw rotations — so
+        // it faces in any direction, but it is always flat on the floor
+        Core.Maths.Orientation.FromHeadingPitch(Random.Shared.NextDouble() * Math.PI * 2, 0).AsSpan()
+            .CopyTo(parked.Data[ShipDataBlock.Orientation..]);
+
+        _hangarShips.Add((parked, x, y, z));
+    }
+
     /// <summary>
     /// Runs the simulation for a number of frames with a fixed input, so a screenshot can show the
     /// result of flying for a while without a human at the controls.
@@ -703,6 +799,13 @@ public sealed class FlightScene : IScene
             SpeedUp = move.SpeedUp, SlowDown = move.SlowDown });
         _sim.ClearRotationCounters();
 
+        // "LDA INWK+27 / CMP #22 / LDA #22 / STA DELTA": while the docking computer flies, the
+        // maximum speed during docking is 22, whatever the approach was flying at
+        if (_sim.Speed > DockingComputer.DockingSpeed)
+        {
+            _sim.Speed = DockingComputer.DockingSpeed;
+        }
+
         // Docking ends the flight, so the autopilot goes with it
         if (Session is { Mode: not GameMode.Flying })
         {
@@ -728,8 +831,10 @@ public sealed class FlightScene : IScene
             return string.Empty;
         }
 
-        if (Session.GameOver)
+        if (Session.GameOver || Session.DeathSequenceRunning)
         {
+            // The game-over message never expires, since it is the last thing that happens — and
+            // the disc's own "GAME OVER" stays up through the whole death animation
             return Session.Message;
         }
 
@@ -952,6 +1057,25 @@ public sealed class FlightScene : IScene
                 Session.Message = ItemName(scoopedItem.Item);
             }
 
+            // Skimming the sun with the scoops down prints "FUEL SCOOPS ON" every iteration the
+            // scoops are working, which is what keeps the message up for the whole pass rather
+            // than for its usual four seconds
+            if (_sim.ScoopedFuelFromTheSun)
+            {
+                Session.Message = "FUEL SCOOPS ON";
+                _messageLeft = MessageSeconds;
+                _lastMessage = Session.Message;
+            }
+
+            // The docking computer's own message, printed on the disc's own cadence: part 15 prints
+            // "DOCKING COMPUTERS ON" on the 15th iteration of every block of 32 while it flies
+            if (DockingComputerEngaged && _sim.MainLoopCounter % 32 == 15)
+            {
+                Session.Message = "DOCKING COMPUTERS ON";
+                _messageLeft = MessageSeconds;
+                _lastMessage = Session.Message;
+            }
+
             // Every ship destroyed since the last frame is paid here, from lasers, missiles,
             // collisions and the energy bomb alike: each gets its own bounty, kill count and legal
             // reading. The simulation collects them rather than overwriting one flag, so a bomb or
@@ -975,8 +1099,15 @@ public sealed class FlightScene : IScene
         }
 
         // A successful docking draws the same rings as we enter the station, which is GOIN: it calls
-        // HFS2 with the launch's step size and only then shows the docking bay.
+        // HFS2 with the launch's step size and only then shows the docking bay — and the disc's
+        // DOENTRY shows the ship hangar while the docked code loads, before the mission business
         if (_dockTunnelFrames > 0 && --_dockTunnelFrames == 0)
+        {
+            _hangarFrames = HangarFrames;
+            BuildHangarShips();
+        }
+
+        if (_hangarFrames > 0 && --_hangarFrames == 0)
         {
             Session?.Dock();
         }
@@ -990,8 +1121,7 @@ public sealed class FlightScene : IScene
             Microsoft.Xna.Framework.Input.Keyboard.GetState().IsKeyDown(Microsoft.Xna.Framework.Input.Keys.D) &&
             !_dockingRequested)
         {
-            _dockingRequested = true;
-            Session.Dock();
+            DebugDock();
         }
         else if (Session is not null && !DockingSequenceRunning &&
                  !Microsoft.Xna.Framework.Input.Keyboard.GetState().IsKeyDown(Microsoft.Xna.Framework.Input.Keys.D))
@@ -1003,8 +1133,9 @@ public sealed class FlightScene : IScene
         // leaves the flight loop (LAUN on the way out of the station, GOIN on the way in), so the
         // simulation stands still while they are up. Letting it run on through a docking tunnel flew
         // us into the station we had just been cleared to enter, which is a game over rather than a
-        // docking.
-        if (_launchTunnelFrames > 0 || _dockTunnelFrames > 0)
+        // docking. The ship hangar freezes it too: the flight loop is not running while the docked
+        // code is loading.
+        if (_launchTunnelFrames > 0 || _dockTunnelFrames > 0 || _hangarFrames > 0)
         {
             _starfield.Update(0);
             return;
@@ -1027,6 +1158,10 @@ public sealed class FlightScene : IScene
         // The dust is turned by the same angles the ships are, so the sky swings when we steer
         _starfield.Update(_sim.Speed * steps, Signed(_sim.RollAngle, _sim.RollSign), Signed(_sim.PitchAngleValue, _sim.PitchSign));
 
+        // The death animation ends when the simulation has run it out, which is the disc's own
+        // flow: D2's 5.1 seconds of drifting debris, and then the game-over screen
+        Session?.TickDeathSequence();
+
         // Spawn whatever destroyed ships have left behind, beside the wreck each came from. The
         // reports were drained once, up in the Session block, so drops from every iteration of the
         // frame reach here.
@@ -1045,6 +1180,24 @@ public sealed class FlightScene : IScene
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Docks from anywhere, running the docking's own sequence — the rings, then the ship hangar,
+    /// then the station's screens — as a real docking does. It is the debug key's work and the dev
+    /// harness's dock command, which are the same thing on purpose, so that what the harness tests
+    /// is the sequence a player flies through.
+    /// </summary>
+    public void DebugDock()
+    {
+        if (Session is null || Session.Mode != GameMode.Flying || _dockingRequested)
+        {
+            return;
+        }
+
+        _dockingRequested = true;
+        _dockTunnelFrames = DockTunnelFrames;
+        Sounds?.Play(Core.Audio.SoundEffect.Beep);
     }
 
     /// <summary>
@@ -1089,16 +1242,26 @@ public sealed class FlightScene : IScene
     /// <summary>How many drawn frames the docking tunnel stays up for.</summary>
     public const int DockTunnelFrames = 24;
 
+    /// <summary>
+    /// How many drawn frames the ship hangar stays up for: the disc waits 44 vertical syncs after
+    /// HALL draws the hangar, which is 0.88 seconds.
+    /// </summary>
+    public const int HangarFrames = 53;
+
     private int _launchTunnelFrames;
     private int _dockTunnelFrames;
     private int _launchesSeen;
+    private int _hangarFrames;
 
     /// <summary>
-    /// True while the docking rings are up, which means the docking is decided and the station's
-    /// screens are next. The check that decided it must not run again: without this it fires every
-    /// frame, and each one puts the rings back up, so the ship sits at the slot for ever.
+    /// True while the docking rings are up or the ship hangar is showing, which means the docking is
+    /// decided and the station's screens are next. The check that decided it must not run again:
+    /// without this it fires every frame, and each one puts the rings back up, so the ship sits at
+    /// the slot for ever. The hangar is part of the same sequence — the disc's DOENTRY shows it
+    /// before the mission business — so a sequence that had "ended" at the tunnel let the docking
+    /// check fire again while we sat parked at the slot, and the rings came back up.
     /// </summary>
-    private bool DockingSequenceRunning => _dockTunnelFrames > 0;
+    private bool DockingSequenceRunning => _dockTunnelFrames > 0 || _hangarFrames > 0;
 
     /// <summary>
     /// Draws the hyperspace tunnel for this many drawn frames as well as while a jump counts down.
@@ -1125,11 +1288,6 @@ public sealed class FlightScene : IScene
         _hud.Message = CurrentMessage();
         _hud.Locked = _sim.MissileLock is not null;
 
-        // Stars first: they are the backdrop, and the original draws them before the ships
-        spriteBatch.Begin(samplerState: SamplerState.PointClamp);
-        _starfield.Draw(spriteBatch, pixel, Camera);
-        spriteBatch.End();
-
         // The launch and docking tunnels cover everything for their few frames, with the launch's
         // sixteen sets of rings against the eight that hyperspace and docking draw
         if (_launchTunnelFrames > 0 || _dockTunnelFrames > 0)
@@ -1146,6 +1304,25 @@ public sealed class FlightScene : IScene
             _hud.Draw(spriteBatch, pixel, Camera, _sim);
             return;
         }
+
+        // The ship hangar is what the disc shows while the docked code loads: the bay's floor, and
+        // whatever ships HALL parked in it this time, spun on the deck. The disc draws its own bay
+        // picture through the I/O processor, which is an image this port does not ship; what we
+        // draw is the bay's floor as a converging grid, which keeps the ships standing in it. The
+        // screen is cleared rather than star-spangled: this is indoors. The countdown is Update's
+        // business — it ends the hangar and shows the docked screens — so Draw only draws it.
+        if (_hangarFrames > 0)
+        {
+            spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            DrawHangar(spriteBatch, pixel);
+            spriteBatch.End();
+            return;
+        }
+
+        // Stars first: they are the backdrop, and the original draws them before the ships
+        spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+        _starfield.Draw(spriteBatch, pixel, Camera);
+        spriteBatch.End();
 
         // The hyperspace tunnel covers everything while the drive is counting down, as the
         // original's LL164 clears the screen and draws its rings over the top
@@ -1221,7 +1398,32 @@ public sealed class FlightScene : IScene
         DrawExplosions(spriteBatch, pixel);
         spriteBatch.End();
 
-        _hud.Draw(spriteBatch, pixel, Camera, _sim);
+        // While the energy bomb is going off the space screen flashes black and white, which on
+        // the BBC is a palette trick: part 13 sets SHEILA &21 to map logical colour 0 to physical
+        // colour 7 with one mapping, "which makes the space screen flash with black and white
+        // stripes", for the four iterations the bomb is on. Our stripes are the same effect drawn
+        // rather than cheated out of the palette.
+        if (_sim.EnergyBombActive)
+        {
+            spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            int stripeHeight = Math.Max(2, (int)(Camera.ViewportHeight / 96f));
+            for (int y = 0; y < Camera.ViewportHeight; y += stripeHeight * 2)
+            {
+                spriteBatch.Draw(
+                    pixel,
+                    new Rectangle(0, y, (int)Camera.ViewportWidth, stripeHeight),
+                    Palette.White);
+            }
+
+            spriteBatch.End();
+        }
+
+        // The disc's DET1 hides the dashboard when we die — "Set the screen to only show 24 text
+        // rows, which hides the dashboard" — so the debris drifts in an uncluttered view
+        if (!_sim.DeathSequenceRunning)
+        {
+            _hud.Draw(spriteBatch, pixel, Camera, _sim);
+        }
     }
 
     /// <summary>
@@ -1276,6 +1478,44 @@ public sealed class FlightScene : IScene
             new Vector2(length, thickness),
             SpriteEffects.None,
             0);
+    }
+
+    /// <summary>
+    /// Draws the ships parked in the hangar, standing in the bay's floor grid. Each ship is drawn
+    /// where it was parked — the x, z from the hangar's own figures and the y that HAS1 works out
+    /// from the ship's size — through the same projection the space view uses.
+    /// </summary>
+    private void DrawHangar(SpriteBatch spriteBatch, Texture2D pixel)
+    {
+        Color dim = new(70, 76, 88);
+
+        // The bay's floor: a horizon line and a fan of converging lines under the ships' feet
+        float horizonY = Camera.CentreY;
+        spriteBatch.Draw(pixel, new Rectangle(0, (int)horizonY, (int)Camera.ViewportWidth, 1), dim);
+        for (int i = 0; i < 8; i++)
+        {
+            float footX = Camera.CentreX + ((i - 3.5f) * Camera.ViewportWidth / 8f);
+            DrawBeam(spriteBatch, pixel, footX, Camera.ViewportHeight, Camera.CentreX, horizonY, dim, 1);
+        }
+
+        _renderer.Begin();
+        foreach ((Ship parked, int x, int y, int z) in _hangarShips)
+        {
+            if (!_meshes.TryGetValue(parked.BlueprintId, out ShipMesh? mesh))
+            {
+                continue;
+            }
+
+            _renderer.DrawShip(
+                mesh,
+                new System.Numerics.Vector3(x, y, z),
+                ShipOrientation.FromEliteOrientation(parked.Orientation),
+                Camera,
+                Palette.Hull,
+                parked.VisibilityDistance);
+        }
+
+        _renderer.End();
     }
 
     /// <summary>

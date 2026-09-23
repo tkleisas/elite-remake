@@ -1412,6 +1412,31 @@ public class SpawnerTests
 
         Assert.Empty(sim.Bubble);
     }
+
+    [Fact]
+    public void PiratePacksFavourTheSmallerShips()
+    {
+        // "Set A to the AND of two random numbers ... which makes the chances of a smaller number
+        // higher": the Sidewinder leads the pack and the Cobra Mk III (pirate) is its rarest member
+        var random = new EliteRandom(7);
+        var counts = new Dictionary<int, int>();
+        for (int i = 0; i < 20000; i++)
+        {
+            int type = Spawner.ShipType(SpawnKind.Pirates, random);
+            Assert.InRange(type, Spawner.PackHunterBase, Spawner.PackHunterBase + Spawner.PackHunterCount - 1);
+            counts[type] = counts.GetValueOrDefault(type) + 1;
+        }
+
+        int common = counts.MaxBy(kvp => kvp.Value).Key;
+        int rare = counts.MinBy(kvp => kvp.Value).Key;
+        Assert.Equal(Spawner.PackHunterBase, common);
+        Assert.Equal(Spawner.PackHunterBase + Spawner.PackHunterCount - 1, rare);
+
+        // And the skew is real: the Sidewinder is several times more likely than the rarest
+        Assert.True(
+            counts[Spawner.PackHunterBase] > 3 * counts[rare],
+            $"the Sidewinder should dominate the pack: {string.Join(',', counts.OrderBy(k => k.Key).Select(k => $"{k.Key}:{k.Value}"))}");
+    }
 }
 
 /// <summary>
@@ -1525,24 +1550,24 @@ public class DebrisTests
         Commander commander = Commander.CreateDefault();
         var canister = new Ship(Debris.Canister, "canister", "Cargo canister");
 
-        // A zero in the blueprint means the ship cannot be scooped at all, as it does in the disc
-        // version, where the high nibble of the first blueprint byte is the scoop market item
-        Assert.Null(Debris.TryScoop(canister, commander, marketItem: 0));
+        // A negative hold index says the ship carries nothing of its own, which for a type with no
+        // known commodity means it cannot be scooped at all
+        Assert.Null(Debris.TryScoop(canister, commander, holdIndex: -1));
 
         // Without fuel scoops nothing can be scooped either
-        Assert.Null(Debris.TryScoop(canister, commander, marketItem: 1));
+        Assert.Null(Debris.TryScoop(canister, commander, holdIndex: 1));
 
         commander.FuelScoops = true;
-        (int Item, int Amount)? scooped = Debris.TryScoop(canister, commander, marketItem: 1);
+        (int Item, int Amount)? scooped = Debris.TryScoop(canister, commander, holdIndex: 1);
         Assert.NotNull(scooped);
-        Assert.Equal(1, scooped!.Value.Item); // whatever the canister's blueprint says it holds
+        Assert.Equal(1, scooped!.Value.Item); // the commodity the caller said the canister holds
         Assert.Equal(1, commander.GetCargo(1));
         Assert.True(canister.IsKilled, "a scooped item is removed from the bubble");
 
         // A full hold has nowhere to put anything
         commander.AddCargo(1, commander.CargoFree);
         var second = new Ship(Debris.Canister, "canister", "Cargo canister");
-        Assert.Null(Debris.TryScoop(second, commander, marketItem: 1));
+        Assert.Null(Debris.TryScoop(second, commander, holdIndex: 1));
     }
 
     [Fact]
@@ -1554,7 +1579,7 @@ public class DebrisTests
 
         // The source gives this one explicitly: "Market item when scooped = 11 + 1 = 12 (minerals)".
         // The item number doubles as the hold's slot number, so the value goes through unchanged
-        (int Item, int Amount)? scooped = Debris.TryScoop(splinter, commander, marketItem: 12);
+        (int Item, int Amount)? scooped = Debris.TryScoop(splinter, commander, holdIndex: 12);
         Assert.NotNull(scooped);
         Assert.Equal(12, scooped!.Value.Item); // minerals, from the splinter's blueprint
         Assert.Equal(1, commander.GetCargo(12));
@@ -1563,7 +1588,7 @@ public class DebrisTests
         var bare = new Ship(Debris.Splinter, "splinter", "Splinter");
         var commander2 = Commander.CreateDefault();
         commander2.FuelScoops = true;
-        Assert.Equal(12, Debris.TryScoop(bare, commander2, marketItem: 0)!.Value.Item);
+        Assert.Equal(12, Debris.TryScoop(bare, commander2, holdIndex: -1)!.Value.Item);
     }
 
     [Fact]
@@ -1582,16 +1607,115 @@ public class DebrisTests
         // provider gives a hold index, not the blueprint's one-based market item.
         sim.ScoopItemProvider = _ => 3;   // slaves, by the original's item numbering
 
-        // A canister just ahead of us, inside the scooping range
+        // A canister below us and inside the contact range, which is what the disc's own gate
+        // asks for: within 127 units on every axis, and byte #5 negative — "a negative value here
+        // means the canister is below us"
         var canister = new Ship(Debris.Canister, "canister", "Cargo canister");
-        canister.SetPosition(0, 0, Debris.ScoopRange - 20);
+        canister.SetPosition(0, -100, 40);
         sim.Spawn(canister);
 
         sim.Step();
 
-        Assert.NotNull(sim.ScoopedThisFrame);
-        Assert.Equal(1, commander.GetCargo(3));
+        // A canister's contents are drawn at scoop time, so what went into the hold is whatever
+        // the report says, and it is one of the first eight market items
+        (int item, _) = sim.ScoopedThisFrame!.Value;
+        Assert.InRange(item, 0, 7);
+        Assert.Equal(1, commander.GetCargo(item));
         Assert.True(canister.IsKilled);
+    }
+
+    [Fact]
+    public void ScoopingNeedsTheItemBelowUsAndInRange()
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = false,
+        };
+
+        Commander commander = Commander.CreateDefault();
+        commander.FuelScoops = true;
+        sim.Commander = commander;
+        sim.ScoopItemProvider = _ => 3;   // slaves
+
+        // The disc's gate is "LDA BST / AND INWK+5 / BPL MA58": with the canister above us there
+        // is nothing to scoop, and the collision pass is what answers instead
+        var above = new Ship(Debris.Canister, "canister", "Cargo canister");
+        above.SetPosition(0, 100, 40);
+        sim.Spawn(above);
+        sim.Step();
+        Assert.Null(sim.ScoopedThisFrame);
+        Assert.False(above.IsKilled, "an canister above us is not scooped, though it may be hit");
+
+        // And the contact test's own range: none of the three magnitudes further than 127
+        var distant = new Ship(Debris.Canister, "canister", "Cargo canister");
+        distant.SetPosition(0, -200, 40);
+        sim.Spawn(distant);
+        sim.Step();
+        Assert.Null(sim.ScoopedThisFrame);
+        Assert.False(distant.IsKilled);
+    }
+
+    [Fact]
+    public void ACargoCanisterScoopsARandomCommodity()
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = false,
+        };
+
+        Commander commander = Commander.CreateDefault();
+        commander.FuelScoops = true;
+        sim.Commander = commander;
+        sim.ScoopItemProvider = _ => 0;   // nothing from the blueprint
+
+        // The canister's contents are drawn at scoop time, "AND #7", so they are one of the first
+        // eight market items, whatever the blueprint says
+        var seen = new HashSet<int>();
+        for (int i = 0; i < 100; i++)
+        {
+            Commander fresh = Commander.CreateDefault();
+            fresh.FuelScoops = true;
+            sim.Commander = fresh;
+
+            var canister = new Ship(Debris.Canister, "canister", "Cargo canister");
+            canister.SetPosition(0, -100, 40);
+            sim.Spawn(canister);
+            sim.Step();
+
+            (int item, _) = sim.ScoopedThisFrame!.Value;
+            Assert.InRange(item, 0, 7);
+            seen.Add(item);
+        }
+
+        Assert.True(seen.Count > 1, "canisters should not all carry the same commodity");
+    }
+
+    [Fact]
+    public void AFULLHoldDestroysTheCanisterRatherThanScoopingIt()
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = false,
+        };
+
+        Commander commander = Commander.CreateDefault();
+        commander.FuelScoops = true;
+        commander.CargoCapacity = 4;
+        commander.AddCargo(0, 22);
+        sim.Commander = commander;
+        sim.ScoopItemProvider = _ => 3;
+
+        var canister = new Ship(Debris.Canister, "canister", "Cargo canister");
+        canister.SetPosition(0, -100, 40);
+        sim.Spawn(canister);
+
+        sim.Step();
+
+        // "BCS MA59 ... make a sound to indicate failure, before destroying the canister", and
+        // MA60 marks it killed so the local bubble loses it
+        Assert.True(sim.ScoopFailedThisFrame);
+        Assert.True(canister.IsKilled);
+        Assert.Equal(0, commander.GetCargo(3));
     }
 }
 
@@ -3309,6 +3433,47 @@ public class DockingComputerTests
 
         Assert.True(input.SpeedUp || input.SlowDown || input.RollCounter != 128 || input.PitchCounter != 128);
     }
+
+    [Fact]
+    public void AGentleDockingFailureStopsUsAndDentsUs()
+    {
+        // The disc's MA67: speed under 5 and the failed approach is a dent, not a death — the
+        // speed stops dead and 5 points of damage go into the shields
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = false,
+            Commander = Commander.CreateDefault(),
+        };
+
+        sim.Speed = 3;
+        var station = Ship.Create(Combat.SpaceStationType, "coriolis", "Coriolis space station", 0, 0, 0, 0, 3000);
+
+        sim.ApplyDockingBump(station);
+
+        Assert.Equal(1, sim.Speed);
+        Assert.Equal(255 - FlightSim.DockingBumpDamage, sim.Player.ForeShield);
+        Assert.False(sim.PlayerDied, "a gentle bump should not be fatal");
+    }
+
+    [Fact]
+    public void AHeavyDockingFailureIsFatal()
+    {
+        // "JMP DEATH": at 5 or more, the same failed approach is the end of us
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = false,
+            Commander = Commander.CreateDefault(),
+        };
+
+        sim.Speed = 5;
+        sim.Player.ForeShield = 100;
+        sim.Player.Energy = 100;
+
+        sim.ApplyStationCollision();
+
+        Assert.Equal(0, sim.Player.Energy);
+        Assert.True(sim.PlayerDied, "crashing into the station at speed is fatal");
+    }
 }
 
 /// <summary>
@@ -3590,8 +3755,9 @@ public class CollisionTests
 
         Assert.Same(other, sim.CollidedWith);
 
-        // The shields absorb 128, so they drop to 127 and none reaches the energy banks
-        Assert.Equal(255 - FlightSim.CollisionDamageToUs, sim.Player.ForeShield);
+        // The disc's damage is 128 plus half the energy the ship has left: the 64 it took leaves
+        // 6, so half of that is 3 and the shields absorb 131, dropping to 122
+        Assert.Equal(255 - (FlightSim.CollisionDamageToUs + 3), sim.Player.ForeShield);
         Assert.Equal(255, sim.Player.Energy);
 
         // The other ship takes 64, which its 70 energy survives
@@ -3599,6 +3765,20 @@ public class CollisionTests
 
         // And it is angry now
         Assert.True(other.AiFlag >= 0x80, "the ship we collided with should be hostile");
+    }
+
+    [Fact]
+    public void TheWreckOfAShipWeJustKilledHurtsExactly128()
+    {
+        // "LDA INWK+35 / SEC / ROR A" reads the ship's energy after its own hit, so a ship we
+        // killed has none left and the damage is the plain 128
+        var (sim, other) = SetUp(20, 0, 20);
+        other.Energy = 10; // less than the 64 the collision does
+
+        sim.Step();
+
+        Assert.True(other.IsExploding, "a weak ship should be destroyed by the collision");
+        Assert.Equal(255 - FlightSim.CollisionDamageToUs, sim.Player.ForeShield);
     }
 
     /// <summary>
@@ -3970,7 +4150,7 @@ public class ScoopItemTests
 
         // The original scoops an escape pod as slaves, three tonnes of them, and its blueprint's
         // scoop item is 3 in the extracted data
-        Assert.Equal(3, Debris.TryScoop(pod, commander, marketItem: 3)!.Value.Item);
+        Assert.Equal(3, Debris.TryScoop(pod, commander, holdIndex: 3)!.Value.Item);
         Assert.Equal(1, commander.GetCargo(3));
     }
 
@@ -3980,7 +4160,7 @@ public class ScoopItemTests
         Commander commander = Scoopable();
         var thargon = new Ship(Debris.Thargon, "thargon", "Thargon");
 
-        Assert.Equal(16, Debris.TryScoop(thargon, commander, marketItem: 16)!.Value.Item);
+        Assert.Equal(16, Debris.TryScoop(thargon, commander, holdIndex: 16)!.Value.Item);
         Assert.Equal(1, commander.GetCargo(16));
     }
 
@@ -3992,7 +4172,7 @@ public class ScoopItemTests
         // A Cobra has no scoop item in its blueprint, which is the disc version's way of saying it
         // cannot be scooped up
         var cobra = new Ship(11, "cobra-mk-3", "Cobra Mk III");
-        Assert.Null(Debris.TryScoop(cobra, commander, marketItem: 0));
+        Assert.Null(Debris.TryScoop(cobra, commander, holdIndex: -1));
         Assert.False(Debris.IsScoopable(11));
     }
 }

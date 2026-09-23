@@ -89,11 +89,99 @@ public sealed class ChartScene : IScene
         _session.SelectedSystem = system;
     }
 
+    /// <summary>The sounds, or null when the game is running silently.</summary>
+    public Audio.SoundBank? Sounds { get; set; }
+
+    /// <summary>Whether the chart is waiting for a system name to search for.</summary>
+    /// <remarks>
+    /// The disc's F key is a disc-docked extra: HME2 prints "{clear bottom of screen} PLANET
+    /// NAME?{fetch line input from keyboard}" and walks the galaxy's 256 systems looking for a
+    /// case-insensitive match of the same length. A match selects it and prints the distance; a
+    /// miss puts the crosshairs back and prints "UNKNOWN PLANET" to a low, long beep.
+    /// </remarks>
+    public bool Searching { get; private set; }
+
+    /// <summary>The search term as typed so far.</summary>
+    public string SearchTerm { get; private set; } = string.Empty;
+
+    /// <summary>Begins a system search, which is the disc's F key on the charts.</summary>
+    public void BeginSearch()
+    {
+        Searching = true;
+        SearchTerm = string.Empty;
+    }
+
+    /// <summary>The keys the search accepts, which the original's line input does.</summary>
+    private void UpdateSearch(KeyboardState keys)
+    {
+        if (IsNewPress(keys, Keys.Enter))
+        {
+            Searching = false;
+            SearchFor(SearchTerm);
+        }
+        else if (IsNewPress(keys, Keys.Escape))
+        {
+            Searching = false;
+        }
+        else if (IsNewPress(keys, Keys.Back))
+        {
+            SearchTerm = SearchTerm.Length > 0 ? SearchTerm[..^1] : SearchTerm;
+        }
+        else
+        {
+            for (int i = 0; i < 26; i++)
+            {
+                Keys letter = Keys.A + i;
+                if (IsNewPress(keys, letter))
+                {
+                    SearchTerm += (char)('A' + i);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Searches the galaxy for the typed name, as HME2 does: case-insensitively, and only for a
+    /// name of the term's own length. A match selects the system; a miss puts the crosshairs back
+    /// where they were, says "UNKNOWN PLANET" and makes the low, long beep.
+    /// </summary>
+    private void SearchFor(string term)
+    {
+        if (term.Length == 0)
+        {
+            return;
+        }
+
+        foreach (StarSystem system in _galaxy)
+        {
+            if (string.Equals(system.Name, term, StringComparison.OrdinalIgnoreCase))
+            {
+                SelectSystem(system);
+                return;
+            }
+        }
+
+        // No match: the crosshairs go back where they were — TT111 reselects the nearest system to
+        // the coordinates they were at — and the disc prints token 215, "UNKNOWN PLANET"
+        SelectSystem(_session.System);
+        _session.Message = "UNKNOWN PLANET";
+        Sounds?.Play(Core.Audio.SoundEffect.Boop);
+    }
+
     public void Update(float elapsedSeconds)
     {
         _ = elapsedSeconds;
 
         KeyboardState keys = Keyboard.GetState();
+
+        // A search in progress takes the keyboard over, as the original's line input does
+        if (Searching)
+        {
+            UpdateSearch(keys);
+            _previousKeys = keys;
+            return;
+        }
+
         int step = keys.IsKeyDown(Keys.LeftShift) || keys.IsKeyDown(Keys.RightShift) ? 8 : 2;
 
         bool moved = false;
@@ -143,6 +231,20 @@ public sealed class ChartScene : IScene
         if (IsNewPress(keys, Keys.H))
         {
             _session.StartHyperspace();
+        }
+
+        // O snaps the crosshairs back onto the system we are in, which is the disc's ping: it
+        // selects the current system and redraws the crosshairs there
+        if (IsNewPress(keys, Keys.O))
+        {
+            SelectSystem(_session.System);
+            Sounds?.Play(Core.Audio.SoundEffect.Beep);
+        }
+
+        // F searches for a system by name, which the disc's docked code adds to the charts
+        if (IsNewPress(keys, Keys.F))
+        {
+            BeginSearch();
         }
 
         if (IsNewPress(keys, Keys.F6))
@@ -343,13 +445,28 @@ public sealed class ChartScene : IScene
         line += cellHeight * 2;
         _text.Draw(spriteBatch, _session.Message, left + cellWidth, line, scale, Palette.Cyan);
         line += cellHeight;
-        _text.Draw(
-            spriteBatch,
-            "CURSORS MOVE   S SHORT   L LONG   F3 DATA   F8 STATUS   H HYPERSPACE   ESC BACK",
-            left + cellWidth,
-            line,
-            scale,
-            dim);
+
+        if (Searching)
+        {
+            // The disc's own prompt, with the term typed so far after it
+            _text.Draw(
+                spriteBatch,
+                $"PLANET NAME? {SearchTerm}",
+                left + cellWidth,
+                line,
+                scale,
+                Palette.White);
+        }
+        else
+        {
+            _text.Draw(
+                spriteBatch,
+                "CURSORS MOVE   O HOME   F FIND   S SHORT   L LONG   F6 DATA   F8 STATUS   H HYPERSPACE   ESC BACK",
+                left + cellWidth,
+                line,
+                scale,
+                dim);
+        }
 
         spriteBatch.End();
     }
