@@ -1474,3 +1474,27 @@ It was my comment that was wrong: `GalaxyNumber` is zero-based, so 1 *is* the se
 systems begin at Ausis with Orarra at index 193 — exactly where RUPLA puts it. Checked before
 changing anything, which is the lesson from the round before, where a wrong verification script
 nearly sent me after correct data.
+
+## Redocking rerolled the market, which is a way to shop for a deal
+
+Turning the last two rounds' habit — fly the game, then write down what flying found — into tests
+paid for itself immediately. The tests are `GameLoopTests`: a commander who docks, trades, jumps and
+docks again; one who changes galaxy and checks that the galaxy number, system, market and chart all
+move together; eight galactic jumps; and that the jump and the chart agree about what is reachable.
+
+**Writing them found a fault on the first run.** Docking rebuilt the market. The original's `GVL` has
+**exactly one caller in the whole source** — `tt18.asm`, the arrival after a hyperspace jump — and the
+market screen (`TT210`) prices its items from what GVL left behind rather than recalculating. So the
+market is fixed for as long as you are in the system, and our rebuilding it on docking gave a
+commander a way to reroll the prices by launching and redocking until a good deal came up. Nothing the
+original offers.
+
+**And a test was asserting the behaviour.** `DockingChangesTheMarketAndLaunchingKeepsIt` did exactly
+what its name says, and passed, because the code did too. It is now
+`DockingKeepsTheMarketAndSoDoesRedocking`, asserting the original's behaviour with the reason in its
+remarks. That is the fourth test this session found to be encoding a fault rather than catching one —
+after the equipment prices, the galactic hyperdrive's system number, and the eight-jump round trip.
+
+The pattern in those four is worth noting: each was written from the code as it stood rather than from
+the source, which is exactly what a test is supposed to prevent. Tests written *after* reading the
+source catch things; tests written *from* the implementation only pin it.

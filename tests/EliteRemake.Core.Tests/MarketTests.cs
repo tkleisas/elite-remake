@@ -254,22 +254,31 @@ public class GameSessionTests
         Assert.Equal(17, session.Market.Length);
     }
 
+    /// <summary>
+    /// Docking does not change the market, and neither does launching and redocking.
+    /// </summary>
+    /// <remarks>
+    /// This test used to assert the opposite, and the code did it: docking rebuilt the market, so a
+    /// commander could launch and redock to reroll the prices until a good deal came up. The
+    /// original's GVL has exactly one caller in the whole source — the arrival after a hyperspace
+    /// jump — and the market screen prices its items from what that left behind, so the market is
+    /// fixed for as long as you are in the system.
+    /// </remarks>
     [Fact]
-    public void DockingChangesTheMarketAndLaunchingKeepsIt()
+    public void DockingKeepsTheMarketAndSoDoesRedocking()
     {
         GameSession session = CreateSession();
         MarketEntry[] inFlight = session.Market;
 
         session.Dock();
         Assert.Equal(GameMode.Docked, session.Mode);
-        Assert.NotEqual(inFlight, session.Market);
+        Assert.Equal(inFlight, session.Market);
 
-        MarketEntry[] docked = session.Market;
         session.Launch();
         Assert.Equal(GameMode.Flying, session.Mode);
 
         session.Dock();
-        Assert.NotEqual(docked, session.Market);
+        Assert.Equal(inFlight, session.Market);
     }
 
     [Fact]

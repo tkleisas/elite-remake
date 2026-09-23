@@ -442,11 +442,17 @@ public sealed class GameSession
         Market = Universe.Market.Build(System, _random.Next());
     }
 
-    /// <summary>Docks at the station, refreshing the market as the original does.</summary>
+    /// <summary>Docks at the station.</summary>
+    /// <remarks>
+    /// The market is deliberately not rebuilt here. The original's GVL has exactly one caller in the
+    /// whole source — the arrival after a hyperspace jump — and the market screen prices its items
+    /// from what GVL left behind rather than recalculating. Rebuilding on docking instead means
+    /// launching and redocking rerolls the prices, which is a way to shop for a good deal that the
+    /// original does not offer.
+    /// </remarks>
     public void Dock()
     {
         Mode = GameMode.Docked;
-        Market = Universe.Market.Build(System, _random.Next());
         Message = $"Docked at {System.Name} station.";
 
         // Mission business is settled on arrival, as the original's docked code does
