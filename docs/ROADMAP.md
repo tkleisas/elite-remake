@@ -3228,3 +3228,26 @@ comment while checking the table and moved on.
 
 **And it was found by reading the startup log**, not by any test or any of the audits of the last four
 rounds. "Loaded 9 sounds" had been printed on every run for as long as the sounds existed.
+
+## Reading the log, which is what found the last one
+
+Last round's fault was found by reading the startup output rather than by any test, so the log was read
+in full and followed for longer.
+
+**The arrival state is right.** Lave's sun sits at `-327680`, which is `(s1_hi & 7 | 1) << 16` — the
+source's *"the sun is behind us at a distance of 1 to 7"* — with the planet at 262144 ahead and the
+station 3000 ahead of us. All three are where SOLAR and NWSPS put them, and the sun's distance being
+exactly a power-of-two multiple is the encoding working, not a clamp: the original's sign byte carries
+the top bits of the coordinate, so a distance of five is `0x85` in sign and zero below it.
+
+**And every scene runs.** The market, both charts and the jump all start without a fault and report
+sensible state — seventeen items at Lave, the short chart centred on Lave at (20,173), the jump
+rendering the tunnel with no ship triangles on screen because nothing else is drawn during it.
+
+**Frame cost is unchanged** after thirty rounds of changes: 2.29 ms update plus 4.52 ms draw, 6.81 ms of
+our own work against a 20 ms budget.
+
+**What reading the log has produced.** Two faults in two rounds — the E.C.M.'s tone outliving its field,
+and before that nothing at all from several rounds of auditing. That is not an argument against auditing;
+it is an argument that **the log is a different instrument and was being ignored.** It reports state that
+no test asserts and no audit inspects, and it is generated free on every single run.
