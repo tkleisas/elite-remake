@@ -1592,3 +1592,37 @@ figure. It does not: it doubles the recharge rate, and the blueprint's own energ
 
 **The tally is seven.** Six of the seven had a test asserting the wrong behaviour; this one had a test
 asserting `35`, which is the same fault in the same place — written from the code, not the source.
+
+## The stock gate is a jump, not a cap
+
+`EQSHP` decides how much equipment a system sells by adding three to the tech level and then
+comparing against `#12`:
+
+```
+LDA tek / CLC / ADC #3   \ A is now 3 to 17
+CMP #12                  \ If A >= 12 then set A = 14
+BCC P%+4
+LDA #14
+```
+
+That is a **jump**, not a cap. A tech level of 9 stocks fourteen items rather than twelve, and 10
+stocks fourteen rather than thirteen — the two levels before the cap stock the whole list, lasers
+included. Ours clamped smoothly, so it agreed everywhere from tech 0 to 8 and disagreed at exactly
+9 and 10:
+
+| tech level | the original stocks | ours stocked |
+| --- | --- | --- |
+| 0-8 | tech + 3 | the same |
+| **9** | **14** | 12 |
+| **10** | **14** | 13 |
+| 11-14 | 14 | 14 |
+
+Nine of the fifteen levels agreeing is what made a clamp look right, and it is the same shape as the
+errors before it: a smooth approximation of something the original does in steps.
+
+A test now walks every tech level, checking the count and that the gate agrees with it — the nth item
+stocked and the one after not — and pins the step itself by checking that tech 9 sells military and
+mining lasers where tech 8 does not.
+
+**The tally is eight**, and this one had no test at all: the stock gate was exercised incidentally by
+tests that happened to use tech levels 4 and 8, both of which agree.

@@ -1434,6 +1434,40 @@ public class OutfittingTests
         }
     }
 
+    /// <summary>
+    /// How many items a system stocks, including the original's jump at tech level 9.
+    /// </summary>
+    /// <remarks>
+    /// EQSHP adds three to the tech level and then compares against #12, setting the count to
+    /// fourteen if it is at least that. That is a jump, not a cap: a tech level of 9 stocks fourteen
+    /// items rather than twelve, and 10 stocks fourteen rather than thirteen. A smooth clamp agrees
+    /// for tech levels 0 to 8 - nine of the fifteen - which is why it looked right.
+    /// </remarks>
+    [Fact]
+    public void TheStockGateIsTheOriginalsJump()
+    {
+        int[] expected =
+        [
+            3, 4, 5, 6, 7, 8, 9, 10, 11,   // tech 0-8: three more than the tech level
+            14, 14, 14, 14, 14, 14,        // tech 9-14: the whole list
+        ];
+
+        for (int tech = 0; tech < expected.Length; tech++)
+        {
+            Assert.Equal(expected[tech], Outfitting.ItemsStocked(SystemWithTechLevel(tech)));
+
+            // And the gate agrees with the count: the nth item is stocked, the one after is not
+            StarSystem system = SystemWithTechLevel(tech);
+            Assert.True(Outfitting.IsStocked(system, expected[tech] - 1));
+            Assert.False(Outfitting.IsStocked(system, expected[tech]));
+        }
+
+        // The step is the point: tech 9 stocks everything, including the two lasers at the end
+        Assert.True(Outfitting.IsStocked(SystemWithTechLevel(9), 12));   // military lasers
+        Assert.True(Outfitting.IsStocked(SystemWithTechLevel(9), 13));   // mining lasers
+        Assert.False(Outfitting.IsStocked(SystemWithTechLevel(8), 11));  // which tech 8 does not
+    }
+
     [Fact]
     public void FuelIsPricedByTheLightYear()
     {

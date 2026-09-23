@@ -67,10 +67,29 @@ public static class Outfitting
     ];
 
     /// <summary>
-    /// How many items a system stocks: the original adds three to the tech level and caps the
-    /// result at fourteen.
+    /// How many items a system stocks.
     /// </summary>
-    public static int ItemsStocked(StarSystem system) => Math.Clamp(system.TechLevel + 3, 3, MaxItems);
+    /// <remarks>
+    /// The original adds three to the tech level and then compares against <c>#12</c>, setting the
+    /// count to fourteen if it is at least that — a jump, not a cap:
+    ///
+    /// <code>
+    /// LDA tek / CLC / ADC #3   \ A is now 3 to 17
+    /// CMP #12                  \ If A >= 12 then set A = 14
+    /// BCC P%+4
+    /// LDA #14
+    /// </code>
+    ///
+    /// So a tech level of 9 stocks fourteen items, not twelve, and 10 stocks fourteen rather than
+    /// thirteen — the last two tech levels before the cap stock the whole list, which is a sharper
+    /// step than a smooth clamp gives. Tech levels 0 to 8 are unaffected, which is nine of the
+    /// fifteen levels and the reason a clamp looked right.
+    /// </remarks>
+    public static int ItemsStocked(StarSystem system)
+    {
+        int count = system.TechLevel + 3;
+        return count >= 12 ? MaxItems : Math.Max(3, count);
+    }
 
     /// <summary>True if the system stocks the given item.</summary>
     public static bool IsStocked(StarSystem system, int item) => item >= 0 && item < ItemsStocked(system);
