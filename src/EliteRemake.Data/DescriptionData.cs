@@ -52,27 +52,8 @@ public static class DescriptionData
     }
 
     private static readonly Lazy<Core.Sim.MissionHints> _hints = new(() =>
-    {
-        Document document = LazyDocument.Value;
-
-        // A hint is only usable if the disc version actually has its token. The tables in the
-        // source carry entries the disc does not assemble - Lave and Riedquat are overridden only
-        // in the 6502SP, Executive and Master builds, and their tokens 26 and 27 are inside the
-        // same platform guards - so keeping them here would make PDESC print the wrong token from
-        // beyond the end of the table. Numbering matches the original's own loop, which counts
-        // from the number of entries down to one and prints the count as the token number.
-        var usable = new List<Core.Sim.MissionHint>();
-        var raw = document.Hints;
-        for (int i = 0; i < raw.Length; i++)
-        {
-            if (document.HintTokens.ContainsKey((i + 1).ToString()))
-            {
-                usable.Add(new Core.Sim.MissionHint(raw[i].System, raw[i].Criteria));
-            }
-        }
-
-        return new Core.Sim.MissionHints(usable);
-    });
+        new Core.Sim.MissionHints(
+            LazyDocument.Value.Hints.Select(h => new Core.Sim.MissionHint(h.System, h.Criteria)).ToArray()));
 
     private static readonly Lazy<Dictionary<int, TokenElement[]>> _hintTokens = new(() =>
         LazyDocument.Value.HintTokens.ToDictionary(pair => int.Parse(pair.Key), pair => pair.Value));

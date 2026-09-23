@@ -377,8 +377,26 @@ public static class TokenExtractor
     private static int[] ParseMtin(string path)
     {
         var values = new List<int>();
+
+        // These tables carry the same platform conditionals as everything else - RUPLA and RUGAL
+        // wrap their Lave and Riedquat entries in the 6502SP and Executive guards, which the disc
+        // does not assemble - so the branches have to be evaluated here too. Reading every EQUB
+        // regardless hands back entries for tokens the disc does not have, and PDESC then prints
+        // whatever lies past the end of RUTOK.
+        var branches = new Stack<(bool Taken, bool Active)>();
+
         foreach (string raw in File.ReadLines(path))
         {
+            if (Conditional(raw, branches) == "skip")
+            {
+                continue;
+            }
+
+            if (branches.Count > 0 && !branches.Peek().Active)
+            {
+                continue;
+            }
+
             int comment = raw.IndexOf('\\');
             string code = (comment >= 0 ? raw[..comment] : raw).Trim();
             if (!code.StartsWith("EQUB ", StringComparison.Ordinal))

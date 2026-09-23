@@ -1015,3 +1015,34 @@ RUTOK there stops at token 25. The extractor reads the tables without evaluating
 picked up 29 hints for 26 tokens. The hint list now keeps only entries whose token the disc actually
 has — 25 of them — and the test that asserted 29 has been corrected with the reason. The extractor's
 gap is real and is noted below.
+
+## Audit: the extractor's conditional handling
+
+The hint overrun was the visible symptom of a gap in the data extractor, so the gap was worth
+mapping properly. There are two extractors and they are not alike:
+
+**The ship extractor has a real assembler.** `tools/EliteDataExtractor/Assembly` evaluates
+`IF`/`ELIF`/`ELSE` with expressions, and the ships are assembled from the disc's own
+`elite-ships-a.asm` with the build options at `versions/disc/1-source-files/main-sources/
+elite-build-options.asm` — `_VERSION=2`, `_VARIANT=2`. That is why the verification can compare
+byte-for-byte against `D.MOA`–`D.MOP` and come out with 0 mismatches: it is not a parser at all, it
+is the real thing, and the binary comparison would catch any gating error immediately.
+
+**The token extractor is a hand-written parser**, and its conditional handling was uneven:
+`ParseTokens` evaluated the guards, and `ParseMtin` did not evaluate them at all — it collected
+every `EQUB` in the file regardless of the branch it sat in. That is what handed back 29 hints for a
+26-token table. `ParseMtin` now uses the same `Conditional` helper, and the extracted table is 25
+hints against 26 tokens, which is exactly right: token 0 is the empty one.
+
+The flags the token parser evaluates against are `_DISC_VERSION` and `_DISC_DOCKED`, which is the
+right pair for the docked screens, and the disc's own build options agree: `_VERSION = 2` makes
+`_DISC_VERSION` true and `_VARIANT = 2` is the Stairway to Hell disc. Every other platform flag
+evaluates false, so the `_6502SP`, `_EXECUTIVE`, `_MASTER`, `_C64`, `_APPLE`, `_NES` and `_ELITE_A`
+branches are all excluded — which is the desired behaviour, and was already correct for the token
+text itself. Checked against the source: token 113 is empty in the disc because its content is
+guarded by `NOT(_NES_VERSION OR _C64_VERSION OR _ELITE_A_DOCKED OR _ELITE_A_6502SP_PARA)`, and the
+Elite-A "CARGO VALUE:" text is correctly not ours.
+
+So the exposure was narrower than it looked: the token *text* was being gated properly all along,
+and only the numeric tables read by `ParseMtin` were not. Both are now consistent, and the
+extraction is deterministic — two runs give a byte-identical file.
