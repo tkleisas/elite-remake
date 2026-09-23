@@ -1852,6 +1852,64 @@ public class MissionTests
         Assert.True(restored.CarryingPlans);
     }
 
+    /// <summary>
+    /// The Constrictor actually turns up, in its own system, with the mission running.
+    /// </summary>
+    /// <remarks>
+    /// The unit test above checks the decision; this one drives the flight simulation, because the
+    /// decision is only half of it. The spawn resolves the target from the galaxy's seeds, and the
+    /// simulation has to be holding the galaxy's seeds rather than the current system's - resolving
+    /// from a system's own seeds lands on a different system number in a shorter galaxy, and on
+    /// Orarra by accident, which is a coincidence worth a test rather than a comment.
+    /// </remarks>
+    [Fact]
+    public void TheConstrictorSpawnsInItsOwnSystem()
+    {
+        SystemSeeds galaxySeeds = Galaxy.GalaxySeeds(Missions.ConstrictorGalaxy);
+        StarSystem target = ConstrictorSystem();
+
+        static FlightSim MakeSim(StarSystem system, SystemSeeds galaxySeeds, bool missionActive)
+        {
+            var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+            {
+                SpawningEnabled = true,
+                Commander = Commander.CreateDefault(),
+                System = system,
+                GalaxySeeds = galaxySeeds,
+                GalaxyNumber = Missions.ConstrictorGalaxy,
+                Missions = new Missions { Mission1Active = missionActive },
+            };
+
+            return sim;
+        }
+
+        // In its system with the mission running: it appears
+        FlightSim atTarget = MakeSim(target, galaxySeeds, missionActive: true);
+        for (int i = 0; i < 200 && atTarget.Bubble.All(s => s.Type != Missions.ConstrictorType); i++)
+        {
+            atTarget.Step();
+        }
+
+        Assert.Contains(atTarget.Bubble, s => s.Type == Missions.ConstrictorType);
+
+        // Anywhere else in the galaxy, and with no mission: it does not
+        StarSystem elsewhere = Galaxy.GenerateGalaxy(galaxySeeds).First(s => s.Seeds != target.Seeds);
+
+        foreach (FlightSim sim in new[]
+                 {
+                     MakeSim(elsewhere, galaxySeeds, missionActive: true),
+                     MakeSim(target, galaxySeeds, missionActive: false),
+                 })
+        {
+            for (int i = 0; i < 200; i++)
+            {
+                sim.Step();
+            }
+
+            Assert.DoesNotContain(sim.Bubble, s => s.Type == Missions.ConstrictorType);
+        }
+    }
+
     [Fact]
     public void TheConstrictorOnlyAppearsInItsOwnSystem()
     {

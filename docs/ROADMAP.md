@@ -1046,3 +1046,33 @@ Elite-A "CARGO VALUE:" text is correctly not ours.
 So the exposure was narrower than it looked: the token *text* was being gated properly all along,
 and only the numeric tables read by `ParseMtin` were not. Both are now consistent, and the
 extraction is deterministic — two runs give a byte-identical file.
+
+## The Constrictor's system was resolved from the wrong seeds
+
+The mission chain was already built end to end — the offers, the accept key, the status byte, the
+spawn, the kill, the reward, the plans and their delivery — but the spawn was resolving the
+Constrictor's system from the **current system's seeds** where galaxy seeds are needed.
+
+`SceneFactory` set `sim.GalaxySeeds = session.Commander.CurrentSystem.Seeds`. Those are a system's
+own seeds, not the galaxy's, and `ConstrictorTarget` feeds its argument straight into
+`GenerateGalaxy`. Measured, in galaxy 1:
+
+| seeds used | resolves to | system number |
+| --- | --- | --- |
+| the galaxy's | Orarra (144, 33) | 193 |
+| a system's | Orarra (144, 33) | **93** |
+
+It landed on Orarra either way, which is why nothing looked wrong — but only by coincidence, and the
+system number differed because the shortened galaxy has fewer systems. The seeds are now the
+galaxy's, taken from `Galaxy.GalaxySeeds(Commander.GalaxyNumber)`.
+
+Two smaller things came out of the same reading. `Missions.IsConstrictorSystem` was passing the
+*system's* seeds into `ConstrictorTarget` too, so it was comparing a system against a target
+resolved from itself; it now resolves from the galaxy's seeds, which is what its `galaxyNumber`
+parameter always meant, and there is a second overload taking galaxy seeds directly for callers that
+already hold them. And `FlightSim.SpawnMissionShip` was duplicating the comparison by hand rather
+than asking the predicate, so the two could disagree; it asks now.
+
+A test drives the flight simulation rather than the decision — in the Constrictor's system with the
+mission running it appears, and elsewhere or with no mission it does not — because the decision
+alone was already covered and was not where the fault was.

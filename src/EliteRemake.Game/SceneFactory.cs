@@ -129,7 +129,11 @@ public static class SceneFactory
         sim.System = session.System;
         sim.Missions = session.Missions;
         sim.GalaxyNumber = session.Commander.GalaxyNumber;
-        sim.GalaxySeeds = session.Commander.CurrentSystem.Seeds;
+        // The galaxy's own seeds, which is what resolves the Constrictor's system: the commander's
+        // current system has its own seeds and passing those through resolves to a different
+        // system number in a shorter galaxy. It happens to land on Orarra either way, which is
+        // exactly the sort of accident worth removing.
+        sim.GalaxySeeds = EliteRemake.Core.Universe.Galaxy.GalaxySeeds(session.Commander.GalaxyNumber);
         sim.ScoopCommander = session.Commander;
 
         // What a canister holds comes from its blueprint's scoop market item

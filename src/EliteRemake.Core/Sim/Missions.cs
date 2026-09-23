@@ -99,7 +99,7 @@ public sealed class Missions
     /// safety net; ConstrictorTargetExists reports whether the original's coordinates are there.
     /// </remarks>
     public static bool IsConstrictorSystem(StarSystem system, int galaxyNumber) =>
-        galaxyNumber == ConstrictorGalaxy && system.Seeds == ConstrictorTarget(system.Seeds).Seeds;
+        galaxyNumber == ConstrictorGalaxy && system.Seeds == ConstrictorTarget(Galaxy.GalaxySeeds(galaxyNumber)).Seeds;
 
     /// <summary>The system the Constrictor hides in, resolved the way the original intends.</summary>
     public static StarSystem ConstrictorTarget(SystemSeeds galaxySeeds)
@@ -134,6 +134,13 @@ public sealed class Missions
         !Mission1Complete &&
         constrictorsInBubble == 0 &&
         IsConstrictorSystem(system, galaxyNumber);
+
+    /// <summary>
+    /// Whether this is the system the Constrictor hides in, looked up from a galaxy's seeds rather
+    /// than a system number, for callers that already hold the seeds.
+    /// </summary>
+    public static bool IsConstrictorSystem(StarSystem system, SystemSeeds galaxySeeds) =>
+        system.Seeds == ConstrictorTarget(galaxySeeds).Seeds;
 
     /// <summary>
     /// Records that we destroyed the Constrictor: the original's KILLSHP sets bit 1, and the debrief

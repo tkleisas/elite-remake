@@ -655,8 +655,8 @@ public sealed class FlightSim
 
         int constrictors = _bubble.Count(s => s.Type == Missions_ConstrictorType);
 
-        StarSystem target = Missions.ConstrictorTarget(GalaxySeeds);
-        bool here = GalaxyNumber == Missions.ConstrictorGalaxy && System.Value.Seeds == target.Seeds;
+        bool here = GalaxyNumber == Missions.ConstrictorGalaxy
+            && Missions.IsConstrictorSystem(System.Value, GalaxySeeds);
 
         if (here && Missions.Mission1Active && !Missions.Mission1Complete && constrictors == 0)
         {
