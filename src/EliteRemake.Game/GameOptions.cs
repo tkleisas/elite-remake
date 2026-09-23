@@ -156,6 +156,7 @@ public sealed class GameOptions
                         "long" or "longchart" => DockedScreen.LongRangeChart,
                         "data" or "dataonsystem" => DockedScreen.DataOnSystem,
                         "status" or "inventory" => DockedScreen.Status,
+                        "settings" or "controls" => DockedScreen.Settings,
                         _ => DockedScreen.Market,
                     };
                     break;

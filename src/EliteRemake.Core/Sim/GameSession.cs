@@ -22,6 +22,15 @@ public enum DockedScreen
 
     /// <summary>The commander's status and inventory.</summary>
     Status,
+
+    /// <summary>
+    /// The control settings.
+    /// </summary>
+    /// <remarks>
+    /// Not a screen the original has — its keys were fixed and there was no way to change them —
+    /// so this is a modern addition, kept out of the way of the original's own screens.
+    /// </remarks>
+    Settings,
 }
 
 /// <summary>Where the player is: flying, or docked at the station.</summary>

@@ -98,6 +98,7 @@ public static class SceneFactory
         var scene = new FlightScene(device, camera, sim, new HudRenderer(layout, text))
         {
             Session = session,
+            Settings = Settings.Load(),
         };
 
         foreach (ShipCatalog.Entry entry in ShipCatalog.All)

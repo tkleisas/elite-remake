@@ -1285,3 +1285,29 @@ about, and the thing that resolved it was printing the state at both ends of the
 than reasoning about it. That is the third time this session that the fastest route out of a
 confusing failure was to make the program say what it was doing, and it remains worth doing first
 rather than last.
+
+## Rebinding: the last piece of the agreed scope
+
+The brief asked for a gamepad and an authentic keyboard layout; the layout was in and rebinding was
+not. It is now, and it is deliberately kept apart from the original's own screens.
+
+**Nothing here is a port.** The original's keys are fixed — IBM and Acornsoft chose them and there
+was no way to change them — so this is a modern addition. What it does do is default to the
+original's own keys, so a player who never opens the screen gets the 1984 layout: fire on `A`,
+missile on `M`, target on `T`, E.C.M. on `E`, the bomb on TAB, and the four flight controls on the
+keys the original gives them, `,` `.` `X` `S` with SPACE and `?` for the throttle.
+
+**The screen is reached from the status screen rather than taking a red function key**, so the
+original's own screens keep the keys they had. It walks the twelve bindings with up and down, rebinds
+on ENTER, resets to the originals on `R`, saves on CTRL-S, and leaves on ESCAPE. Escape during a
+rebind cancels it rather than binding Escape, which a player would otherwise do by accident and then
+be stuck with.
+
+**Bindings are held as key names and saved as JSON**, alongside the commander file, so the file is
+readable and a binding survives a key being added to MonoGame's enum. A settings file is never worth
+failing over: anything unreadable gives the defaults back, and a binding that names a key this build
+does not have falls back per binding rather than taking the others down with it.
+
+The arrow keys and the gamepad stay alongside the bound keys rather than being rebindable, because
+the original has two keys for each of the four directions and the arrows are one of them — rebinding
+the other should not take the arrows away.

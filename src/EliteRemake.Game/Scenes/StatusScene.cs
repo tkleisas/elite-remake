@@ -45,6 +45,13 @@ public sealed class StatusScene : IScene
 
         KeyboardState keys = Keyboard.GetState();
 
+        // The control settings are a modern addition, reached from here so the original's own
+        // screens keep the function keys they had
+        if (IsNewPress(keys, Keys.O))
+        {
+            _session.Screen = DockedScreen.Settings;
+        }
+
         if (IsNewPress(keys, Keys.Escape) || IsNewPress(keys, Keys.F8))
         {
             _session.Screen = DockedScreen.Market;

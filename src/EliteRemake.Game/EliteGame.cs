@@ -100,6 +100,7 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
                 DockedScreen.LongRangeChart => _longChartScene ??= OpenChart(ChartRange.Long),
                 DockedScreen.DataOnSystem => _dataScene ??= new DataScene(Camera, _session, _text),
                 DockedScreen.Status => _statusScene ??= new StatusScene(Camera, _session, _text),
+                DockedScreen.Settings => _settingsScene ??= new SettingsScene(Camera, _session, _text, _settings),
                 _ => _marketScene ??= new MarketScene(Camera, _session, _text),
             };
         }
@@ -122,6 +123,10 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
     }
 
     private IScene? _viewerScene;
+    private IScene? _settingsScene;
+
+    /// <summary>The player's bindings, loaded once so the screens and the flight scene share them.</summary>
+    private readonly Settings _settings = Settings.Load();
 
     /// <summary>Builds a chart scene, with the crosshairs starting on the current system.</summary>
     private ChartScene OpenChart(ChartRange range)

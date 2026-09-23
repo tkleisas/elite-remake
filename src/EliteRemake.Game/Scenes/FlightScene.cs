@@ -356,6 +356,9 @@ public sealed class FlightScene : IScene
     /// <summary>The sounds, or null when the game is running silently.</summary>
     public Audio.SoundBank? Sounds { get; set; }
 
+    /// <summary>The player's bindings, so the settings screen can change what the keys do.</summary>
+    public Settings Settings { get; set; } = new();
+
     public void Update(float elapsedSeconds)
     {
         LastInput = ReadInput() with
@@ -389,18 +392,18 @@ public sealed class FlightScene : IScene
             }
 
             // T locks the missile onto whatever is in the crosshairs, as the original does
-            if (keys.IsKeyDown(Keys.T) && !_targetPressed)
+            if (keys.IsKeyDown(Settings.TargetKey) && !_targetPressed)
             {
                 _targetPressed = true;
                 Session.Flight.MissileLock = FindTargetInCrosshairs();
             }
-            else if (!keys.IsKeyDown(Keys.T))
+            else if (!keys.IsKeyDown(Settings.TargetKey))
             {
                 _targetPressed = false;
             }
 
             // M fires a missile, E fires the E.C.M.
-            if (keys.IsKeyDown(Keys.M) && !_missilePressed)
+            if (keys.IsKeyDown(Settings.MissileKey) && !_missilePressed)
             {
                 _missilePressed = true;
                 if (Session.Flight.FireMissile())
@@ -408,14 +411,14 @@ public sealed class FlightScene : IScene
                     Sounds?.Play(Core.Audio.SoundEffect.Missile);
                 }
             }
-            else if (!keys.IsKeyDown(Keys.M))
+            else if (!keys.IsKeyDown(Settings.MissileKey))
             {
                 _missilePressed = false;
             }
 
             // H jumps to the nearest system we can reach, until the charts arrive. Holding CTRL
             // as well forces the jump to go wrong, as the original's own mis-jump key does.
-            if (keys.IsKeyDown(Keys.H) && !_jumpPressed)
+            if (keys.IsKeyDown(Settings.HyperspaceKey) && !_jumpPressed)
             {
                 _jumpPressed = true;
                 if (Session.SelectedSystem.Seeds == Session.System.Seeds)
@@ -429,13 +432,13 @@ public sealed class FlightScene : IScene
                     Session.ForceMisjump = false;
                 }
             }
-            else if (!keys.IsKeyDown(Keys.H))
+            else if (!keys.IsKeyDown(Settings.HyperspaceKey))
             {
                 _jumpPressed = false;
             }
 
             // TAB sets off the energy bomb, as the original does
-            if (keys.IsKeyDown(Keys.Tab) && !_bombPressed)
+            if (keys.IsKeyDown(Settings.EnergyBombKey) && !_bombPressed)
             {
                 _bombPressed = true;
                 if (Session.Flight.FireEnergyBomb())
@@ -443,17 +446,17 @@ public sealed class FlightScene : IScene
                     Sounds?.Play(Core.Audio.SoundEffect.Explosion);
                 }
             }
-            else if (!keys.IsKeyDown(Keys.Tab))
+            else if (!keys.IsKeyDown(Settings.EnergyBombKey))
             {
                 _bombPressed = false;
             }
 
-            if (keys.IsKeyDown(Keys.E) && !_ecmPressed)
+            if (keys.IsKeyDown(Settings.EcmKey) && !_ecmPressed)
             {
                 _ecmPressed = true;
                 Session.Flight.FireEcm();
             }
-            else if (!keys.IsKeyDown(Keys.E))
+            else if (!keys.IsKeyDown(Settings.EcmKey))
             {
                 _ecmPressed = false;
             }
@@ -519,27 +522,34 @@ public sealed class FlightScene : IScene
         }
     }
 
-    /// <summary>Maps the modern keyboard and gamepad onto the original's flight controls.</summary>
-    private static FlightInput ReadInput()
+    /// <summary>
+    /// Maps the keyboard and gamepad onto the original's flight controls.
+    /// </summary>
+    /// <remarks>
+    /// The arrow keys and the gamepad stay alongside the bound keys rather than being rebindable:
+    /// the original has two keys for each of the four directions and the arrows are one of them, so
+    /// rebinding the other should not take the arrows away.
+    /// </remarks>
+    private FlightInput ReadInput()
     {
         KeyboardState keys = Keyboard.GetState();
         GamePadState pad = GamePad.GetState(PlayerIndex.One);
 
-        bool left = keys.IsKeyDown(Keys.OemComma) || keys.IsKeyDown(Keys.Left) ||
+        bool left = keys.IsKeyDown(Settings.RollLeftKey) || keys.IsKeyDown(Keys.Left) ||
                     pad.DPad.Left == ButtonState.Pressed || pad.ThumbSticks.Left.X < -0.4f;
-        bool right = keys.IsKeyDown(Keys.OemPeriod) || keys.IsKeyDown(Keys.Right) ||
+        bool right = keys.IsKeyDown(Settings.RollRightKey) || keys.IsKeyDown(Keys.Right) ||
                      pad.DPad.Right == ButtonState.Pressed || pad.ThumbSticks.Left.X > 0.4f;
-        bool pullUp = keys.IsKeyDown(Keys.X) || keys.IsKeyDown(Keys.Up) ||
+        bool pullUp = keys.IsKeyDown(Settings.PullUpKey) || keys.IsKeyDown(Keys.Up) ||
                       pad.DPad.Up == ButtonState.Pressed || pad.ThumbSticks.Left.Y > 0.4f;
-        bool pitchDown = keys.IsKeyDown(Keys.S) || keys.IsKeyDown(Keys.Down) ||
+        bool pitchDown = keys.IsKeyDown(Settings.PitchDownKey) || keys.IsKeyDown(Keys.Down) ||
                          pad.DPad.Down == ButtonState.Pressed || pad.ThumbSticks.Left.Y < -0.4f;
-        bool speedUp = keys.IsKeyDown(Keys.Space) || pad.Buttons.A == ButtonState.Pressed;
+        bool speedUp = keys.IsKeyDown(Settings.SpeedUpKey) || pad.Buttons.A == ButtonState.Pressed;
+
         // The original's slow-down key is "?", with "/" accepted as the unshifted equivalent
-        bool slowDown = keys.IsKeyDown(Keys.OemQuestion) || keys.IsKeyDown(Keys.Divide) ||
+        bool slowDown = keys.IsKeyDown(Settings.SlowDownKey) || keys.IsKeyDown(Keys.Divide) ||
                         pad.Buttons.B == ButtonState.Pressed;
 
-        // "A" fires the lasers, as it does in the original
-        bool fire = keys.IsKeyDown(Keys.A) || pad.Buttons.RightShoulder == ButtonState.Pressed;
+        bool fire = keys.IsKeyDown(Settings.FireKey) || pad.Buttons.RightShoulder == ButtonState.Pressed;
 
         return new FlightInput(left, right, pullUp, pitchDown, speedUp, slowDown, fire);
     }
