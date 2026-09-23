@@ -2965,3 +2965,39 @@ evidence that one of them was wrong, when a disagreement between two sources is 
 that **I have not found the rule that reconciles them**. Three of the twelve have now been that same
 shape — the RUPLA galaxy check, the token 209 placeholder, and this — and in all three the reconciling
 fact existed and had not been looked for.
+
+## Every scooped commodity was one place late
+
+Last round's scoop arithmetic turned out to be a genuine fault after all, one level further down, and
+the way it was found is the point.
+
+**The blueprint gives a one-based market item.** The original says so — *"add 1 to the high nibble to
+get the market item"* — and the extractor's `+ 1` is therefore right, which last round confirmed. But
+the original then uses that value **directly to index the hold**, whose `QQ20` slots are zero-based. So
+the number means *both* "market item 3" and "hold slot 3", and those are different commodities for
+everything except the first.
+
+Ours passed the market item straight to `AddCargo`, so every scooped commodity landed one slot late:
+
+| ship | should give | gave |
+| --- | --- | --- |
+| escape pod | slaves | radioactives |
+| splinter | furs | minerals |
+| thargon | gem-stones | alien items |
+
+**The source's own comment is what caught it**, and it had been sitting in the roadmap for a round:
+*"the high nibble of byte #0 that scooping escape pods gives us slaves"*. Escape pods paying
+radioactives contradicts that in plain English, which is a much stronger signal than any of the
+arithmetic I had been doing around it.
+
+**The conversion now happens at the point of use.** `ScoopItemProvider` hands over a **hold index**, and
+the game layer does the minus one, because that is where the one-based number becomes a zero-based slot
+— the data keeps the original's meaning and the hold keeps its own. Two tests were asserting the old
+behaviour, and one of them was *named* for it: `SplintersScoopAsMinerals` is now
+`SplintersScoopAsFurs`.
+
+**And the canister case is genuinely different.** A cargo canister's scoop nibble is zero, so the
+original skips its market-item path entirely and gives a random commodity instead. That is why the
+`0` sentinel cannot simply become "food": zero means "this blueprint names no commodity", not "item
+zero". The test that had been passing a zero provider was modelling a canister with no contents at all,
+which the game never produces.

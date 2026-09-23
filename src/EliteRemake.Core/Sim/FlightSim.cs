@@ -316,6 +316,21 @@ public sealed class FlightSim
     public Commander? ScoopCommander { get; set; }
 
     /// <summary>How a canister's contents are decided, from the blueprints.</summary>
+    /// <summary>
+    /// What scooping a ship yields, as a zero-based commodity index for the cargo hold.
+    /// </summary>
+    /// <remarks>
+    /// The original's blueprint nibble gives a **market item number**, which is one-based — "add 1 to
+    /// the high nibble to get the market item" — and the original then uses it directly to index the
+    /// hold, whose <c>QQ20</c> slots are zero-based. So the value that arrives here is already the
+    /// array index the original intends, and a provider handing over a one-based market item is off
+    /// by one: escape pods yielded radioactives rather than the slaves the source's own comment
+    /// promises, splinters yielded minerals rather than furs, and thargons alien items rather than
+    /// gem-stones.
+    ///
+    /// The conversion therefore belongs here, at the point of use, rather than in the data: the
+    /// blueprint byte means what it means, and it is the hold's indexing that differs from it.
+    /// </remarks>
     public Func<Ship, int> ScoopItemProvider { get; set; } = _ => 0;
 
     /// <summary>The missions, which decide whether the Constrictor or extra Thargoids appear.</summary>

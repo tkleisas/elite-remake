@@ -148,16 +148,17 @@ public static class Debris
             return null;
         }
 
-        // The blueprint's scoop item is the authority, as it is in the disc version: a zero there
-        // means the ship cannot be scooped at all. Where no blueprint is available — the Core used
-        // on its own — fall back to the types the original gives a commodity of their own.
+        // The caller passes a zero-based commodity index, converted from the original's one-based
+        // market item. A zero means the ship cannot be scooped at all. Where no blueprint is
+        // available — the Core used on its own — fall back to the same indices for the three types
+        // the original gives a commodity of their own: slaves, furs and gem-stones.
         int commodity = marketItem != 0
             ? marketItem
             : item.Type switch
             {
-                Splinter => 12,      // minerals
-                EscapePod => 3,      // slaves
-                Thargon => 16,       // alien items
+                Splinter => 11,      // market item 12, furs
+                EscapePod => 2,      // market item 3, slaves
+                Thargon => 15,       // market item 16, gem-stones
                 _ => 0,
             };
 

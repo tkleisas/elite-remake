@@ -143,12 +143,23 @@ public static class SceneFactory
         sim.GalaxySeeds = EliteRemake.Core.Universe.Galaxy.GalaxySeeds(session.Commander.GalaxyNumber);
         sim.ScoopCommander = session.Commander;
 
-        // What a canister holds comes from its blueprint's scoop market item
+        // What scooping a ship yields, as a zero-based index into the hold. The blueprint gives the
+        // original's one-based market item — "add 1 to the high nibble to get the market item" — and
+        // the original then uses that directly on its zero-based QQ20 hold slots, so the conversion
+        // is a minus one. Without it every scooped commodity was one place late: escape pods paid
+        // radioactives rather than the slaves the source's comment promises, splinters minerals
+        // rather than furs, and thargons alien items rather than gem-stones.
         sim.ScoopItemProvider = ship =>
-            ShipCatalog.ByType(ship.Type) is { } canister &&
-            EliteRemake.Data.Ships.ShipData.ById(canister.Id) is { } canisterBlueprint
-                ? canisterBlueprint.Header.ScoopMarketItem
-                : 0;
+        {
+            if (ShipCatalog.ByType(ship.Type) is not { } scooped ||
+                EliteRemake.Data.Ships.ShipData.ById(scooped.Id) is not { } scoopBlueprint)
+            {
+                return 0;
+            }
+
+            int marketItem = scoopBlueprint.Header.ScoopMarketItem;
+            return marketItem == 0 ? 0 : marketItem - 1;
+        };
 
         // Give any ship that spawns a name and a blueprint from the catalogue, so it can be drawn
         sim.ShipSpawned = ship =>
