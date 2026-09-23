@@ -1239,9 +1239,23 @@ ring — so they are drawn every frame for as long as the countdown lasts.
 command line so the effect can be looked at without flying to the charts first, and the flight scene
 draws the tunnel in place of the space view while the countdown runs.
 
-**It does not appear yet.** The countdown is running and the drawing code is reached — confirmed by
-tracing — but none of its output arrives on screen, and neither does a deliberate forty-pixel red
-block drawn from the same place, which is what rules out the ring arithmetic and points at the
-drawing itself. The next step is to find why that batch's output is not surviving to the saved
-frame: the `SpriteBatch.Begin`/`End` pair and the early return in `FlightScene.Draw` are the two
-places to look.
+**It appears now, and the fault was the measurement rather than the drawing.** The rings were being
+drawn correctly all along; what was wrong was *when the screenshot was taken*. Several rounds of
+markers showed the pattern clearly:
+
+* three coloured bands drawn unconditionally all appeared in the saved frame, so the sprite batch
+  reaches the back buffer;
+* a marker drawn inside the countdown branch did **not** appear;
+* forcing the branch's condition to `true` made that same marker appear.
+
+So the condition was false at the frame the screenshot was taken on. `HyperspaceCountdown` is in
+simulation steps, and the shell takes up to ten simulation steps for each frame it draws, so a
+twenty-step countdown begun at frame zero is long over by frame six — and every marker placed
+*inside* the branch vanished for that reason. The drawing code was never at fault. Earlier rounds
+had traced the countdown as "running" and stopped there, which is exactly the kind of measurement
+that confirms the wrong thing.
+
+The fix for the harness is `FlightScene.ShowTunnelFrames`, which holds the tunnel open for a given
+number of *drawn* frames, with `--jump` setting it. The tunnel is now visible in
+`screenshots/hyperspace.png`, and it looks like the original's: concentric rings crowded at the
+centre and opening out to the edge of the view.

@@ -173,6 +173,11 @@ public static class SceneFactory
         // charts and picking a destination first
         if (options.StartHyperspace)
         {
+            scene.ShowTunnelFrames = 40;
+        }
+
+        if (options.StartHyperspace)
+        {
             session.SelectedSystem = session.System.Seeds == session.Commander.CurrentSystem.Seeds
                 ? FindNearestReachable(session)
                 : session.SelectedSystem;

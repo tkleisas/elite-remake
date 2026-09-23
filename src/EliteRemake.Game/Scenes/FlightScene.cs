@@ -570,8 +570,21 @@ public sealed class FlightScene : IScene
         return new FlightInput(left, right, pullUp, pitchDown, speedUp, slowDown, fire);
     }
 
+    /// <summary>
+    /// Draws the hyperspace tunnel for this many drawn frames as well as while a jump counts down.
+    /// </summary>
+    /// <remarks>
+    /// The countdown runs in simulation steps, of which the shell takes more than one for each frame
+    /// it draws, so a twenty-step countdown is over well before a frame-six screenshot. This holds
+    /// the tunnel open by drawn frames instead, which is what the screenshot harness needs.
+    /// </remarks>
+    public int ShowTunnelFrames { get; set; }
+
+    private int _drawnFrames;
+
     public void Draw(SpriteBatch spriteBatch, Texture2D pixel, GraphicsDevice device)
     {
+        _drawnFrames++;
         device.Clear(Palette.Space);
 
         // Stars first: they are the backdrop, and the original draws them before the ships
@@ -581,7 +594,7 @@ public sealed class FlightScene : IScene
 
         // The hyperspace tunnel covers everything while the drive is counting down, as the
         // original's LL164 clears the screen and draws its rings over the top
-        if (Session is { HyperspaceCountdown: > 0 })
+        if (Session is { HyperspaceCountdown: > 0 } || (ShowTunnelFrames > 0 && _drawnFrames < ShowTunnelFrames))
         {
             spriteBatch.Begin();
             HyperspaceTunnel.Draw(spriteBatch, pixel, Camera, Palette.White);

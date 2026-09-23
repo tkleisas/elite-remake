@@ -83,15 +83,15 @@ public static class HyperspaceTunnel
         float scale,
         Color colour)
     {
-        // The step size is the number of sections: 4 means the points are spread over the circle in
-        // steps of 4 units, and because the original's CIRCLE2 works in a 256-wide space its
-        // circumference runs to about 800 units at the largest radius, so the count follows from
-        // the radius rather than being fixed
+        // The original draws these as continuous lines. Drawn as dots they have to be spaced far
+        // enough apart not to merge into a solid blob at the centre, where the rings crowd
+        // together, so the spacing is a fixed number of pixels rather than a fixed count: at a
+        // couple of pixels the inner rings read as rings, and the outer ones stay smooth.
         float circumference = MathF.PI * (rx + ry);
+        int dot = Math.Max(1, (int)MathF.Round(scale));
         int thickness = Math.Max(1, (int)MathF.Round(scale));
 
-        float unit = StepSize * scale;
-        int segments = Math.Max(8, (int)(circumference * 2 / unit));
+        int segments = Math.Max(12, (int)(circumference / (dot * 2.2f)));
 
         for (int i = 0; i < segments; i++)
         {
