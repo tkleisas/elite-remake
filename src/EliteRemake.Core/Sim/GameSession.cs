@@ -510,14 +510,21 @@ public sealed class GameSession
     {
         if (Commander.EscapePod)
         {
+            // The original's ESCAPE routine does four things before it hands us to the station: it
+            // empties all seventeen cargo slots, clears our criminal record, spends the pod, and
+            // delivers a replacement ship with a full tank. The fuel matters — being rescued with an
+            // empty tank and no cargo to sell would strand a commander with no way to earn.
             for (int item = 0; item < 17; item++)
             {
                 Commander.RemoveCargo(item, Commander.GetCargo(item));
             }
 
+            Commander.LegalStatus = 0;
             Commander.EscapePod = false;
-            Console.WriteLine("Escape pod launched: cargo lost, commander recovered at the station.");
+            Commander.Fuel = Outfitting.MaxFuel;
+
             Dock();
+            Message = "Escape pod launched: cargo lost, but you were picked up at the station.";
             return;
         }
 

@@ -1533,3 +1533,34 @@ as it stood. The tests that have caught things — the counter directions, the m
 alien items rule — were all written *after* reading the source, and several of them were written to
 pin a measurement rather than an implementation. The distinction is not diligence, it is order:
 read the source, then write the test.
+
+## The escape pod left the commander stranded
+
+Auditing the death path against the original's `ESCAPE` routine, which does four things before it
+hands us to the station:
+
+```
+ STA QQ20,X             \ Set the X-th byte of QQ20 to zero, so we no longer have any of item X
+ DEX / BPL ESL2         \ ... for all seventeen slots
+ STA FIST               \ Launching an escape pod also clears our criminal record
+ STA ESCP               \ The escape pod is a one-use item, so set ESCP to 0
+ LDA #70 / STA QQ14     \ Our replacement ship is delivered with a full tank of fuel
+```
+
+Ours emptied the hold and spent the pod, and did neither of the other two.
+
+**The fuel is the one that matters.** Being picked up with an empty tank and no cargo to sell leaves
+a commander with no way to earn: he cannot jump anywhere and has nothing to trade, which is a dead
+end the original's rescue deliberately avoids by delivering the replacement ship full. Clearing the
+criminal record is the other half of "a fresh start", and it is what stops the station he is rescued
+at from being hostile to him.
+
+Two tests cover it now — one that the rescue empties the hold, clears the record, spends the pod and
+fills the tank, and one that dying without a pod is game over — and neither existed before, which is
+why nothing had noticed.
+
+**The tally is now six.** Every one of these was found by reading the source against code that
+already passed its tests: the equipment prices, the galactic hyperdrive's system number, the
+eight-jump round trip, docking's market rebuild, selling's restock, and now the escape pod's missing
+rescue. The tests that catch things are the ones written after reading the source; the ones that
+hide things were written from the code.

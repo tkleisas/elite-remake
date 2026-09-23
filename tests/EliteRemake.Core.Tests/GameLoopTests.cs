@@ -94,6 +94,56 @@ public class GameLoopTests
     }
 
     /// <summary>
+    /// Dying with an escape pod fitted means being picked up, not game over.
+    /// </summary>
+    /// <remarks>
+    /// The original's ESCAPE routine empties all seventeen cargo slots, clears the criminal record,
+    /// spends the pod, and delivers a replacement ship with a full tank. The fuel is the part that
+    /// matters most: a commander rescued with an empty tank and nothing to sell would have no way to
+    /// earn, so the rescue has to leave him able to fly.
+    /// </remarks>
+    [Fact]
+    public void AnEscapePodRescuesTheCommanderWithAFullTank()
+    {
+        GameSession session = NewSession();
+        Commander commander = session.Commander;
+
+        // Something to lose, and a record to clear
+        session.Dock();
+        session.Buy(0, 5);
+        commander.LegalStatus = 120;
+        commander.Fuel = 20;
+        commander.EscapePod = true;
+
+        session.Launch();
+        session.HandlePlayerDeath();
+
+        Assert.False(session.GameOver, "an escape pod should save the commander");
+        Assert.Equal(GameMode.Docked, session.Mode);
+        Assert.Equal(0, commander.CargoUsed);
+        Assert.Equal(0, commander.LegalStatus);
+        Assert.False(commander.EscapePod, "the pod is a one-use item");
+        Assert.Equal(70, commander.Fuel);
+        Assert.Contains("Escape pod", session.Message);
+    }
+
+    /// <summary>
+    /// Dying without one is game over, and the hold is not the thing that matters then.
+    /// </summary>
+    [Fact]
+    public void DyingWithoutAnEscapePodIsGameOver()
+    {
+        GameSession session = NewSession();
+        session.Commander.EscapePod = false;
+
+        session.Launch();
+        session.HandlePlayerDeath();
+
+        Assert.True(session.GameOver);
+        Assert.Equal(GameMode.Flying, session.Mode);
+    }
+
+    /// <summary>
     /// The market at a system is stable while docked there, and different at the next one.
     /// </summary>
     /// <remarks>
