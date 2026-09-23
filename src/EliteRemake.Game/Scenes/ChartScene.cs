@@ -54,7 +54,7 @@ public sealed class ChartScene : IScene
         _session = session;
         _text = text;
         Range = range;
-        _galaxy = Galaxy.GenerateGalaxy(session.System.Seeds);
+        _galaxy = session.SystemsInGalaxy;
     }
 
     public ViewCamera Camera { get; }

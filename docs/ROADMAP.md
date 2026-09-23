@@ -1380,3 +1380,41 @@ to read is *worse* than one that is cut off, because a cut-off line can still be
 the floor means the real answer to a hint that does not fit is to write a shorter hint, which is what
 the screens now do — the helper exists so that a future long hint cannot clip silently, not so that
 hints can be as long as they like.
+
+## The charts were showing a galaxy that does not exist
+
+Flying the whole loop end to end — dock, buy, launch, jump, arrive, dock, sell — turned up a bug
+that no test covered and that the tests could not have covered, because the one case they exercised
+is the one case where it does not show.
+
+**A system's seeds are not the galaxy's.** `Galaxy.GenerateGalaxy` takes *galaxy* seeds, and the
+callers were mostly handing it a *system's*. Measured:
+
+| seeds used | systems differing from the real galaxy |
+| --- | --- |
+| system 0's | **0 of 256** |
+| system 7's (Lave) | **256 of 256** |
+| system 100's | 256 of 256 |
+| system 255's | 256 of 256 |
+
+System 0's seeds *are* the galaxy's own, which is why this hid for so long: at Lave — system 7 of
+galaxy 0 — the chart was asking with Lave's seeds, but every chart screenshot the session had taken
+was of system 0, where the two coincide. The short-range chart centre was right and the
+surrounding systems happened to look plausible, so nothing showed.
+
+Once the commander has jumped anywhere, all three of these were wrong: the **short and long-range
+charts** drew a galaxy generated from the current system's seeds, and the **nearest-reachable-system
+search** — which is what `H` jumps to — picked its destination from that same invented galaxy.
+
+The fix is one property, `GameSession.SystemsInGalaxy`, which resolves the galaxy from the
+commander's galaxy number, and the three call sites now ask it rather than generating their own. The
+name is deliberately not `Galaxy`, which would shadow the `Galaxy` class inside the session and did
+exactly that when it was first written.
+
+Two tests pin it, on the session rather than on the generator, because the session is where the
+mistake was made: from four different systems the session must report the same 256 systems, and from
+Lave it must report the real Lave at (20, 173) with Diso and Leesti alongside.
+
+**On method.** This is the third fault this session found by flying the game rather than by reading
+it or testing it — after the station's invisible docking slot and the docking computer's off-axis
+approach. A test suite checks what it was written to check; a flight checks what a player does.

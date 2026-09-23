@@ -229,7 +229,7 @@ public static class SceneFactory
         int bestDistance = int.MaxValue;
 
         foreach (EliteRemake.Core.Universe.StarSystem candidate in
-                 EliteRemake.Core.Universe.Galaxy.GenerateGalaxy(session.System.Seeds))
+                 session.SystemsInGalaxy)
         {
             if (candidate.Seeds == session.System.Seeds)
             {

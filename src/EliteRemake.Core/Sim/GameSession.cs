@@ -237,6 +237,19 @@ public sealed class GameSession
         Message = "Hyperspace drive engaged.";
     }
 
+    /// <summary>
+    /// The galaxy we are in, from its own seeds.
+    /// </summary>
+    /// <remarks>
+    /// This is the only correct way to ask for the galaxy: a *system's* seeds are not the galaxy's
+    /// except by coincidence for system 0, whose seeds are the galaxy's own. Generating from another
+    /// system's seeds gives an entirely different galaxy — all 256 systems differ — which is what the
+    /// charts used to show once the commander had left Lave, and what the nearest-reachable-system
+    /// searches were picking destinations from.
+    /// </remarks>
+    public StarSystem[] SystemsInGalaxy => Universe.Galaxy.GenerateGalaxy(
+        Universe.Galaxy.GalaxySeeds(Commander.GalaxyNumber));
+
     /// <summary>Advances the hyperspace countdown, returning true when the jump completes.</summary>
     public bool TickHyperspace()
     {

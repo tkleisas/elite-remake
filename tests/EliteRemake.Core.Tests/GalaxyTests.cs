@@ -358,6 +358,59 @@ public class GalaxyIndexTests
 /// Checks the mission hints that replace a system's description while the Constrictor mission is on,
 /// which is what turns the mission into a trail.
 /// </summary>
+/// <summary>
+/// The galaxy a session reports is the galaxy it is in, whatever system it happens to be at.
+/// </summary>
+/// <remarks>
+/// A system's seeds are not the galaxy's — except for system 0, whose seeds <em>are</em> the galaxy's
+/// own, which is what hid this. Generating a galaxy from another system's seeds gives an entirely
+/// different one, all 256 systems differing, so a chart or a nearest-reachable-system search that
+/// asked the wrong way would show and pick from a galaxy that does not exist. The tests below are on
+/// the game session rather than the generator because that is where the mistake was made.
+/// </remarks>
+public class SessionGalaxyTests
+{
+    private static GameSession SessionAt(StarSystem system)
+    {
+        Commander commander = Commander.CreateDefault();
+        commander.CurrentSystem = system;
+
+        return new GameSession(commander, new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III")));
+    }
+
+    [Fact]
+    public void TheSessionReportsTheGalaxyItIsIn()
+    {
+        StarSystem[] galaxy = Galaxy.GenerateGalaxy(Galaxy.GalaxySeeds(0));
+
+        // From any system in the galaxy, the session's galaxy is the same 256 systems
+        foreach (int index in new[] { 0, 7, 100, 255 })
+        {
+            GameSession session = SessionAt(galaxy[index]);
+            Assert.Equal(
+                galaxy.Select(s => s.Name),
+                session.SystemsInGalaxy.Select(s => s.Name));
+        }
+    }
+
+    [Fact]
+    public void ThatGalaxyHoldsTheKnownSystemsWhereTheOriginalPutsThem()
+    {
+        // Lave is system 7, so a session docked there must still see the real galaxy and not one
+        // generated from Lave's own seeds
+        StarSystem lave = Galaxy.GenerateGalaxy(Galaxy.GalaxySeeds(0)).First(s => s.Name == "LAVE");
+        GameSession session = SessionAt(lave);
+
+        StarSystem fromSession = session.SystemsInGalaxy.First(s => s.Name == "LAVE");
+        Assert.Equal(20, fromSession.X);
+        Assert.Equal(173, fromSession.Y);
+
+        // And the neighbouring systems are the real ones
+        Assert.Contains(session.SystemsInGalaxy, s => s.Name == "DISo" || s.Name == "DISO");
+        Assert.Contains(session.SystemsInGalaxy, s => s.Name == "LEESTI");
+    }
+}
+
 public class MissionHintTests
 {
     [Fact]

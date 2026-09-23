@@ -141,7 +141,7 @@ public sealed class FlightScene : IScene
         int bestDistance = int.MaxValue;
 
         foreach (EliteRemake.Core.Universe.StarSystem candidate in
-                 EliteRemake.Core.Universe.Galaxy.GenerateGalaxy(Session.System.Seeds))
+                 Session.SystemsInGalaxy)
         {
             if (candidate.Seeds == Session.System.Seeds)
             {
