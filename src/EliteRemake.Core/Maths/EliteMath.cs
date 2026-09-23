@@ -532,40 +532,44 @@ public static class EliteMath
     /// <returns>The sign byte of the result.</returns>
     public static byte Mvt6(Span<byte> coordinate, int offset, byte a, ref byte p1, ref byte p2)
     {
-        // Bit 7 of A is the sign of the value in (P+2, P+1); bits 0-6 of A carry nothing and are
-        // preserved. The coordinate is a 23-bit magnitude whose sign is bit 7 of its third byte.
+        // Bit 7 of A is the sign of the value in (P+2, P+1); bits 0-6 are preserved in the result.
         bool coordinateNegative = (coordinate[offset + 2] & 0x80) != 0;
         bool deltaNegative = (a & 0x80) != 0;
 
-        // The result's sign bit, with bits 0-6 of A preserved
         byte sign = (byte)((a & 0x7F) | (coordinateNegative ? 0x80 : 0x00));
 
-        // The low 16 bits of the coordinate's magnitude, as one value, so the subtraction below can
-        // borrow from bit 16 properly. Doing it a byte at a time and negating afterwards, which is
-        // what this used to do, gets the small inputs wrong: adding -62 to a coordinate of 0 came
-        // out as -319.
-        int value = coordinate[offset] | (coordinate[offset + 1] << 8);
-        int delta = p1 | (p2 << 8);
+        // The coordinate is 23-bit sign-magnitude and the delta is 16-bit, so the result needs all 23
+        // bits. This used to take the coordinate's low 16 bits as one value and add the delta to it,
+        // which is right up to 65535 and wrong from there: adding 1000 to 70000 gave 5464, because the
+        // carry out of bit 16 had nowhere to go and the sign byte was left alone.
+        //
+        // That was the reported wobble. A coordinate above 65535 absorbs the addition incorrectly, so a
+        // body 500 units off to one side spiralled from an xy-radius of 500 down to 94 over a single
+        // turn, where a rotation must preserve length. Measured on this primitive directly: every case
+        // below 65536 is exact and every case at or above it was wrong.
+        long magnitude = coordinate[offset]
+            | ((long)coordinate[offset + 1] << 8)
+            | ((long)(coordinate[offset + 2] & 0x7F) << 16);
+        long delta = p1 | ((long)p2 << 8);
 
-        if (coordinateNegative == deltaNegative)
-        {
-            // Both the same sign, so add the magnitudes
-            int sum = value + delta;
-            p1 = (byte)(sum & 0xFF);
-            p2 = (byte)((sum >> 8) & 0xFF);
-            return sign;
-        }
+        // Magnitudes add when the signs agree and subtract when they differ, which is what sign
+        // magnitude means; the smaller is taken from the larger and keeps its sign.
+        long result = coordinateNegative == deltaNegative
+            ? magnitude + delta
+            : magnitude - delta;
 
-        // Opposite signs, so subtract the smaller magnitude from the larger and keep that one's sign
-        int difference = value - delta;
-        if (difference < 0)
+        if (result < 0)
         {
-            difference = -difference;
+            result = -result;
             sign ^= 0x80;
         }
 
-        p1 = (byte)(difference & 0xFF);
-        p2 = (byte)((difference >> 8) & 0xFF);
+        coordinate[offset] = (byte)(result & 0xFF);
+        coordinate[offset + 1] = (byte)((result >> 8) & 0xFF);
+        sign = (byte)((sign & 0x80) | ((result >> 16) & 0x7F));
+
+        p1 = coordinate[offset];
+        p2 = coordinate[offset + 1];
         return sign;
     }
 

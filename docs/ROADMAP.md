@@ -3431,3 +3431,42 @@ than its measurements.
 **The practical position is unchanged**: the rotation is rigid, the wobble is gone, and the departure is
 documented as a departure. A user-visible fault was fixed with a measurement; an archaeological question
 about the original is open, and is labelled as such rather than resolved by preference.
+
+## The wobble's root cause: MVT6 discarded the coordinate's high bits
+
+Two rounds of reading the listing produced two opposite answers and neither was worth anything. One
+measurement of the primitive settled it in a minute.
+
+**`Mvt6` adds a 16-bit value to a 23-bit coordinate and must use all 23 bits.** It took the coordinate's
+low 16 bits as a single value and added the delta to that:
+
+```
+    70000 +     1000 =    71000   mvt6 gave     5464   WRONG
+   200000 +     5000 =   205000   mvt6 gave     8392   WRONG
+    60000 +    40000 =   100000   mvt6 gave    34464   WRONG
+```
+
+**Exact below 65536 and wrong at and above it**, because the carry out of bit 16 had nowhere to go and
+the sign byte was left alone. The coordinate is 23-bit sign-magnitude, so "the low 16 bits" is not the
+number — and a body at 500 units off to one side has coordinates that exceed 65535 as soon as the roll
+carries them round, which is exactly when the spiral appeared and why it was invisible in a straight
+line.
+
+The magnitudes now add or subtract in full and the third byte is written back with the result's high
+bits. Every case below the boundary was already right and every case at or above it is now right.
+
+**Correcting two things I wrote in the last round.** I said `Mltu2` and `Mvt6` "are already covered by
+their own tests, so the arithmetic primitives are right" — **`Mvt6` had no test at all**, which is
+precisely why the fault survived a round that claimed to have fixed it by other means and a round that
+read the listing twice. And I said the two readings of the original "point opposite ways"; the truth is
+simpler, which is that **our primitive was wrong and the original was never the problem.**
+
+**The lesson, and it is the sharpest one this project has produced.** I spent two rounds reading a
+listing with a measurable fault sitting underneath it. The measurement took one minute and the reading
+took two rounds and produced two contradictions. Every previous instance of this pattern was a single
+mis-read; this is the first time the *method itself* was the wrong choice twice in a row while the
+answer was one script away.
+
+**`Mvt6Tests` now covers twelve combinations of sign and magnitude** spanning the 16-bit boundary, and
+reverting the fix fails exactly the six at or above it while the six below still pass — which is the
+signature of the fault.
