@@ -135,13 +135,18 @@ public sealed class MeshRenderer : IDisposable
         Color? detailColour = null,
         Color? detailLipColour = null)
     {
-        // The original reduces the ship's z-distance to the range 0-31 by dividing by 128 (its
-        // LL9 part 2 shifts the 16-bit z value right seven times); a ship at z_hi >= 16 is either
-        // drawn as a dot or is far enough away that hidden-line detail is not worth culling, and
-        // carries a visibility value of 7. We also need the two high bytes for the line clip below
+        // The original reduces the ship's z-distance to the range 0-31, which is XX4: LL9 part 2
+        // takes z_hi and shifts it right three more times, so XX4 = z_hi >> 3 and saturates at 31
+        // for anything from z_hi 248 up. Every visibility byte in the blueprints is on that same
+        // 0-31 scale, and a face or detail edge is hidden once XX4 passes its own value.
+        //
+        // This used to divide by 512 and clamp to 7, which put the distance on a scale eight times
+        // too steep and floored at 7. No detail edge could then survive its own gate unless its
+        // visibility was 7 or less, so every detail above that — including the Coriolis slot, which
+        // carries 30 — was culled at every distance and never drawn at all.
         int zInt = (int)MathF.Max(position.Z, 0);
         int zHigh = (zInt >> 8) & 0xFF;
-        int visibility = Math.Clamp(zHigh / 2, 0, 7);
+        int visibility = Math.Min(31, zHigh >> 3);
 
         if ((zInt / 256) > visibilityDistance)
         {

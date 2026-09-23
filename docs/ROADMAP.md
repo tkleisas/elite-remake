@@ -2253,3 +2253,35 @@ wrong about a value; last round a probe was wrong about an encoding; this round 
 what it was even varying. The defence that actually works is not care but **a control**: the test above
 was checked against the old behaviour before being trusted, and the screenshot comparison would have
 been caught immediately by asking what it was supposed to differ from.
+
+## The space station's docking slot could never be drawn
+
+Chasing the reported wobble turned up a fault with a much clearer signature: **the Coriolis's docking
+slot was not being drawn at all**, at any distance, and neither was the Dodo's.
+
+**The cause was a distance scale eight times too steep.** Every visibility byte in the blueprints is on
+a 0-31 scale, which is the same scale the original uses for a ship's distance: LL9 part 2 takes `z_hi`
+and shifts it right three more times, so `XX4 = z_hi >> 3`, saturating at 31 for anything from `z_hi`
+248 up. Ours divided the scaled distance by 512 and clamped it to **0-7**. No detail edge could then
+survive its own gate unless its visibility was 7 or less, so every detail above that was culled at
+every distance:
+
+| z_hi | original XX4 | ours | slot (visibility 30) shows |
+| --- | --- | --- | --- |
+| 2 | 0 | 1 | no |
+| 16 | 2 | 7 | no |
+| 64 | 8 | 7 | no |
+| 240 | 30 | 7 | no |
+
+It is now `Math.Min(31, zHigh >> 3)`, and the station draws its slot: **4 detail edges** at the
+heading where the slot faces us, where it queued exactly **0** before. The Dodo, which also carries
+slot edges at visibility 30, went from 0 to 4 with it.
+
+**This is very likely what the reported "wobble" was**: the slot appearing and vanishing changes what
+the station looks like as it turns, and a missing slot is far more visible than a two-percent shear.
+
+**And the method note matters more than the fix.** Two rounds went into a two-percent shear that I
+could not show was visible, while the real fault — a whole feature missing — was one line away in the
+same file. The measurement I had been taking, a silhouette's bounding box, is **blind to a hole in the
+middle of the shape**. Measuring a feature means measuring the thing the feature is, not the outline
+around it: `queued detail edges` found this in one line of output, having been printed all along.
