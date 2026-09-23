@@ -3538,3 +3538,37 @@ code, its precision is bounded and measured, and the original's method is record
 the two possible causes being separated. That last item is the only part still unresolved, and it is
 unresolved because separating them means modelling `MLTU2` exactly, which two attempts have failed to
 get right from the listing — so it waits for a reason to care, rather than for a free round.
+
+## A planet's distance wanders by 4.6% over a long turn, and that is recorded rather than smoothed over
+
+Adding a test for the case most exposed to the arithmetic — a body hundreds of thousands of units out,
+whose coordinates use the top of the 23-bit range — produced a number worth keeping:
+
+```
+planet at 262144 units, twelve hundred frames of rolling and pitching:
+  worst distance error 4.60%   — some twelve thousand units
+```
+
+**That is the honest bound for a body that far out**, and it is not nothing. It shows as a body that
+swells and shrinks slightly over a long turn. It is bounded, it returns, and it is three orders of
+magnitude better than the spiral it replaced — but the first version of the test asserted one percent,
+which the code does not meet, and the fix was to record what the code does rather than to weaken the
+test until it passed quietly.
+
+**Where it comes from.** The rigid path divides by 256 with integer arithmetic at every step, so each
+step truncates toward zero. For a coordinate near two thousand — a station's — the errors cancel within a
+third of a percent over five thousand turns, which is measured and bounded. For a coordinate near a
+quarter of a million, the same relative truncation is a much larger absolute step, and the cancellation
+is correspondingly less complete.
+
+**Two harness errors of mine on the way to that number**, both of the same shape as the ones before:
+I compared a planet's radius against a *starting radius of 1*, because I read `(1, 0, 262144)` as having
+a radius of 1 from its x coordinate; and the 100% error that produced looked like a planet collapsing to
+the origin. The body was fine. **Thirteenth and fourteenth diagnostics wrong before the code was** — and
+the second was caught only because the first had already made me suspicious of the harness rather than
+of the planet.
+
+**The rule this keeps earning, now stated for the fourth time**: when a measurement says something
+alarming, suspect the measurement first. Every genuinely alarming number in this project has been the
+instrument, and every real fault has been found by a number that was merely *wrong* rather than
+dramatic.

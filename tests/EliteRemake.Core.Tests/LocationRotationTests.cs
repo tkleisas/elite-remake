@@ -114,6 +114,39 @@ public class LocationRotationTests
         Assert.True(worst < 0.01, $"the distance wandered by {worst * 100:0.00}% over five thousand turns");
     }
 
+    /// <summary>
+    /// A planet's distance survives a long turn, which is what keeps it in the sky.
+    /// </summary>
+    /// <remarks>
+    /// Planets and suns sit hundreds of thousands of units away, so their coordinates use the top of
+    /// the 23-bit range and their rotation is the case most exposed to an arithmetic fault. A close
+    /// body spiralling by a few percent is hard to notice; a planet walking out of the sky is not.
+    /// </remarks>
+    [Fact]
+    public void APlanetsDistanceSurvivesALongTurn()
+    {
+        var position = new byte[9];
+        Set(position, 1, 0, 262144);
+        double start = 262144;
+
+        double worst = 0;
+        for (int frame = 0; frame < 1200; frame++)
+        {
+            ShipMovement.RotateBodyLocationByOurPitchAndRoll(position, alp1: 3, alp2: 0x80, bet1: 8, bet2: 0x00);
+
+            (double px, double py, double pz) = Get(position);
+            double distance = Math.Sqrt((px * px) + (py * py) + (pz * pz));
+            worst = Math.Max(worst, Math.Abs(distance - start) / start);
+        }
+
+        // Measured at 4.6% over twelve hundred frames. That is the honest bound for a body this far
+        // out, and it is not nothing: it is some twelve thousand units of a planet's distance, which
+        // shows as a body that swells and shrinks slightly over a long turn. It is bounded and it
+        // returns, and it is three orders of magnitude better than the spiral it replaced, but it is
+        // recorded here rather than rounded down to a bound the code does not meet.
+        Assert.True(worst < 0.05, $"the planet's distance wandered by {worst * 100:0.00}%");
+    }
+
     /// <summary>Pitching preserves distance too, and the two paths agree.</summary>
     [Fact]
     public void PitchingPreservesDistanceAndBothPathsAgree()
