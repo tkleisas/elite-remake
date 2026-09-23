@@ -24,11 +24,64 @@ public static class DescriptionData
     /// Generates a description of a system, using the given generator for the random choices so the
     /// caller decides how stable the description is.
     /// </summary>
-    public static string Describe(string systemName, EliteRandom random)
+    public static string Describe(string systemName, EliteRandom random) =>
+        Describe(systemName, random, Commander.DefaultName, galaxy: 0);
+
+    /// <summary>
+    /// Generates a description of a system in the given galaxy, which the tokens can refer to for the
+    /// commander's name and the system's adjective.
+    /// </summary>
+    public static string Describe(string systemName, EliteRandom random, string commanderName, int galaxy)
     {
         Document document = LazyDocument.Value;
-        var printer = new TokenPrinter(_tokens.Value, document.Mtin, random);
-        return printer.Print(document.DescriptionToken, systemName);
+        return Printer(random, commanderName, galaxy).Print(document.DescriptionToken, systemName);
+    }
+
+    /// <summary>
+    /// Prints one of the mission texts: the briefings that token 10, 11 and 222 hold and the
+    /// debriefings that tokens 15 and 223 hold.
+    /// </summary>
+    /// <remarks>
+    /// The mission texts need more than the description does. They name the commander and the
+    /// captain delivering the briefing, and the captain's name and the location hint are chosen by
+    /// the galaxy we are in — jump tokens 27 and 28 pick tokens 217-219 and 220-221 by number.
+    /// </remarks>
+    public static string MissionText(
+        int token,
+        string systemName,
+        string commanderName,
+        int galaxy,
+        EliteRandom random) =>
+        Printer(random, commanderName, galaxy).Print(token, systemName);
+
+    /// <summary>
+    /// Prints a mission text and reports the screen actions it asks for: the original's briefing
+    /// routines clear the screen for the INCOMING MESSAGE banner, show the ship, and wait for a key
+    /// press, and those are things the display has to stage rather than words to print.
+    /// </summary>
+    public static (string Text, IReadOnlyList<TokenEvent> Events) MissionTextWithEvents(
+        int token,
+        string systemName,
+        string commanderName,
+        int galaxy,
+        EliteRandom random)
+    {
+        TokenPrinter printer = Printer(random, commanderName, galaxy);
+        return (printer.Print(token, systemName), printer.Events);
+    }
+
+    /// <summary>Builds a printer with everything the extracted tables hold.</summary>
+    private static TokenPrinter Printer(EliteRandom random, string commanderName, int galaxy)
+    {
+        Document document = LazyDocument.Value;
+        return new TokenPrinter(_tokens.Value, document.Mtin, random)
+        {
+            StandardTokens = _standardTokens.Value,
+            TwoLetterTokens = document.TwoLetterTokens,
+            StandardTwoLetterTokens = document.StandardTwoLetterTokens,
+            CommanderName = commanderName,
+            Galaxy = galaxy,
+        };
     }
 
     /// <summary>
@@ -45,6 +98,27 @@ public static class DescriptionData
         Document document = LazyDocument.Value;
         var printer = new TokenPrinter(_tokens.Value, document.Mtin, random);
         return printer.Print(token, systemName);
+    }
+
+    /// <summary>
+    /// The mission texts' token numbers, as the original's briefing and debriefing routines use them.
+    /// </summary>
+    public static class MissionTokens
+    {
+        /// <summary>Mission 1's briefing, which the Navy gives us when we dock with 256 kills.</summary>
+        public const int MissionOneBriefing = 10;
+
+        /// <summary>Mission 2's first contact, when the Navy asks us to go to Ceerdi.</summary>
+        public const int MissionTwoContact = 11;
+
+        /// <summary>Mission 1's debriefing, after the Constrictor is destroyed.</summary>
+        public const int MissionOneDebriefing = 15;
+
+        /// <summary>Mission 2's briefing, which Agent Blake gives us at Ceerdi.</summary>
+        public const int MissionTwoBriefing = 222;
+
+        /// <summary>Mission 2's debriefing, after the plans are delivered.</summary>
+        public const int MissionTwoDebriefing = 223;
     }
 
     /// <summary>The mission hints, which replace a system's description while a mission is on.</summary>
@@ -75,6 +149,9 @@ public static class DescriptionData
         LazyDocument.Value.HintTokens.ToDictionary(pair => int.Parse(pair.Key), pair => pair.Value));
 
     private static readonly Lazy<Dictionary<int, TokenElement[]>> _tokens = new(() => LazyDocument.Value.Tokens);
+
+    private static readonly Lazy<Dictionary<int, TokenElement[]>> _standardTokens =
+        new(() => LazyDocument.Value.StandardTokens);
 
     private static Document Load()
     {
@@ -109,6 +186,20 @@ public static class DescriptionData
 
         [JsonPropertyName("hints")]
         public HintEntry[] RawHints { get; init; } = [];
+
+        [JsonPropertyName("standardTokens")]
+        public Dictionary<string, TokenElement[]> RawStandardTokens { get; init; } = [];
+
+        [JsonPropertyName("twoLetterTokens")]
+        public string[] TwoLetterTokens { get; init; } = [];
+
+        [JsonPropertyName("standardTwoLetterTokens")]
+        public string[] StandardTwoLetterTokens { get; init; } = [];
+
+        /// <summary>The standard token table, keyed by number rather than by string.</summary>
+        [JsonIgnore]
+        public Dictionary<int, TokenElement[]> StandardTokens =>
+            RawStandardTokens.ToDictionary(pair => int.Parse(pair.Key), pair => pair.Value);
 
         /// <summary>The hints, as the original's tables give them.</summary>
         [JsonIgnore]

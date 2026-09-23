@@ -54,7 +54,10 @@ public enum LaserType
 public sealed class Commander
 {
     /// <summary>The commander's name, as the original's default save has it.</summary>
-    public string Name { get; set; } = "JAMESON";
+    /// <summary>The name a new commander starts with, which is the original's.</summary>
+    public const string DefaultName = "JAMESON";
+
+    public string Name { get; set; } = DefaultName;
 
     /// <summary>The commander's cash in tenths of a credit, as the original stores it.</summary>
     public int Cash { get; set; } = 1000;

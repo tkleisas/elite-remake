@@ -4786,3 +4786,59 @@ to half its energy — "if the energy is above half, the ship never reaches the 
 simulation without the game layer **no ship ever fired a missile**. The game's own spawner sets it, so
 this only ever bit the tests and the Core on its own, which is exactly where the rule was being
 tested.
+
+## Round 165: the mission briefings, word for word
+
+The mission texts have been sitting in the token table since the token system was ported, unread,
+because nothing walked to them. This round extracts them and — more importantly — makes the printer
+*finish* them. Printing token 10 before this round gave:
+
+> Greetings Commander, i am captain of her majesty's space navy and I beg a moment of your valuable time.
+> … It went missing from our ship yard on Xeer five months ago and.
+> You are cautioned that only s will penetrate the new shields …
+
+Four different things were missing, and each one was a whole mechanism rather than a missing line:
+
+* **Jump tokens 4 and 27** print the commander's name and the mission captain's name. Jump 27 is not
+  a reference at all: it prints *token 217 plus the galaxy we are in*, so the briefing is from
+  Captain Curruthers in galaxy 0, Fosdyke Smythe in galaxy 1 and Fortesque in galaxy 2, and jump 28
+  prints token 220 plus the galaxy, which turns "and" into "and was last seen at Reesdice" or "and is
+  believed to have jumped to this galaxy".
+* **Jump tokens 5 and 6** switch the printer between the extended token table and the standard one,
+  which is how the briefings borrow phrases. Token 10 contains `{6} TOKN 117 {5} S`, and `TOKN 117`
+  is "MILITARY  LASER" from QQ18 — so the borrowed phrase and the letter that finishes it come from
+  different tables. `TOKN` was being dropped on the floor by the extractor, which is why "only s will
+  penetrate" had an orphaned "s" in it.
+* **Jump token 17** prints a system's name as an adjective: drop the last letter if it is a vowel and
+  append token 153 ("IAN"), so LAVE gives LAVIAN and the descriptions read "the Lavian tree grub".
+  Jump token 18 prints one to four random two-letter tokens from a table that runs out of TKN2
+  straight into QQ16.
+* **The case rules.** Sentence case in the original is not "capitalise the first letter of the
+  sentence": the first letter of **every word** keeps the capital the table stores, and the rest of
+  the word is lower cased — which is why "CAPTAIN" prints as "Captain" and "E.C.M.SYSTEM" as
+  "E.C.M.System". A word starts after a space, a full stop, a colon or a line break, and **not** after
+  a comma, so the briefing genuinely reads "Greetings Commander Jameson, i am Captain Curruthers".
+  The extended tokens and the standard tokens have separate case settings in the original (the DTW
+  flags against QQ17), so jump token 6 must not disturb the extended one: the briefing is in lower
+  case when the borrowed "Military Lasers" appears, and it is still in lower case when jump token 5
+  switches back, which is why the next words are "will penetrate the new shields" and not "Will
+  Penetrate The New Shields".
+
+The result was checked against the original's own screens rather than against what the table looks
+like it should say: the archived BBC Micro disc screenshots of the two briefing pages, the debriefing
+and the mission hint screens. Every line matches, including "Military Lasers Will Penetrate" being
+wrong and "Military Lasers will penetrate" being right, "Good Luck, Commander." (the capital L is
+real — MT8 sets the word flag), and the commander's name printing exactly as it was saved ("MARK"),
+because the original's name routine hands each character straight to the printer with no case
+conversion at all.
+
+What the printer reports rather than prints: jump tokens 22, 24 and 25 are not words. They ask the
+display to show the ship and wait for a key press, to wait for a key press, and to clear the screen
+for the INCOMING MESSAGE banner. `TokenPrinter.Events` now reports them with their position in the
+text, so the briefing screen can stage them; token 10 asks for the ship twice, and the other four
+mission texts open on the incoming message banner and end waiting for a key. The banner itself is
+token 216, which the original's briefing routine prints before token 10.
+
+The tables are extracted with the walk seeded from the mission tokens, tokens 153 and 217-221 (the
+ones the jump tokens print by number rather than by reference), and QQ18 — the standard table, which
+the descriptions and hints never needed — reachable from the three `TOKN` references.

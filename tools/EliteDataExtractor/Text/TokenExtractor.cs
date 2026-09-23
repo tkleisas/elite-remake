@@ -27,6 +27,26 @@ public static class TokenExtractor
     public const int DescriptionToken = 5;
 
     /// <summary>
+    /// The mission texts, which are printed by the briefing and debriefing routines when we dock:
+    /// token 10 is the briefing that starts mission 1, 11 is the Navy's first contact for mission 2,
+    /// 222 is mission 2's briefing at Ceerdi, and 15 and 223 are the two debriefings.
+    /// </summary>
+    /// <remarks>
+    /// They are in the same table as the descriptions, so they are extracted by the same walk — a
+    /// token's references are what make it printable, and the briefing refers to a dozen others:
+    /// "GREETINGS COMMANDER, I AM CAPTAIN {name} OF HER MAJESTY'S SPACE NAVY …" is assembled from
+    /// token 10, its recursive tokens and the mission hint that names the system the Constrictor was
+    /// last seen in.
+    ///
+    /// Tokens 217 to 221 are not referred to by any of them: jump token 27 prints the captain's name
+    /// (token 217 plus the galaxy, so 217 to 219) and jump token 28 prints the location hint (token
+    /// 220 plus the galaxy, so 220 or 221), both by number rather than by reference. Token 153 is
+    /// the "IAN" that jump token 17 adds to a system's name to make its adjective, and is reached
+    /// the same way.
+    /// </remarks>
+    public static readonly int[] MissionTokens = [10, 11, 15, 153, 217, 218, 219, 220, 221, 222, 223];
+
+    /// <summary>
     /// The build flags the description tokens are read with: the disc version's docked code, which
     /// is the one that shows system descriptions.
     /// </summary>
@@ -42,8 +62,24 @@ public static class TokenExtractor
     public static string Extract(string sourceRoot)
     {
         string variablePath = Path.Combine(sourceRoot, "library", "enhanced", "main", "variable");
+        string commonPath = Path.Combine(sourceRoot, "library", "common", "main", "variable");
         Dictionary<int, List<Element>> tokens = ParseTokens(Path.Combine(variablePath, "tkn1.asm"));
         int[] mtin = ParseMtin(Path.Combine(variablePath, "mtin.asm"));
+
+        // The extended table can reach into the standard one. Jump token 6 switches the printer to
+        // the standard tokens and jump token 5 switches it back, which is how the briefings borrow
+        // phrases like "MILITARY  LASER", "ENERGY UNIT" and "E.C.M.SYSTEM" from the docked text:
+        // token 10 contains {6} MILITARY LASER {5} S, and the S finishes the word.
+        Dictionary<int, List<Element>> standard = ParseStandardTokens(Path.Combine(commonPath, "qq18.asm"));
+
+        // Jump token 18 prints one to four random two-letter tokens, and it draws them from a table
+        // that runs straight on from the extended two-letter tokens into the standard ones
+        string[] twoLetterTokens = ParseTwoLetterTokens(
+            Path.Combine(variablePath, "tkn2.asm"),
+            Path.Combine(commonPath, "qq16.asm"), skipFirst: true);
+        string[] standardTwoLetterTokens = ParseTwoLetterTokens(
+            Path.Combine(commonPath, "qq16.asm"),
+            Path.Combine(commonPath, "qq16.asm"), skipFirst: false);
 
         // The mission hints live in a second token table, RUTOK, and are selected by the RUPLA and
         // RUGAL tables: RUPLA names the system by its number in the galaxy, RUGAL the galaxy and
@@ -52,10 +88,15 @@ public static class TokenExtractor
         int[] rupla = ParseMtin(Path.Combine(variablePath, "rupla.asm"));
         int[] rugal = ParseMtin(Path.Combine(variablePath, "rugal.asm"));
 
-        // Walk everything reachable from the description token
+        // Walk everything reachable from the description token and from the mission texts
         var reachable = new SortedSet<int>();
         var pending = new Stack<int>();
         pending.Push(DescriptionToken);
+
+        foreach (int missionToken in MissionTokens)
+        {
+            pending.Push(missionToken);
+        }
 
         while (pending.Count > 0)
         {
@@ -141,6 +182,38 @@ public static class TokenExtractor
         {
         }
 
+        // The standard tokens the extended text borrows: walk each one's bytes the way TT27 does,
+        // following the recursive ones into the rest of the table
+        var standardReachable = new SortedSet<int>();
+        var standardQueue = new Stack<int>();
+        foreach (int token in reachable)
+        {
+            if (tokens.TryGetValue(token, out List<Element>? elements))
+            {
+                foreach (Element element in elements.Where(e => e.Kind == "STOK"))
+                {
+                    standardQueue.Push(element.Value);
+                }
+            }
+        }
+
+        while (standardQueue.Count > 0)
+        {
+            int token = standardQueue.Pop();
+            if (!standardReachable.Add(token) || !standard.TryGetValue(token, out List<Element>? bytes))
+            {
+                continue;
+            }
+
+            foreach (Element element in bytes)
+            {
+                if (element.Kind == "EBYT" && RecursiveToken(element.Value) is int child)
+                {
+                    standardQueue.Push(child);
+                }
+            }
+        }
+
         var document = new
         {
             schemaVersion = 1,
@@ -154,10 +227,31 @@ public static class TokenExtractor
                 token => token.Key.ToString(),
                 token => token.Value.Select(e => new { kind = e.Kind, value = e.Value, text = e.Text }).ToArray()),
             hints = rupla.Zip(rugal, (system, criteria) => new { system, criteria }).ToArray(),
+            standardTokens = standardReachable.ToDictionary(
+                token => token.ToString(),
+                token => standard[token].Select(e => new { kind = e.Kind, value = e.Value, text = e.Text }).ToArray()),
+            twoLetterTokens,
+            standardTwoLetterTokens,
         };
 
         return JsonSerializer.Serialize(document, new JsonSerializerOptions { WriteIndented = true });
     }
+
+    /// <summary>
+    /// Works out which recursive token a standard token's byte refers to, or null if it is not a
+    /// reference to another token. This is the dispatch in TT27: 160-255 are tokens 0-95, 96-127 are
+    /// themselves, 14-31 are tokens 128-145, and the rest are control codes, characters and
+    /// two-letter tokens.
+    /// </summary>
+    private static int? RecursiveToken(int value) => value switch
+    {
+        >= 160 => value - 160,
+        >= 128 => null,
+        >= 96 => value,
+        >= 32 => null,
+        >= 14 => value + 114,
+        _ => null,
+    };
 
     /// <summary>One element of a token: a directive, a character or a token reference.</summary>
     private readonly record struct Element(string Kind, int Value, string? Text);
@@ -348,9 +442,183 @@ public static class TokenExtractor
             case "ERND":
                 return TryParseNumber(argument, out int value) ? new Element(kind, value, null) : null;
 
+            case "TOKN":
+                // TOKN n is a recursive token from the *standard* table, which is what jump token 6
+                // switches the printer to. It carries the token's number, not a byte, so the two
+                // sources of standard tokens agree on the numbering.
+                return TryParseNumber(argument, out int standard) ? new Element("STOK", standard, null) : null;
+
             default:
                 return null;
         }
+    }
+
+    /// <summary>
+    /// Parses the standard recursive token table, QQ18, which the docked text and the mission
+    /// briefings' borrowed phrases come from.
+    /// </summary>
+    /// <remarks>
+    /// Its tokens are stored as bytes rather than as the macro names the extended table uses, and
+    /// the bytes are kept as they are: the printer decodes them with TT27's dispatch, so a token's
+    /// control codes, characters, two-letter tokens and recursive references all behave exactly as
+    /// the original's do. CHAR and TWOK give their characters, RTOK and CONT give the byte their
+    /// macros assemble, and EQUB 0 ends the token.
+    /// </remarks>
+    private static Dictionary<int, List<Element>> ParseStandardTokens(string path)
+    {
+        var tokens = new Dictionary<int, List<Element>>();
+        List<Element>? current = null;
+        var branches = new Stack<(bool Taken, bool Active)>();
+
+        foreach (string raw in File.ReadLines(path))
+        {
+            if (Conditional(raw, branches) == "skip")
+            {
+                continue;
+            }
+
+            if (branches.Count > 0 && !branches.Peek().Active)
+            {
+                continue;
+            }
+
+            int marker = current is null ? raw.IndexOf("Token ", StringComparison.Ordinal) : -1;
+            if (marker >= 0)
+            {
+                int start = marker + "Token ".Length;
+                int end = raw.IndexOf(':', start);
+                if (end > start && int.TryParse(raw[start..end], out int number))
+                {
+                    current = [];
+                    tokens[number] = current;
+                }
+            }
+
+            int comment = raw.IndexOf('\\');
+            string code = (comment >= 0 ? raw[..comment] : raw).Trim();
+            if (code.Length == 0 || current is null)
+            {
+                continue;
+            }
+
+            if (code.StartsWith("EQUB 0", StringComparison.Ordinal))
+            {
+                current = null;
+                continue;
+            }
+
+            foreach (int value in ParseStandardBytes(code))
+            {
+                current.Add(new Element("EBYT", value, null));
+            }
+        }
+
+        return tokens;
+    }
+
+    /// <summary>The bytes a line of the standard token table assembles to.</summary>
+    private static IEnumerable<int> ParseStandardBytes(string code)
+    {
+        string[] parts = code.Split(' ', 2, StringSplitOptions.TrimEntries);
+        string argument = parts.Length > 1 ? parts[1] : string.Empty;
+
+        switch (parts[0])
+        {
+            case "CHAR":
+                yield return Unquote(argument)[0];
+                break;
+
+            case "TWOK":
+            {
+                string[] pair = argument.Split(',', StringSplitOptions.TrimEntries);
+                if (pair.Length == 2)
+                {
+                    yield return Unquote(pair[0])[0];
+                    yield return Unquote(pair[1])[0];
+                }
+
+                break;
+            }
+
+            case "RTOK":
+                if (TryParseNumber(argument, out int rtok))
+                {
+                    // RTOK stores tokens 0-95 as 160-255, tokens 128 and up as 14-31, and 96-127 as
+                    // themselves, so that the byte fits in the range TT27 expects
+                    yield return rtok switch
+                    {
+                        >= 0 and <= 95 => rtok + 160,
+                        >= 128 => rtok - 114,
+                        _ => rtok,
+                    };
+                }
+
+                break;
+
+            case "CONT":
+                // CONT is used for the control codes, which are stored as they are
+                if (TryParseNumber(argument, out int cont))
+                {
+                    yield return cont;
+                }
+
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Parses the two-letter tokens that jump token 18 prints one to four of. It indexes the table
+    /// at TKN2 from its second entry (the first is a newline) and runs on past the end of TKN2 into
+    /// QQ16, which follows it in the original's memory.
+    /// </summary>
+    private static string[] ParseTwoLetterTokens(string extendedPath, string standardPath, bool skipFirst)
+    {
+        var pairs = new List<string>();
+
+        // The first entry of TKN2 is {crlf}, two control codes rather than letters, and the original
+        // deliberately skips it
+        bool first = skipFirst;
+        foreach (string path in new[] { extendedPath, standardPath })
+        {
+            var branches = new Stack<(bool Taken, bool Active)>();
+
+            foreach (string raw in File.ReadLines(path))
+            {
+                if (Conditional(raw, branches) == "skip")
+                {
+                    continue;
+                }
+
+                if (branches.Count > 0 && !branches.Peek().Active)
+                {
+                    continue;
+                }
+
+                int comment = raw.IndexOf('\\');
+                string code = (comment >= 0 ? raw[..comment] : raw).Trim();
+                if (code.StartsWith("EQUS \"", StringComparison.Ordinal))
+                {
+                    string text = code["EQUS \"".Length..].TrimEnd('"');
+                    if (first)
+                    {
+                        first = false;
+                        continue;
+                    }
+
+                    pairs.Add(text);
+                }
+                else if (code.StartsWith("EQUB 12, 10", StringComparison.Ordinal))
+                {
+                    // TKN2's first entry, the {crlf} that is skipped
+                    first = false;
+                }
+            }
+        }
+
+        // A random offset of 0-62 into the pairs is 32 of them. The standard table is 32 pairs long
+        // as it is, and the combined one runs past the end of the extended table's 12 into it, so
+        // the same cap covers both.
+        return pairs.Take(32).ToArray();
     }
 
     /// <summary>
