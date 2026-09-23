@@ -171,6 +171,118 @@ public static class Tactics
     public const byte SafeZoneAiFlag = 0b1000_0001;
 
     /// <summary>
+    /// True when this ship gets to think this frame.
+    /// </summary>
+    /// <remarks>
+    /// Two gates, both from the original's MVEIT. Bit 7 of the AI flag is "this ship has AI at all",
+    /// and a ship without it has no tactics — the disc's trader spawn leaves that bit clear, which is
+    /// how a trader minds its own business. And TACTICS is not run every frame for every ship: MVEIT
+    /// compares the main loop counter with the ship's slot number and only calls it when
+    /// <c>(counter XOR slot) AND 7</c> is zero, so each ship thinks once every eight frames, except
+    /// missiles, which think every frame.
+    /// </remarks>
+    /// <param name="ship">The ship whose turn it might be.</param>
+    /// <param name="slot">The ship's slot in the local bubble.</param>
+    /// <param name="mainLoopCounter">The simulation's frame counter.</param>
+    public static bool RunsTacticsThisFrame(Ship ship, int slot, int mainLoopCounter)
+    {
+        if ((ship.AiFlag & AiEnabled) == 0)
+        {
+            return false;
+        }
+
+        // Missiles chase every frame; everything else thinks on its slot's turn
+        if (Missiles.IsMissile(ship.Type))
+        {
+            return true;
+        }
+
+        return ((mainLoopCounter ^ slot) & 7) == 0;
+    }
+
+    /// <summary>Bit 7 of the AI flag: this ship has AI at all.</summary>
+    public const byte AiEnabled = 0x80;
+
+    /// <summary>
+    /// The roll a ship makes against its own missile count to decide whether to launch one: the
+    /// original's <c>AND #31</c> against the number of missiles left, so a ship with one missile
+    /// fires on about one frame in thirty-two and one with four on one in eight.
+    /// </summary>
+    public const int MissileRollMask = 31;
+
+    /// <summary>
+    /// Whether a ship that is low on energy launches a missile at us.
+    /// </summary>
+    /// <remarks>
+    /// The original only considers missiles for a ship that is down to half its energy or less —
+    /// above that it goes straight to its lasers — and it fires nothing at all while any E.C.M. is
+    /// running, ours or another ship's, because the field would simply take the missile.
+    /// </remarks>
+    /// <param name="ship">The ship.</param>
+    /// <param name="random">The random number generator.</param>
+    /// <param name="ecmActive">True while any E.C.M. is running.</param>
+    public static bool ShouldFireMissile(Ship ship, EliteRandom random, bool ecmActive)
+    {
+        if ((ship.AiFlag & AiEnabled) == 0)
+        {
+            return false;
+        }
+
+        int missiles = ship.Missiles & 0x07;
+        if (missiles == 0)
+        {
+            return false;
+        }
+
+        // Above half energy the original never reaches the missile code
+        if (ship.Energy > ship.MaxEnergy / 2)
+        {
+            return false;
+        }
+
+        if (ecmActive)
+        {
+            return false;
+        }
+
+        return (random.Next() & MissileRollMask) < missiles;
+    }
+
+    /// <summary>
+    /// The chance a ship that has run out of luck takes to its escape pod: the original rolls against
+    /// 230, so about one frame in ten, and only once the ship is into the last eighth of its energy.
+    /// </summary>
+    /// <param name="ship">The ship.</param>
+    /// <param name="random">The random number generator.</param>
+    public static bool ShouldLaunchEscapePod(Ship ship, EliteRandom random)
+    {
+        if ((ship.AiFlag & AiEnabled) == 0 || ship.IsExploding || ship.IsKilled)
+        {
+            return false;
+        }
+
+        // The last eighth of the energy banks, and the ship has to be able to carry a pod at all:
+        // bit 7 of the default NEWB flags is "an escape pod is fitted"
+        if (ship.Energy > ship.MaxEnergy / 8)
+        {
+            return false;
+        }
+
+        if ((ship.NewbFlags & Ship.NewbEscapePod) == 0)
+        {
+            return false;
+        }
+
+        return random.Next() >= EscapePodRoll;
+    }
+
+    /// <summary>
+    /// The roll a ship makes before taking to its escape pod: the original's <c>CMP #230</c>, so a
+    /// ship gives up on 26 frames in 256 — about one in ten.
+    /// </summary>
+    public const int EscapePodRoll = 230;
+
+    /// <summary>
     /// Considers whether an Anaconda should release the ship it carries.
     /// </summary>
     /// <remarks>

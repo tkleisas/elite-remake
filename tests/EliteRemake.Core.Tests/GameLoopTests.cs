@@ -570,11 +570,17 @@ public class GameLoopTests
         session.Flight.SpawningEnabled = false;
 
         var anaconda = Ship.Create(Tactics.AnacondaType, "anaconda", "Anaconda", 0, 0, 0, 3000, 0);
+
+        // TACTICS is only run for a ship with AI, and then only on one iteration in eight — MVEIT
+        // compares the main loop counter with the ship's slot. Both are the original's behaviour,
+        // and without the AI flag here the Anaconda would never make a decision at all.
+        anaconda.AiFlag = 0xF8;
         Assert.True(session.Flight.Spawn(anaconda));
 
-        // Run until one is released, which the 22% chance makes quick
+        // Run until one is released, which the 22% chance makes quick: on its own iterations, one in
+        // eight of 4000 is 500 chances at 22% each
         int before = session.Flight.Bubble.Count;
-        for (int i = 0; i < 500 && session.Flight.Bubble.Count == before; i++)
+        for (int i = 0; i < 4000 && session.Flight.Bubble.Count == before; i++)
         {
             session.Flight.Step();
         }

@@ -668,7 +668,7 @@ public class TacticsTests
         // Note the aggression is never given back: the original zeroes the AI flag and nothing
         // restores it, so a pirate that has been inside the zone stays toothless for good. The
         // second run therefore uses a fresh pirate rather than the one that was pacified.
-        static int EnergyAfterSixtyFrames(bool withStation)
+        static int DamageTaken(bool withStation, out byte pirateAiFlag)
         {
             var (sim, pirate) = CreateSim(aiFlag: 0xF9);
             pirate.NewbFlags = Ship.NewbPirate | Ship.NewbHostile;
@@ -684,20 +684,43 @@ public class TacticsTests
             }
 
             sim.Player.Energy = 150;
-            for (int i = 0; i < 60; i++)
+            sim.Player.ForeShield = 255;
+            sim.Player.AftShield = 255;
+
+            // TACTICS runs for one iteration in eight, so give it plenty of decisions to make. What
+            // we have lost is counted across the shields and the banks together: a laser hit comes
+            // off the shields first, as it does in the original, so watching the energy alone would
+            // miss every hit until the shields were gone.
+            int total = 0;
+            int before = sim.Player.Energy + sim.Player.ForeShield + sim.Player.AftShield;
+            for (int i = 0; i < 480; i++)
             {
                 sim.Step();
+                int now = sim.Player.Energy + sim.Player.ForeShield + sim.Player.AftShield;
+                if (now < before)
+                {
+                    total += before - now;
+                }
+
+                before = now;
             }
 
-            return sim.Player.Energy;
+            pirateAiFlag = pirate.AiFlag;
+            return total;
         }
 
-        int inTheZone = EnergyAfterSixtyFrames(withStation: true);
-        Assert.True(inTheZone >= 150, $"the no-fire zone should have held, but energy fell to {inTheZone}");
+        int inTheZone = DamageTaken(withStation: true, out byte pacified);
+        int outOfTheZone = DamageTaken(withStation: false, out byte unpacified);
 
-        int outOfTheZone = EnergyAfterSixtyFrames(withStation: false);
-        Assert.True(outOfTheZone < 150,
-            $"an unpacified pirate should have hit us, but energy was {outOfTheZone}");
+        Assert.Equal(Tactics.SafeZoneAiFlag, pacified);
+        Assert.Equal(0xF9, unpacified);
+        Assert.True(outOfTheZone > 0, "an unpacified pirate should have hit us");
+
+        // Clearing bits 1-6 leaves bit 0, so the roll against the AI flag still comes off about one
+        // time in 128 — the original keeps that residual chance too, which is why this is a test
+        // about how much less shooting there is rather than about silence
+        Assert.True(inTheZone * 10 < outOfTheZone,
+            $"the no-fire zone should have all but stopped the shooting: {inTheZone} against {outOfTheZone}");
     }
 
     [Fact]
@@ -783,7 +806,9 @@ public class TacticsTests
             enemy.SetPosition(400, 0, z);
             enemy.Orientation.SetUnity(Orientation.Nosev, Orientation.X, 1.0);
 
-            for (int i = 0; i < 60; i++)
+            // TACTICS runs for one iteration in eight, so sixty decisions need about five hundred
+            // iterations
+            for (int i = 0; i < 480; i++)
             {
                 sim.Step();
             }
@@ -812,7 +837,9 @@ public class TacticsTests
 
         int shieldsBefore = sim.Player.ForeShield + sim.Player.AftShield;
         bool hit = false;
-        for (int i = 0; i < 50 && !hit; i++)
+
+        // TACTICS runs for one iteration in eight, so a hit takes a few hundred iterations to come
+        for (int i = 0; i < 480 && !hit; i++)
         {
             sim.Step();
             hit = sim.DamageTakenThisFrame > 0;

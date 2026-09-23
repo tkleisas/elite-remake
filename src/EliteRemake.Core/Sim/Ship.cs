@@ -186,6 +186,12 @@ public sealed class Ship
     /// <summary>Bit 6: a cop, whose destruction makes us a fugitive at once.</summary>
     public const byte NewbCop = 0x40;
 
+    /// <summary>
+    /// Bit 7: an escape pod is fitted, which is what lets a ship that has run out of luck take to it.
+    /// Every pirate hull has one; the Thargons, the Worm and the Constrictor do not.
+    /// </summary>
+    public const byte NewbEscapePod = 0x80;
+
     /// <summary>Bit 5: an innocent, whose destruction raises our legal status by one.</summary>
     public const byte NewbInnocent = 0x20;
 
@@ -198,6 +204,16 @@ public sealed class Ship
     /// <summary>True when this ship is hostile, which a trader becomes when it turns out to be a
     /// pirate.</summary>
     public bool IsHostile => (NewbFlags & NewbHostile) != 0;
+
+    /// <summary>
+    /// How many missiles this ship has left, which the original keeps in bits 0-2 of byte #31 and
+    /// NWSHP fills in from the blueprint. An enemy spends one when it fires at us.
+    /// </summary>
+    public byte Missiles
+    {
+        get => (byte)(_data[ShipDataBlock.Flags] & 0x07);
+        set => _data[ShipDataBlock.Flags] = (byte)((_data[ShipDataBlock.Flags] & 0xF8) | (value & 0x07));
+    }
 
     public byte AiFlag
     {

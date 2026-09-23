@@ -178,6 +178,95 @@ public sealed class FlightSim
     }
 
     /// <summary>
+    /// A ship that has given up launches its escape pod and is left drifting, as the original's
+    /// SESCP does: the pod is spawned as a child of the ship and the ship itself has its AI switched
+    /// off, so it becomes a sitting duck rather than a threat.
+    /// </summary>
+    /// <remarks>
+    /// The pod is a ship of type 3 and carries the AI flag of a free-floating pod, so it drifts
+    /// rather than manoeuvres. Shooting it is worth nothing and scooping it fills the hold with
+    /// slaves, which is the original's own grim joke.
+    /// </remarks>
+    private void LaunchEscapePod(Ship ship)
+    {
+        // The ship has bailed out: no more tactics from it, which is what "sitting duck" means
+        ship.AiFlag = 0;
+
+        var pod = new Ship(ShipTypes.EscapePod, "escape-pod", "Escape pod")
+        {
+            AiFlag = 0,
+            Speed = BlueprintDefaults.For(ShipTypes.EscapePod).Speed,
+        };
+
+        (int x, int y, int z) = ship.GetPosition();
+        pod.SetPosition(x, y, z + 256);
+
+        if (Spawn(pod))
+        {
+            EscapePodLaunchedThisFrame = ship;
+        }
+    }
+
+    /// <summary>The ship that launched an escape pod this frame, for the game to report.</summary>
+    public Ship? EscapePodLaunchedThisFrame { get; private set; }
+
+    /// <summary>
+    /// A ship fires a missile at us, as the original's SFRMIS does: the missile is spawned as a child
+    /// of the ship, pointing at us, and the ship's own missile count goes down by one.
+    /// </summary>
+    /// <remarks>
+    /// A Thargoid does not launch a missile: it launches one of the Thargons it carries, which is the
+    /// same code path on the disc and the reason a Thargoid is dangerous to leave alone.
+    /// </remarks>
+    private void FireMissileFrom(Ship ship)
+    {
+        ship.Missiles = (byte)(ship.Missiles - 1);
+
+        if (ship.Type == Tactics_ThargoidType)
+        {
+            SpawnFromParent(Debris.Thargon, ship);
+            return;
+        }
+
+        // A missile aimed at us has no target ship, which is how the update loop tells ours from
+        // theirs: theirs home on us
+        var missile = new Ship(Missiles.MissileType, "missile", "Missile")
+        {
+            Speed = MissileSpeed,
+            AiFlag = Tactics.AiEnabled,
+        };
+
+        (int x, int y, int z) = ship.GetPosition();
+        missile.SetPosition(x, y, z);
+
+        // It starts pointing at us, so it does not have to turn before it can chase. The original's
+        // SFRMIS copies the launch ship's own orientation and lets the missile steer from there;
+        // pointing it straight at us is the same idea without the turn.
+        double distance = Math.Sqrt(((double)x * x) + ((double)y * y) + ((double)z * z));
+        if (distance >= 1)
+        {
+            double heading = Math.Atan2(-x, -z);
+            double pitch = Math.Asin(Math.Clamp(-y / distance, -1, 1));
+            Orientation.FromHeadingPitch(heading, pitch).AsSpan()
+                .CopyTo(missile.Data[ShipDataBlock.Orientation..]);
+        }
+
+        if (Spawn(missile))
+        {
+            MissileFiredAtUsThisFrame = ship;
+        }
+    }
+
+    /// <summary>The ship that launched a missile at us this frame, for the game to report.</summary>
+    public Ship? MissileFiredAtUsThisFrame { get; private set; }
+
+    /// <summary>How fast an enemy missile flies, which is the same as one of ours.</summary>
+    private const int MissileSpeed = 44;
+
+    /// <summary>The Thargoid's ship type, which launches Thargons rather than missiles.</summary>
+    private const int Tactics_ThargoidType = 29;
+
+    /// <summary>
     /// Spawns the smaller ship an Anaconda releases, near the Anaconda and under its own AI.
     /// </summary>
     /// <remarks>
@@ -202,7 +291,40 @@ public sealed class FlightSim
         return child;
     }
 
-    /// <summary>Advances the simulation by one frame (the original runs at 50 frames a second).</summary>
+    /// <summary>
+    /// How many iterations of the original's main loop make a second.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Not 50.</b> Fifty hertz is the BBC's television refresh, and it is easy to mistake for the
+    /// game's rate, but the original's main loop is not locked to the screen at all: it iterates as
+    /// fast as the 6502 can get round it, and everything in the game — movement, rotation, the AI,
+    /// spawning — happens once per iteration, whatever that is worth in real time.
+    /// </para>
+    /// <para>
+    /// The figure here is measured rather than assumed. Mark Moxon, whose disassembly this port
+    /// follows, timed the main loop counter on the disc version running in an emulator: 256
+    /// iterations took about 22 seconds on the title screen and about 20 seconds with the station in
+    /// view, which is 11.5 to 13 iterations a second; a busy scene with the sun and enemy ships
+    /// drops to 4 or 5; and an empty side view reaches about 36. The typical case in flight is
+    /// therefore around twelve and a half, which is what the simulation steps at.
+    /// </para>
+    /// <para>
+    /// That the two clocks are separate is visible in the original's own source: on the BBC the
+    /// laser's pulse counter is decremented "every vertical sync (in the LINSCN routine, which is
+    /// called 50 times a second)", while on the Electron the same counter is decremented "by 4 on
+    /// each iteration around the main game loop".
+    /// </para>
+    /// <para>
+    /// A fixed rate cannot reproduce a rate that varied with how much was on screen, and it should
+    /// not try: the original's 4 frames a second in a crowded fight is not a feature worth having.
+    /// What matters is that one iteration of our simulation is one iteration of the original's, so
+    /// that every ported constant is worth what it was worth, and that is what this rate gives.
+    /// </para>
+    /// </remarks>
+    public const float IterationsPerSecond = 12.5f;
+
+    /// <summary>Advances the simulation by one iteration of the original's main loop.</summary>
     public void Step(FlightInput input = default)
     {
         UpdateSpeed(input);
@@ -211,6 +333,8 @@ public sealed class FlightSim
 
         DamageTakenThisFrame = 0;
         MissileUnarmedThisFrame = false;
+        EscapePodLaunchedThisFrame = null;
+        MissileFiredAtUsThisFrame = null;
 
         // The original's SSPR, which is the count of stations in our bubble and so is true for as
         // long as the station is with us. It guards two things: nothing spawns while it is set, and
@@ -221,26 +345,51 @@ public sealed class FlightSim
         {
             Ship ship = _bubble[slot];
 
-            // TACTICS decides what this ship is before it decides what to do: a trader may turn out
-            // to be a pirate, and a bounty hunter only comes for a commander who is nearly a
-            // fugitive. Both rewrite the ship's own NEWB flags, so the decision is made once.
-            Tactics.DecideRole(ship, Random, Commander?.LegalStatus ?? 0, stationPresent);
-
-            // An Anaconda may release the ship it carries, which is part of TACTICS in the original
-            if (Tactics.ShouldReleaseShip(ship, Random))
+            if (Tactics.RunsTacticsThisFrame(ship, slot, MainLoopCounter))
             {
-                SpawnFromParent(Tactics.WormType, ship);
-            }
+                // TACTICS decides what this ship is before it decides what to do: a trader may turn
+                // out to be a pirate, and a bounty hunter only comes for a commander who is nearly a
+                // fugitive. Both rewrite the ship's own NEWB flags, so the decision is made once.
+                Tactics.DecideRole(ship, Random, Commander?.LegalStatus ?? 0, stationPresent);
 
-            // TACTICS runs before the ship is moved, as it does in the original
-            int before = Player.Energy + Player.ForeShield + Player.AftShield;
-            if (Tactics.Apply(ship, Random, Player, LaserPowerOf(ship), DamageOf(ship)))
-            {
-                DamageTakenThisFrame += before - (Player.Energy + Player.ForeShield + Player.AftShield);
+                // An Anaconda may release the ship it carries, which is part of TACTICS in the original
+                if (Tactics.ShouldReleaseShip(ship, Random))
+                {
+                    SpawnFromParent(Tactics.WormType, ship);
+                }
 
-                if (Player.Energy == 0)
+                // TACTICS runs before the ship is moved, as it does in the original.
+                //
+                // What we lost is measured from the shields and the energy banks together, and it is
+                // recorded whether or not the hit was fatal. This used to be counted only when
+                // TakeDamage reported a kill, which is when the banks reach zero — so every hit the
+                // shields absorbed was recorded as no damage at all. That is nearly all of them: the
+                // game therefore made no sound when we were being hit, and the tests that watched
+                // this figure were watching nothing.
+                int before = Player.Energy + Player.ForeShield + Player.AftShield;
+                bool fatal = Tactics.Apply(ship, Random, Player, LaserPowerOf(ship), DamageOf(ship));
+                int lost = before - (Player.Energy + Player.ForeShield + Player.AftShield);
+                if (lost > 0)
+                {
+                    DamageTakenThisFrame += lost;
+                }
+
+                if (fatal || Player.Energy == 0)
                 {
                     PlayerDied = true;
+                }
+
+                // A ship that is into the last eighth of its energy may give up and take to its
+                // escape pod, which is part of the same routine
+                if (Tactics.ShouldLaunchEscapePod(ship, Random))
+                {
+                    LaunchEscapePod(ship);
+                }
+
+                // And one with less than half its energy in the banks may spend a missile on us
+                if (Tactics.ShouldFireMissile(ship, Random, EcmActive))
+                {
+                    FireMissileFrom(ship);
                 }
             }
 
@@ -1551,17 +1700,13 @@ public sealed class FlightSim
             ShipMath.Mvs4(ship.Orientation, Orientation.Sidev, RollAngle, PitchAngleValue);
 
             // Part 8: rotate the ship about its own axes by its pitch and roll counters, which is
-            // how ships turn under their own power (and how the AI steers)
-            // The space station keeps its roll. The original gives it a random clockwise roll when
-            // it is created — a random value with bit 7 cleared, which is a roll with a 1 in 127
-            // chance of having no damping — and the station visibly turns for as long as it is
-            // there. MVEIT spends a counter as it uses it, so the station's roll is renewed from
-            // the value it was created with.
-            if (ship.Type == Combat.SpaceStationType)
-            {
-                ship.Data[ShipDataBlock.RollCounter] = ship.SpinRoll;
-            }
-
+            // how ships turn under their own power (and how the AI steers).
+            //
+            // The station needs nothing special here. NWSPS gives it a roll counter of 255, whose
+            // low seven bits are all set, and MVEIT does not damp a counter like that — so it turns
+            // for as long as it exists at one MVS5 step an iteration. Renewing the counter every
+            // frame, as this used to, was both unnecessary and wrong: the original's roll is
+            // anti-clockwise and this made it clockwise.
             ShipMovement.RotateShipAboutItself(ship.Orientation, ship.Data);
         }
     }

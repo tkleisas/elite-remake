@@ -4002,3 +4002,56 @@ drifted from the tested `NewCommander`: it restored the commander but not the sh
 begin with empty banks and no shields, and it left the cargo hold, the equipment and the missions alone.
 It is now one line that calls `NewCommander`, which does the whole job through the same `Load` path the
 save file uses. Two resets that have to be kept in step are two resets that will not be.
+
+## The game was running four times too fast
+
+**The fault was an assumption, not a line of code.** The simulation has stepped at a fixed 50 Hz since
+the first milestone, on the reasoning that the BBC Micro's screen refreshes fifty times a second. It
+does — but the original's main loop is not locked to it. Elite iterates its main loop as fast as the
+6502 can manage, and **everything in the game happens once per iteration**: movement, rotation, the AI,
+spawning, the lot.
+
+**The original's own source says the two clocks are different.** On the BBC the laser's pulse counter is
+decremented *"every vertical sync (in the LINSCN routine, which is called 50 times a second)"*, while on
+the Electron the same counter is decremented *"by 4 on each iteration around the main game loop"*. If
+the main loop ran at 50 Hz there would be no reason to describe the two differently.
+
+**And Mark Moxon, whose disassembly this port follows, timed it** on the disc version in an emulator by
+watching the main loop counter go round its 256:
+
+| what was on screen | 256 iterations took | iterations a second |
+|---|---|---|
+| title screen, rotating Cobra | ~22 s | ~11.5 |
+| launched, station in view | ~20 s | ~12.8 |
+| sun and enemy ships about | — | 4-5 |
+| side view, nothing to see | ~7 s | ~36 |
+
+**What that means in play.** One iteration is worth the same as it ever was, so running four times as
+many of them in a second made everything happen four times too quickly: ships closed four times as
+fast, the player turned four times as fast, and the space station span four times as fast. The station
+was simply the symptom that was easiest to see — one MVS5 step an iteration is 3.58°, which is 179°/s
+at fifty a second and 45°/s at the original's twelve and a half. **A revolution took two seconds where
+the original took eight.**
+
+**Two station faults sat underneath it.** The port handed the station a random roll counter and then put
+that value back every single frame, on the reading that MVEIT spends the counter as it turns. It does —
+but NWSPS gives the station **255**, whose low seven bits are all set, and MVEIT leaves a counter like
+that alone. That is precisely why the original chose it. So the port's station also turned the wrong
+way: the original's roll is anti-clockwise, and only a counter with bit 7 clear is clockwise.
+
+**The rate is now the original's own**, named and documented at `FlightSim.IterationsPerSecond`, and it
+can be overridden with `--sim-rate` for anyone who wants to feel the difference. A fixed rate cannot
+reproduce a rate that varied with the load, and it should not try: the original's four frames a second
+in a crowded fight is not a feature worth having. What matters is that one of our iterations is one of
+the original's, so every ported constant is worth what it was worth.
+
+**Smoothness had to be bought back.** Stepping at twelve and a half while drawing at sixty leaves ships
+standing still and then jumping — and at close range those jumps are large. The original never had that
+mismatch because its whole screen was redrawn at the same rate. The scene now interpolates each ship
+between the last two iterations, which is the standard remedy for a fixed-step simulation on a faster
+display: the game still advances in the original's steps, and only the drawing is spread between them.
+
+**Also fixed while measuring**: the damage we take was only counted when a hit was *fatal* — that is,
+when it took the energy banks to zero — so every hit the shields absorbed was recorded as no damage at
+all. That is nearly all of them, which meant the game made no sound when we were being hit and the tests
+that watched the figure were watching nothing.

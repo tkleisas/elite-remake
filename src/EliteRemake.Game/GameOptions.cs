@@ -81,6 +81,12 @@ public sealed class GameOptions
     /// <summary>True to open the start screen with its settings panel already showing.</summary>
     public bool TitleSettings { get; private set; }
 
+    /// <summary>
+    /// How many iterations of the original's main loop to run a second, or null for the original's
+    /// own rate. Everything in the game happens once per iteration, so this is the game's speed.
+    /// </summary>
+    public float? SimRate { get; private set; }
+
     /// <summary>Which docked screen to show, when starting docked.</summary>
     public DockedScreen StartScreen { get; private set; } = DockedScreen.Market;
 
@@ -185,6 +191,9 @@ public sealed class GameOptions
                 case "--title-settings":
                     options.TitleSettings = true;
                     break;
+                case "--sim-rate":
+                    options.SimRate = float.Parse(Next() ?? "12.5");
+                    break;
                 case "--hold":
                     options.WarmupInput = ParseControls(Next() ?? string.Empty);
                     break;
@@ -259,6 +268,7 @@ public sealed class GameOptions
               --title                 open on the start screen (the default)
               --skip-title            go straight into the game, past the start screen
               --title-settings        open the start screen with its settings showing
+              --sim-rate <hz>         main loop iterations a second (default 12.5, the disc's own)
               --jump                  begin a hyperspace jump at once, to see the tunnel
               --dock [screen]         start docked, at the market or the equipment shop
               --laser <type>          fit a pulse, beam, military or none laser to the front

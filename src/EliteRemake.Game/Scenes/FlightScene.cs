@@ -20,10 +20,27 @@ namespace EliteRemake.Game.Scenes;
 /// </remarks>
 public sealed class FlightScene : IScene
 {
-    /// <summary>The original's frame rate: 50 frames a second.</summary>
-    public const float FrameRate = 50f;
+    /// <summary>
+    /// How often the simulation is stepped. This is the original's own main loop rate, which is
+    /// around twelve and a half iterations a second and not the fifty of the BBC's television
+    /// refresh — see <see cref="FlightSim.IterationsPerSecond"/> for where the figure comes from.
+    /// </summary>
+    public const float FrameRate = FlightSim.IterationsPerSecond;
 
-    private const float FrameTime = 1f / FrameRate;
+    /// <summary>
+    /// The rate actually in use, which is the original's unless the player has asked for another.
+    /// </summary>
+    /// <remarks>
+    /// The rate is what decides how much of the game happens in a second, because everything in the
+    /// original happens once per iteration of its main loop. Running faster makes the whole game
+    /// faster — which is exactly what a fixed rate of fifty did, and why the station span four times
+    /// too quickly. It is adjustable because the original's own rate was not a constant either: it
+    /// fell to four or five iterations a second in a crowded fight and reached thirty-six when there
+    /// was nothing to draw.
+    /// </remarks>
+    public float Rate { get; set; } = FrameRate;
+
+    private float FrameTime => 1f / Rate;
 
     private readonly MeshRenderer _renderer;
     private readonly CelestialRenderer _celestial;
@@ -321,14 +338,15 @@ public sealed class FlightScene : IScene
     /// <param name="stationDistance">How far ahead to place the station, in the original's units.</param>
     public void ArriveInSystem(EliteRemake.Core.Universe.StarSystem system, int stationDistance = 3000)
     {
-        // The Coriolis gets a random clockwise roll, as the original's main game loop gives it: a
-        // random value with bit 7 cleared. It matters for docking, because the slot's orientation
-        // changes as the station turns and the docking computer's first phase matches its roll.
+        // The Coriolis turns from the moment it appears, as the original's does: NWSPS gives it a
+        // roll counter of 255, a full anti-clockwise roll that never damps. It matters for docking,
+        // because the slot's orientation changes as the station turns and the docking computer's
+        // first phase matches its roll.
         SystemArrival.ArriveInSystem(
             _sim,
             system,
             stationDistance,
-            (byte)(Random.Shared.Next(64, 128) & 0x7F));
+            SystemArrival.StationRollCounter);
 
         _system = system;
 
@@ -373,6 +391,60 @@ public sealed class FlightScene : IScene
 
         LastInput = input;
         _starfield.Update(_sim.Speed * frames);
+    }
+
+    /// <summary>
+    /// Where each ship was before the most recent iteration, so the drawing can smooth the gap.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The simulation runs at the original's own rate — about twelve and a half iterations a second,
+    /// which is what the disc version managed in ordinary flight — while the display runs at whatever
+    /// the monitor does. Drawing the raw positions therefore shows ships standing still and then
+    /// jumping, several times a second, and at close range those jumps are large: a ship closing at
+    /// thirty units an iteration moves a visible fraction of the screen each time. That is not how
+    /// the original looked, because there the whole screen was redrawn at the same twelve and a half
+    /// frames a second, so the motion was consistently stepped rather than stuttering against a
+    /// smooth starfield.
+    /// </para>
+    /// <para>
+    /// Interpolating between the last two iterations restores the smoothness without touching the
+    /// simulation: the game still advances in the original's steps, and only the drawing is spread
+    /// between them. This is the standard remedy for a fixed-step simulation on a faster display.
+    /// </para>
+    /// </remarks>
+    private readonly Dictionary<Ship, System.Numerics.Vector3> _wasAt = [];
+
+    /// <summary>Records where every ship is, before the simulation moves them.</summary>
+    private void RememberPositions()
+    {
+        // Rebuilt rather than added to, so that ships which have left the bubble do not stay in the
+        // table for the rest of the session
+        _wasAt.Clear();
+
+        foreach (Ship ship in _sim.Bubble)
+        {
+            (int x, int y, int z) = ship.GetPosition();
+            _wasAt[ship] = new System.Numerics.Vector3(x, y, z);
+        }
+    }
+
+    /// <summary>
+    /// Where to draw a ship: between where it was and where it is, by however much of an iteration
+    /// has passed since the last one.
+    /// </summary>
+    private System.Numerics.Vector3 WhereItIsNow(Ship ship)
+    {
+        (int x, int y, int z) = ship.GetPosition();
+        var now = new System.Numerics.Vector3(x, y, z);
+
+        if (!_wasAt.TryGetValue(ship, out System.Numerics.Vector3 before))
+        {
+            return now;
+        }
+
+        float alpha = Math.Clamp(_accumulator / FrameTime, 0f, 1f);
+        return System.Numerics.Vector3.Lerp(before, now, alpha);
     }
 
     /// <summary>
@@ -566,13 +638,17 @@ public sealed class FlightScene : IScene
 
         // Run the simulation at the original's fixed rate, so the ported maths stays in its
         // original units however fast the display refreshes
+        // A long pause (a window drag, a breakpoint) must not turn into a burst of simulation, so
+        // the catch-up is capped at a quarter of a second and at ten iterations
         _accumulator += Math.Min(elapsedSeconds, 0.25f);
         int steps = 0;
         while (_accumulator >= FrameTime && steps < 10)
         {
+            RememberPositions();
             _sim.Step(LastInput);
             _accumulator -= FrameTime;
-            steps++;        }
+            steps++;
+        }
 
         _starfield.Update(_sim.Speed * steps);
 
@@ -700,15 +776,15 @@ public sealed class FlightScene : IScene
                 continue;
             }
 
-            (int x, int y, int z) = ship.GetPosition();
-            if (z <= 0)
+            System.Numerics.Vector3 where = WhereItIsNow(ship);
+            if (where.Z <= 0)
             {
                 continue; // behind us
             }
 
             _renderer.DrawShip(
                 mesh,
-                new System.Numerics.Vector3(x, y, z),
+                where,
                 ShipOrientation.FromEliteOrientation(ship.Orientation),
                 Camera,
                 ColourFor(ship),

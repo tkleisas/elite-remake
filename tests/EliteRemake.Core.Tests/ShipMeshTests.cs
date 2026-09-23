@@ -187,49 +187,91 @@ public class ShipMeshTests
     }
 
     /// <summary>
-    /// A station turns at the fixed rate the original applies, and its roll counter's magnitude
-    /// does not change that: MVEIT part 8 calls MVS5 once whenever the counter is non-zero, and
-    /// MVS5 turns the orientation vectors by a fixed 1/16 of a radian. NWSPS sets the counter to
-    /// 255 - "maximum anti-clockwise roll with no damping" - which only means the station never
-    /// stops turning.
+    /// A station turns at the fixed rate the original applies: MVEIT part 8 calls MVS5 once whenever
+    /// the roll counter is non-zero, and MVS5 turns the orientation vectors by a fixed 1/16 of a
+    /// radian whatever the counter's magnitude is.
     /// </summary>
     /// <remarks>
-    /// The turn is measured frame by frame rather than accumulated, because at this rate the
-    /// station comes right round every hundred frames or so and an accumulated total would wrap.
+    /// The turn is measured iteration by iteration rather than accumulated, because at this rate the
+    /// station comes right round every hundred iterations or so and an accumulated total would wrap.
     /// </remarks>
     [Fact]
     public void AStationTurnsAtTheOriginalsFixedRate()
     {
-        foreach (byte spinRoll in new byte[] { 1, 64, 127, 255 })
+        var player = new Ship(11, "cobra-mk-3", "Cobra Mk III");
+        var sim = new FlightSim(player) { SpawningEnabled = false, Commander = Commander.CreateDefault() };
+        Ship station = SystemArrival.CreateStation(3000, SystemArrival.StationRollCounter);
+        sim.Spawn(station);
+
+        // The counter NWSPS gives a station has all of its low seven bits set, which is what stops
+        // MVEIT damping it — so the station is still turning hundreds of iterations later, and its
+        // counter is exactly as it was
+        // One full revolution, measured as a total: MVS5's step is a fixed 1/16 of a radian only
+        // while the vectors are exact, and they are held to a byte, so a single iteration turns
+        // anywhere between about 2.8 and 4.4 degrees. The original has the same spread — it is the
+        // same routine doing the same arithmetic — and what is constant is the rate over a whole
+        // turn, which is 360 degrees in about a hundred iterations.
+        int iterations = 0;
+        double total = 0;
+        while (total < 360 && iterations < 200)
         {
-            var player = new Ship(11, "cobra-mk-3", "Cobra Mk III");
-            var sim = new FlightSim(player) { SpawningEnabled = false, Commander = Commander.CreateDefault() };
-            Ship station = SystemArrival.CreateStation(3000, spinRoll);
-            sim.Spawn(station);
+            double before = RollAngle(station);
+            sim.Step();
+            double turned = Normalise(RollAngle(station) - before);
 
-            for (int frame = 0; frame < 12; frame++)
-            {
-                double before = RollAngle(station);
-                sim.Step();
-                double after = RollAngle(station);
-
-                double turned = after - before;
-                while (turned < -Math.PI)
-                {
-                    turned += Math.Tau;
-                }
-
-                while (turned > Math.PI)
-                {
-                    turned -= Math.Tau;
-                }
-
-                // 1/16 radian is 3.58 degrees a frame, whatever the counter's magnitude. The
-                // station rolls clockwise, so the angle it turns through is negative.
-                double degrees = Math.Abs(turned) * 180 / Math.PI;
-                Assert.InRange(degrees, 3.4, 3.7);
-            }
+            // Never stopped, and never wild
+            Assert.InRange(Math.Abs(turned) * 180 / Math.PI, 2.5, 4.6);
+            total += Math.Abs(turned) * 180 / Math.PI;
+            iterations++;
         }
+
+        Assert.InRange(iterations, 85, 120);
+        Assert.Equal(SystemArrival.StationRollCounter, station.Data[ShipDataBlock.RollCounter]);
+    }
+
+    [Fact]
+    public void ARollCounterThatDampsStopsTheStationTurning()
+    {
+        // Any counter turns the ship at the same rate, so the magnitude is not a speed. What the
+        // magnitude decides is how long it lasts: MVEIT spends a counter one a frame, and only a
+        // counter whose low seven bits are all set — which is what the station gets — is left alone.
+        var player = new Ship(11, "cobra-mk-3", "Cobra Mk III");
+        var sim = new FlightSim(player) { SpawningEnabled = false, Commander = Commander.CreateDefault() };
+        Ship station = SystemArrival.CreateStation(3000, 4);
+        sim.Spawn(station);
+
+        for (int iteration = 0; iteration < 4; iteration++)
+        {
+            double before = RollAngle(station);
+            sim.Step();
+            Assert.InRange(Math.Abs(Normalise(RollAngle(station) - before)), 0.05, Math.Tau);
+        }
+
+        // Its four frames are spent, so it stops — which a station never does
+        double settled = RollAngle(station);
+        for (int iteration = 0; iteration < 10; iteration++)
+        {
+            sim.Step();
+        }
+
+        Assert.Equal(0, station.Data[ShipDataBlock.RollCounter]);
+        Assert.Equal(settled, RollAngle(station), 6);
+    }
+
+    /// <summary>Wraps an angle into -pi to pi.</summary>
+    private static double Normalise(double angle)
+    {
+        while (angle < -Math.PI)
+        {
+            angle += Math.Tau;
+        }
+
+        while (angle > Math.PI)
+        {
+            angle -= Math.Tau;
+        }
+
+        return angle;
     }
 
     /// <summary>The station's roll angle, read from its roof vector.</summary>

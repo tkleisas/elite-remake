@@ -138,6 +138,11 @@ public static class SceneFactory
             Settings = settings,
         };
 
+        if (options.SimRate is { } rate && rate > 0)
+        {
+            scene.Rate = rate;
+        }
+
         foreach (ShipCatalog.Entry entry in ShipCatalog.All)
         {
             scene.RegisterMesh(entry.Id, entry.Mesh);

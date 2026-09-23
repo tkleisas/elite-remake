@@ -118,7 +118,10 @@ public static class SystemArrival
     /// Creates the space station for a system, placed ahead of us as the original does.
     /// </summary>
     /// <param name="distance">How far ahead of us to put the station, in the original's units.</param>
-    /// <param name="spinRoll">The station's roll, which it keeps as it turns.</param>
+    /// <param name="spinRoll">
+    /// The station's roll counter. The original's NWSPS gives every station
+    /// <see cref="StationRollCounter"/>, which is a full anti-clockwise roll that never damps.
+    /// </param>
     /// <remarks>
     /// The original's NWSPS turns the station right around when it creates it, by flipping the sign
     /// of each of the three high bytes of its nose vector, and gives it a random clockwise roll with
@@ -135,11 +138,31 @@ public static class SystemArrival
         station.SetCoordinate(ShipDataBlock.Z, distance);
 
         // The roll counter is what MVEIT part 8 reads, so the station is already turning when it
-        // appears rather than waiting for the first frame to renew it from SpinRoll
+        // appears
         station.Data[ShipDataBlock.RollCounter] = spinRoll;
         FaceTowardsUs(station);
         return station;
     }
+
+    /// <summary>
+    /// The roll counter the original gives the space station: <c>%11111111</c>, which MVEIT reads as
+    /// a full anti-clockwise roll with no damping.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// NWSPS sets this with a <c>DEX</c> from X = 0, so the counter is 255: bit 7 is the direction
+    /// and bits 0-6 are all set, and MVEIT's damping leaves a counter whose low seven bits are all
+    /// set alone. The station therefore turns for as long as it exists, at one MVS5 step per
+    /// iteration of the main loop.
+    /// </para>
+    /// <para>
+    /// This is not a random value and it is not renewed. The port used to hand the station a random
+    /// roll and then put that value back every frame, on the reading that MVEIT spends the counter.
+    /// It does spend it — but not when every one of the low seven bits is set, which is precisely
+    /// why the original chose 255.
+    /// </para>
+    /// </remarks>
+    public const byte StationRollCounter = 0xFF;
 
     /// <summary>
     /// Flips a newly created station's orientation vectors, as the original's NwS1 does.

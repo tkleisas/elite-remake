@@ -54,8 +54,17 @@ public sealed class MeshRenderer : IDisposable
     public System.Numerics.Vector3 LightDirection { get; set; } =
         System.Numerics.Vector3.Normalize(new System.Numerics.Vector3(-0.65f, 0.45f, -0.60f));
 
-    /// <summary>Ambient light level, so unlit faces stay readable.</summary>
-    public float Ambient { get; set; } = 0.28f;
+    /// <summary>
+    /// Ambient light level: the floor a face falls to when it faces away from the key light.
+    /// </summary>
+    /// <remarks>
+    /// This was 0.28, which made a face that had turned away from the light a very dark grey — about
+    /// (63, 64, 67) against a black sky, which reads as a hole in the ship rather than as a surface.
+    /// A rotating ship always has such faces, so the title screen's model showed a black wedge
+    /// across its nose for part of every turn. The floor is high enough now that the darkest face is
+    /// unmistakably lit.
+    /// </remarks>
+    public float Ambient { get; set; } = 0.42f;
 
     /// <summary>The number of triangles submitted by the last draw call, for diagnostics.</summary>
     public int LastTriangleCount { get; private set; }
@@ -205,8 +214,14 @@ public sealed class MeshRenderer : IDisposable
                 depth += clipped[i].Z;
             }
 
-            // Flat shading from the blueprint's own normal, transformed into view space
-            float lambert = MathF.Max(0, System.Numerics.Vector3.Dot(normal, -LightDirection));
+            // Flat shading from the blueprint's own normal, transformed into view space.
+            //
+            // The dot product is wrapped into 0-1 rather than clamped there, so that a face turning
+            // away from the light fades across the whole turn instead of sitting at the same flat
+            // minimum for half of it. Clamping is what made a face look like a black hole: it stayed
+            // at exactly the ambient level over a wide arc of the rotation, and at that level it is
+            // indistinguishable from the sky behind it.
+            float lambert = 0.5f + (0.5f * System.Numerics.Vector3.Dot(normal, -LightDirection));
             float brightness = Ambient + ((1 - Ambient) * lambert);
 
             _candidates.Add(new Candidate(screen, depth / count, Shade(colour, brightness)));
