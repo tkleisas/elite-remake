@@ -1822,3 +1822,43 @@ because it is not a simple one-byte-per-type list, so it wants its own round rat
 
 **The tally is thirteen**, and the test that pinned the old threshold — `ShootingInnocentsMakesUsWanted`
 — now checks the boundary at 49 and 50 exactly.
+
+## A criminal record was permanent
+
+The other half of the legal status, and the half that was missing entirely.
+
+**SOLAR halves it on every arrival.** `LSR FIST`, with the source's own explanation: "halving our
+legal status in FIST, making us less bad... so every time we arrive in a new system, our legal status
+improves a bit". Bit 0 is shifted out, so a status of 1 becomes 0 rather than staying at 1 — a
+commander with one black mark is clean again after a single jump.
+
+Ours never decayed at all, which makes a record **permanent**: a commander who becomes a fugitive once
+could never be clean again, however far he flew and however long he behaved. Combined with last
+round's fix to the rate, the whole arc is now the original's — one point an innocent, fifty to be a
+fugitive, one cop to be a fugitive outright, and half of it back for every jump away.
+
+## The E% table: what I found, and why it is still open
+
+The cop flag comes from bit 6 of a ship's `NEWB` flags, and the defaults for those are the `E%` table
+in the disc's docked segment, which we do not extract. I set out to close that and did not finish, so
+here is exactly where it stands rather than a guess.
+
+**What is certain.** `E%` holds the flags; the loader copies it with `LDA E%,X / STA ROM_E%,X`, so it
+is indexed by the same number the blueprint slot is. The nine ships it names, in order, are the
+Missile, Cargo canister, Shuttle, Transporter, Cobra Mk III, Python, Viper, Krait and Constrictor, and
+seven of the nine bytes have their high bit set.
+
+**What does not add up.** The named entries sit at 0, 4, 8, 9, 10, 11, 15, 18 and 30 — the first few
+spaced four apart and the rest not — which is not a one-byte-per-ship-type table, and the counts do
+not reconcile: our data has the Viper at type 16 where the table's Viper byte is at 15, and the
+Shuttle at 9 where the table's is at 8. Reading the labels as belonging to the row they are printed on
+gives the Shuttle at 9 and the Transporter at 10, which matches ours; reading the values as belonging
+to a four-byte stride gives the Viper at 16, which also matches ours. The two readings agree with our
+data on different entries, so they cannot both be right, and picking one to make the numbers line up
+would be exactly the kind of reasoning that has produced the last thirteen faults.
+
+**So it stays open**, with the Viper marked as the cop by type as a documented approximation. What
+would settle it is a disassembly of the disc's `ROM_E%` as the loader actually builds it, or the
+`E%` block read out of the disc image rather than out of the source listing — either of which is a
+better use of a round than guessing at the alignment. The remaining difference is narrow: only the
+Transporter's cop status and any ship not on the list at all.

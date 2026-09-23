@@ -185,6 +185,16 @@ public sealed class GameSession
         System = SelectedSystem;
         Visit++;
         Market = Universe.Market.Build(System, _random.Next());
+
+        // Arriving somewhere new improves our record: the original's SOLAR halves our legal status
+        // with an LSR every time we arrive in a system, so a commander who lies low and keeps
+        // jumping works his way back to clean. Bit 0 is lost, which is why a status of 1 becomes 0
+        // rather than staying at 1.
+        if (Commander.LegalStatus > 0)
+        {
+            Commander.LegalStatus /= 2;
+        }
+
         Message = $"Arrived in the {System.Name} system.";
         return true;
     }

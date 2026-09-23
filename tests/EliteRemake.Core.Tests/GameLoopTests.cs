@@ -94,6 +94,42 @@ public class GameLoopTests
     }
 
     /// <summary>
+    /// Arriving in a new system halves the legal status, as the original's SOLAR does.
+    /// </summary>
+    /// <remarks>
+    /// SOLAR halves FIST with an LSR every time we arrive in a system, which is how a commander who
+    /// lies low and keeps jumping works his way back to clean. Without it a record is permanent, and
+    /// a commander who becomes a fugitive once can never be clean again.
+    /// </remarks>
+    [Fact]
+    public void FleeingToANewSystemImprovesOurRecord()
+    {
+        GameSession session = NewSession();
+        session.Commander.Fuel = 70;
+        session.Commander.LegalStatus = 200;
+
+        session.SelectedSystem = NearestReachable(session);
+        Assert.True(session.StartHyperspace());
+        Assert.True(CompleteJump(session));
+
+        Assert.Equal(100, session.Commander.LegalStatus);
+        Assert.Equal("Fugitive", session.Commander.LegalStatusName);
+
+        // A few more and he is an offender, then clean again
+        for (int i = 0; i < 7; i++)
+        {
+            session.Commander.Fuel = 70;
+            session.SelectedSystem = NearestReachable(session);
+            session.StartHyperspace();
+            CompleteJump(session);
+        }
+
+        // 200 halved eight times is 0
+        Assert.Equal(0, session.Commander.LegalStatus);
+        Assert.Equal("Clean", session.Commander.LegalStatusName);
+    }
+
+    /// <summary>
     /// A saved commander's missions come back with him.
     /// </summary>
     /// <remarks>
