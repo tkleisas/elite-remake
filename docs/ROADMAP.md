@@ -1930,3 +1930,33 @@ one taken by both pirates and bounty hunters after the random type is chosen in 
 bits 7 and 6 for AI and aggression, low bits from a random byte — is consistent with the original's
 `ORA #%11000000` and with the low bits varying aggression, but I have not yet read the disc's own
 store. It is recorded as open rather than presented as verified.
+
+## Where the disc's bounty hunters get their AI flag: resolved, and the answer is "not here"
+
+The open item from last round is closed, and the answer is a clean negative that explains itself.
+
+**Every `STA INWK+32` in the spawn code is guarded away from the disc.** There are five in
+`main_game_loop_part_4_of_6.asm`, and walking the conditional stack at each one:
+
+| line | what it is | disc |
+| --- | --- | --- |
+| 415 | the **Constrictor**, `%11111001` | active — but this is the mission ship, not a bounty hunter |
+| 458 | the Constrictor, enhanced versions | excluded |
+| 521, 528 | the bounty hunter, cassette and enhanced | excluded |
+| 601 | a ship given E.C.M. but no AI | excluded |
+
+So the disc's lone bounty hunter is spawned by `TYA / JSR NWSHP` with **no AI flag store at all** —
+the line that sets it in every other version is simply not assembled, exactly as the E.C.M. chance is
+not. That is the resolution: it is not that the disc sets a different value, it is that the disc does
+not run the code that sets one, and the value therefore comes from whatever the ship's slot already
+held. Reproducing *that* faithfully would mean modelling the ship-slot workspace rather than the
+spawn, which is a different piece of work and is noted rather than guessed at.
+
+**And the one store that does run on the disc is a check on our own data**, which is worth having:
+the Constrictor is given `%11111001` — E.C.M., an aggression of 60 out of 63, and hostile — and our
+`Missions.ConstrictorAiFlag` is `0b1111_1001`, the same byte. That is a value nothing had checked
+against the source, and it is right.
+
+**Three faults in a row have now been version-guard faults.** The pattern is strong enough to state
+as a rule for the rest of this port: when a value or an instruction looks wrong, read the `IF` above
+it before changing anything, because on this build the guard is evidence and the instruction is not.
