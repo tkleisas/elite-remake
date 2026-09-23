@@ -1338,12 +1338,20 @@ public class BountyTests
         Assert.True(session.Commander.LegalStatus > 0, "shooting a trader should make us an offender");
         Assert.Equal("Offender", session.Commander.LegalStatusName);
 
-        // Enough of it and we are a fugitive
-        for (int i = 0; i < 10; i++)
+        // Exactly one point for an ordinary kill, and it takes fifty of them to be a fugitive:
+        // the original's STATUS chooses on CPY #50
+        Assert.Equal(1, session.Commander.LegalStatus);
+
+        for (int i = 0; i < 48; i++)
         {
             session.RegisterKill(new Ship(12, "python", "Python") { AiFlag = 0x10 });
         }
 
+        Assert.Equal(49, session.Commander.LegalStatus);
+        Assert.Equal("Offender", session.Commander.LegalStatusName);
+
+        session.RegisterKill(new Ship(12, "python", "Python") { AiFlag = 0x10 });
+        Assert.Equal(50, session.Commander.LegalStatus);
         Assert.Equal("Fugitive", session.Commander.LegalStatusName);
     }
 

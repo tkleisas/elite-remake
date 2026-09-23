@@ -475,6 +475,17 @@ public sealed class GameSession
         }
     }
 
+    /// <summary>
+    /// The one ship type that carries the original's cop flag, whose kill makes us a fugitive.
+    /// </summary>
+    /// <remarks>
+    /// The original takes this from bit 6 of the ship's NEWB flags rather than from a list of types,
+    /// and the flag comes from the E% table that only the docked segment can reach. The Viper is the
+    /// ship the table marks as a cop and the one the station sends after us, so it is the type that
+    /// matters here; the full table would be the better source and is recorded as an open item.
+    /// </remarks>
+    public const int CopType = 16;
+
     /// <summary>True once the commander has been killed.</summary>
     public bool GameOver { get; private set; }
 
@@ -504,10 +515,17 @@ public sealed class GameSession
         Commander.Cash += bounty;
         Commander.RegisterKill();
 
-        // Shooting up innocent traders makes us wanted
-        if (destroyed.AiFlag < 0x80)
+        // Shooting up the innocent makes us wanted. The original's rule is not a fixed increase:
+        // killing a cop raises our legal status to at least 64 with an ORA, which makes us a
+        // fugitive at once, and any other kill adds exactly 1 — so it takes fifty innocent kills to
+        // become a fugitive by degrees, where a single cop does it outright.
+        if (destroyed.Type == CopType)
         {
-            Commander.LegalStatus = Math.Min(255, Commander.LegalStatus + 4);
+            Commander.LegalStatus = Math.Min(255, Commander.LegalStatus | Commander.CopKillStatus);
+        }
+        else if (destroyed.AiFlag < 0x80)
+        {
+            Commander.LegalStatus = Math.Min(255, Commander.LegalStatus + 1);
         }
 
         // Keep the commander's status byte in step with the missions

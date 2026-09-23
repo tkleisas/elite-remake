@@ -185,13 +185,27 @@ public sealed class Commander
     public bool IsWanted => LegalStatus > 0;
 
     /// <summary>The legal status as the original's word for it.</summary>
+    /// <remarks>
+    /// STATUS prints "Clean" for a legal status of 0, and then chooses between "OFFENDER" and
+    /// "FUGITIVE" on <c>CPY #50</c>: 1 to 49 is an offender and 50 and above is a fugitive. The
+    /// threshold is 50, not 24, and the old mapping's <c>&lt; 48</c> branch was dead — both sides of
+    /// it returned "Fugitive".
+    /// </remarks>
     public string LegalStatusName => LegalStatus switch
     {
         0 => "Clean",
-        < 24 => "Offender",
-        < 48 => "Fugitive",
+        < 50 => "Offender",
         _ => "Fugitive",
     };
+
+    /// <summary>The legal status at which the original calls us a fugitive: <c>CPY #50</c>.</summary>
+    public const int FugitiveStatus = 50;
+
+    /// <summary>
+    /// The legal status a cop sets when we destroy one: the original's <c>ORA #64</c>, which makes
+    /// us a fugitive at once however clean we were.
+    /// </summary>
+    public const int CopKillStatus = 64;
 
     /// <summary>Adds a kill and returns true if the rating improved.</summary>
     public bool RegisterKill(int count = 1)

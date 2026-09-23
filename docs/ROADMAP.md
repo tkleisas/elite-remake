@@ -1786,3 +1786,39 @@ time. The production code has the same lesson in it: `PickUpPlans` clears the mi
 setting the field directly does not.
 
 **The tally is twelve.**
+
+## Becoming wanted: the threshold is 50, and one cop is enough
+
+Auditing the legal status against STATUS and the flight loop turned up three things, two of which are
+now fixed.
+
+**The threshold was wrong.** STATUS prints "Clean" for 0 and then chooses on `CPY #50`: 1 to 49 is an
+offender, 50 and above is a fugitive. Ours used 24 — and its own mapping was dead in the middle, with
+`< 24 => "Offender"` and `< 48 => "Fugitive"` both followed by `_ => "Fugitive"`, so 24 to 47 and 48
+and up gave the same answer. A commander became a fugitive at half the legal status the original
+requires.
+
+**The increase was wrong.** Ours added a flat 4 per innocent killed. The original's rule is sharper:
+
+```
+ LDA NEWB / AND #%01000000   \ bit 6 is set if this ship is a cop
+ ORA FIST / STA FIST         \ so killing one sets the highest clear bit: at least 64
+ ...
+ LDA #%10000000 ... ADC FIST \ otherwise this adds exactly 1
+ BCS KS1S                    \ and an overflow means we are too bad to get any worse
+```
+
+So an ordinary innocent is **one** point — fifty of them to become a fugitive by degrees — while a
+single cop makes us a fugitive outright by setting the status to at least 64. Ours made every kill
+worth four, which is both too fast for traders and too slow for police, and it had no notion of a cop
+at all.
+
+**One part is approximated, and is recorded as open.** The original reads the cop flag from bit 6 of
+the ship's `NEWB` flags, which come from the `E%` table that only the docked segment can reach. We
+have no `NEWB` in the ship data and no `E%` extraction, so the cop is identified by type instead, and
+only the Viper — the ship the table marks as a cop and the one the station sends after us. The `E%`
+table is nine bytes and marking every type would be the faithful fix; the table's indexing needs care
+because it is not a simple one-byte-per-type list, so it wants its own round rather than a rushed one.
+
+**The tally is thirteen**, and the test that pinned the old threshold — `ShootingInnocentsMakesUsWanted`
+— now checks the boundary at 49 and 50 exactly.
