@@ -3659,3 +3659,27 @@ on a planet twelve thousand units out of a quarter of a million. In play the cou
 the planet is a backdrop, so the visible effect is nil — and the honest description of the code is that
 its rotation is **approximately** rigid, worse when both axes turn at once, with the original's ordering
 load-bearing rather than incidental.
+
+## The whole loop again, after the motion fix
+
+Changing the rotation touches every ship on every frame, so the loop was flown again rather than assumed.
+
+**Eleven checks, all passing**: docked at Lave with its seventeen items, bought and sold cargo, tanked
+up, launched, accelerated under thrust to the ship's maximum, survived six hundred frames of hard
+manoeuvring, jumped to Diso, arrived, docked there, and found its own seventeen-item market.
+
+**And the thing that depends most on bodies moving correctly** — ships crossing the gap to fight. In a
+busy system over twenty thousand frames: twelve ships in the bubble, a hostile ship closed to zero
+distance, and **7233 points of damage taken**. So the spawner's ships still fly to us and still engage,
+which is the behaviour the earlier rounds had to fix twice and could easily have broken again.
+
+**One number in that check is not a fault.** "Closest a hostile ship got: 0" reads like a collision or a
+teleport, and it is neither: TA4/TA5 send a ship that is right on top of us *away*, and the collision
+path removes it, so a hostile at close range is a ship that is about to break off or already gone. It
+was left in the output because a bound that reads as alarming and is explained is worth more than a
+bound chosen to look tidy.
+
+**Where the project is after the motion work.** The reported wobble is fixed and its cause — `Mvt6`
+discarding the coordinate's high bits — is at the primitive rather than in the rotation, so every caller
+benefits. The rotation is approximately rigid and the approximation is measured and bounded, with two
+rejected hypotheses recorded beside it. The loop is intact end to end.
