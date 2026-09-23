@@ -272,11 +272,23 @@ docs/                      roadmap, data pipeline, divergences
 Everything below is known to be unfinished or unverified. Nothing here is guessed at: each entry
 says what was checked and what was not.
 
-1. **The AI's close-range disengage.** An early note claimed the original has a rule where a ship
-   that is too close and centred breaks off. Searching TACTICS found only the *missile* check at
-   TA34 — a missile whose x_hi, y_hi and z_hi are all zero has hit us, and is marked killed — which
-   is a different thing. The ship-level rule is either in a part of TACTICS not yet read or was a
-   misreading when the note was made. It stays open until found or ruled out.
+1. ~~**The AI's close-range disengage.**~~ **Found and ported.** The rule is at the head of TACTICS
+   part 7, at `TA4`, and the earlier note was right about it existing — it just looked in the wrong
+   part. The original tests `z_hi >= 3` and, failing that, `x_hi OR y_hi` with bit 0 cleared
+   (`AND #%11111110`), so a ship with z under 3 * 256 units and both x and y under 2 * 256 "heads
+   away from us" whatever its aggression says. It shares the `TA15` branch with the peaceful-ship
+   case, which is why grepping for a separate routine missed it.
+
+   Two things came out of reading that part properly. The close-range rule is now in
+   `Tactics.Apply` as `CloseRangeZ` and `CloseRangeXY`, with a test that places a ship beside us
+   facing along +x so turning towards us and turning away are distinguishable: measured, its nose
+   ends up at +0.91 close in against -0.99 further out.
+
+   And the turn magnitude is not a flat RAT. The disc version calls **nroll**, which doubles the
+   dot product and compares it against RAT2: below the threshold the counter keeps only its sign
+   and no magnitude, which stops a ship twitching at an aim it is already close to, and at or above
+   it the counter is the full RAT. `CounterFor` now does the same, scaling the normalised float
+   direction back into the original's units where a unit vector's component is 96.
 
 2. **The docking computer** completes a docking when the station is dead ahead (frame 507 in the
    harness) and overshoots from off to one side. With the station's rotation now the original's,

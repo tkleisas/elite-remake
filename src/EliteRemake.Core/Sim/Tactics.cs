@@ -36,6 +36,19 @@ public static class Tactics
     public const double AimCosine = 0.95;
 
     /// <summary>
+    /// How far ahead a ship must be for the close-range rule not to apply: the original tests
+    /// <c>z_hi &gt;= 3</c>, so anything nearer than 3 * 256 units is "pretty close".
+    /// </summary>
+    public const int CloseRangeZ = 3 * 256;
+
+    /// <summary>
+    /// How far to the side a ship must be for the close-range rule not to apply. The original
+    /// clears bit 0 of x_hi and y_hi and tests for zero, so the tests are <c>x_hi &lt; 2</c> and
+    /// <c>y_hi &lt; 2</c>: 2 * 256 units on each axis.
+    /// </summary>
+    public const int CloseRangeXY = 2 * 256;
+
+    /// <summary>
     /// TA5: decides whether a ship wants to attack us. The original takes a random byte, sets bit 7
     /// so the comparison always has the high bit set, and compares it against the ship's AI flag:
     /// if the random value is greater than or equal to the flag, the ship is peaceful.
@@ -67,8 +80,19 @@ public static class Tactics
 
         bool attack = WantsToAttack(ship, random);
 
-        // Aim at us if we are the target, otherwise turn away
         (int x, int y, int z) = ship.GetPosition();
+
+        // TA4/TA5: a ship that is right on top of us breaks off whatever its aggression says. The
+        // original tests z_hi >= 3 and, failing that, x_hi OR y_hi with bit 0 cleared: a ship with
+        // z under 3 * 256 and both x and y under 2 * 256 heads away rather than pressing on. This
+        // is what stops a fight turning into a series of collisions.
+        bool tooClose = z < CloseRangeZ && Math.Abs(x) < CloseRangeXY && Math.Abs(y) < CloseRangeXY;
+        if (tooClose)
+        {
+            attack = false;
+        }
+
+        // Aim at us if we are the target, otherwise turn away
         double distance = Math.Sqrt(((double)x * x) + ((double)y * y) + ((double)z * z));
         if (distance < 1)
         {
@@ -95,8 +119,14 @@ public static class Tactics
         // counters are sign-magnitude bytes, and the original gives them the opposite sign to the
         // dot product: as TACTICS puts it, "set the ship's pitch counter to 3, with the opposite
         // sign to the dot product result".
-        byte roll = (byte)((aimX > 0 ? 0x80 : 0x00) | (Math.Abs(aimX) > 0.02 ? TurnRate : 0));
-        byte pitch = (byte)((aimY > 0 ? 0x80 : 0x00) | (Math.Abs(aimY) > 0.02 ? TurnRate : 0));
+        //
+        // The magnitude is the original's nroll, not a flat RAT. nroll doubles the dot product and
+        // compares it against RAT2: below the threshold the counter is left at zero with only the
+        // sign set, which stops a ship twitching at an aim it is already close to, and at or above
+        // it the counter is the full RAT. The dot product is the original's, where a unit vector's
+        // component runs to 96, so the comparison is against RAT2 in those units.
+        byte roll = CounterFor(aimX);
+        byte pitch = CounterFor(aimY);
         ship.Data[ShipDataBlock.RollCounter] = roll;
         ship.Data[ShipDataBlock.PitchCounter] = pitch;
 
@@ -110,6 +140,31 @@ public static class Tactics
 
         return false;
     }
+
+    /// <summary>
+    /// nroll: the turn counter for one axis, from the original's own routine.
+    /// </summary>
+    /// <remarks>
+    /// The original works in 8-bit signed arithmetic on the dot product of the ship's vector with
+    /// the direction to the target, where a unit vector's component is 96 - so the largest dot
+    /// product of two unit vectors has a magnitude of 36 after the shift the routine applies. Here
+    /// the same direction comes from a normalised float, so its component is scaled back into those
+    /// units before the comparison, which keeps RAT and RAT2 in the original's terms.
+    /// </remarks>
+    private static byte CounterFor(float aim)
+    {
+        int scaled = (int)(aim * UnitComponent);
+
+        // nroll doubles the value and drops the sign bit, then compares against RAT2
+        int doubled = Math.Abs(scaled) * 2;
+        bool negative = scaled > 0;
+
+        byte magnitude = doubled >= TurnThreshold ? (byte)TurnRate : (byte)0;
+        return (byte)(magnitude | (negative ? 0x80 : 0x00));
+    }
+
+    /// <summary>What a unit vector's component is in the original's units.</summary>
+    private const int UnitComponent = 96;
 
     /// <summary>
     /// Whether a ship has a pilot who can decide to manoeuvre. Missiles, cargo, asteroids, escape

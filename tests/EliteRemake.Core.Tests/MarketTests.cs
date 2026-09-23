@@ -533,6 +533,54 @@ public class TacticsTests
         Assert.True(alignment > 0.8, $"the enemy should be pointing at us, alignment {alignment:0.00}");
     }
 
+    /// <summary>
+    /// A ship that finds itself right on top of us breaks off, however aggressive it is.
+    /// </summary>
+    /// <remarks>
+    /// This is TACTICS' TA4/TA5: the original tests z_hi >= 3 and then x_hi OR y_hi with bit 0
+    /// cleared, so a ship with z under 3 * 256 and both x and y under 2 * 256 steers away instead
+    /// of pressing on. Without it a fight becomes a series of collisions.
+    ///
+    /// The ship is placed beside us facing along +x, so it has to turn either towards us or away
+    /// and the two are distinguishable: heading away takes its nose towards +z and heading towards
+    /// us takes it towards -z. Measured: 0.91 close in against -0.99 further out.
+    /// </remarks>
+    [Fact]
+    public void AnEnemyRightOnTopOfUsBreaksOff()
+    {
+        static double NoseAfter(int z)
+        {
+            var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"));
+            sim.Commander = Commander.CreateDefault();
+            sim.Player.Energy = 150;
+            sim.LaserPowerProvider = _ => 0;
+
+            Ship enemy = Ship.Create(17, "sidewinder", "Sidewinder", 0, 0, 0, 0, 2000);
+            enemy.AiFlag = 0xF8;   // as aggressive as it gets
+            enemy.Energy = 70;
+            sim.Spawn(enemy);
+
+            enemy.SetPosition(400, 0, z);
+            enemy.Orientation.SetUnity(Orientation.Nosev, Orientation.X, 1.0);
+
+            for (int i = 0; i < 60; i++)
+            {
+                sim.Step();
+            }
+
+            return enemy.Orientation.GetUnity(Orientation.Nosev, Orientation.Z);
+        }
+
+        // Inside the thresholds it turns away; well outside them it turns towards us
+        Assert.True(
+            NoseAfter(Tactics.CloseRangeZ - 100) > 0.5,
+            "a ship this close should turn away from us");
+
+        Assert.True(
+            NoseAfter(Tactics.CloseRangeZ + 2000) < -0.5,
+            "a ship further out should turn towards us");
+    }
+
     [Fact]
     public void AnEnemyInRangeAndOnTargetHitsUs()
     {
