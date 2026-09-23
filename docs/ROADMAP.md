@@ -3203,3 +3203,28 @@ anything in this table that a wrong value would not announce?* For the offsets, 
 because the routines that read them would break. For the ship types and the sounds, the answer was yes,
 because nothing reads them until a specific thing is tried, and a wrong value there is silent twice
 over — in the code and in the game.
+
+## The E.C.M.'s switch-off is a silencing entry, and treating it as "nothing" let the tone run on
+
+Wiring the last sounds left one loose end that only shows at runtime: the game reports **"Loaded 9
+sounds"** where the table has ten. `SoundBank.Load` renders each effect and skips any that produces no
+samples, and entry 72 produces none — so it is absent from the map, and `Play(EcmOff)` did nothing.
+
+**That looked harmless and was not.** Entry 72's four zero bytes are not an unfinished sound; they are
+the original's way of **silencing a channel**, which is how `ECMOF` cuts off the E.C.M.'s continuous
+tone. Ours renders that tone from entry 64 with a duration of **255 ticks — nearly thirteen seconds —
+where the field itself lasts sixty frames.** With the switch-off treated as nothing, the tone simply
+outlived the E.C.M. by a wide margin.
+
+`SoundBank.Play` now treats an effect with no samples as **"stop what is playing"**, and `Stop` is
+public so the intent is nameable. The nine audible sounds are unchanged; the tenth now does the job it
+exists for.
+
+**The lesson is about the shape of the check.** `Render` already had the comment *"a sound with no
+duration, such as the E.C.M. switching off"* — the case was known, named, and returned an empty array,
+and the emptiness then propagated into a silent no-op two layers away. **A well-documented special case
+is not the same as a handled one**, and the documentation is what made it look handled: I read that
+comment while checking the table and moved on.
+
+**And it was found by reading the startup log**, not by any test or any of the audits of the last four
+rounds. "Loaded 9 sounds" had been printed on every run for as long as the sounds existed.

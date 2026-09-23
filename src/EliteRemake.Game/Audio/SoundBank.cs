@@ -65,10 +65,27 @@ public sealed class SoundBank : IDisposable
     /// Plays a sound, cutting off whatever was playing, as the original's sounds do when their
     /// flush control is set.
     /// </summary>
+    /// <summary>
+    /// Plays a sound, stopping whatever was playing.
+    /// </summary>
+    /// <remarks>
+    /// A sound with no samples is treated as "stop the current sound" rather than as nothing at all.
+    /// The original's SFX entry 72 is exactly that — all four bytes zero, which silences the channel —
+    /// and it is how the E.C.M.'s continuous tone is cut off when the field collapses. Our E.C.M. tone
+    /// is rendered from entry 64 with a duration of 255 ticks, which is nearly thirteen seconds where
+    /// the field lasts 60 frames, so without this the tone would outlive the E.C.M. by a wide margin.
+    /// </remarks>
     public void Play(Core.Audio.SoundEffect effect)
     {
-        if (Muted || Volume <= 0 || !_sounds.TryGetValue(effect, out var sound))
+        if (Muted || Volume <= 0)
         {
+            return;
+        }
+
+        if (!_sounds.TryGetValue(effect, out var sound))
+        {
+            // No samples: this is a silencing entry, so stop what is playing
+            Stop();
             return;
         }
 
@@ -81,6 +98,15 @@ public sealed class SoundBank : IDisposable
         instance.Volume = Volume;
         instance.Play();
         _playing = instance;
+    }
+
+    /// <summary>Stops the sound now playing, if any.</summary>
+    public void Stop()
+    {
+        if (_playing is { State: SoundState.Playing })
+        {
+            _playing.Stop();
+        }
     }
 
     public void Dispose()
