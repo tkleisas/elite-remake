@@ -317,19 +317,15 @@ public sealed class FlightSim
 
     /// <summary>How a canister's contents are decided, from the blueprints.</summary>
     /// <summary>
-    /// What scooping a ship yields, as a zero-based commodity index for the cargo hold.
+    /// What scooping a ship yields, as a commodity number for the hold.
     /// </summary>
     /// <remarks>
-    /// The original's blueprint nibble gives a **market item number**, which is one-based — "add 1 to
-    /// the high nibble to get the market item" — and the original then uses it directly to index the
-    /// hold, whose <c>QQ20</c> slots are zero-based. So the value that arrives here is already the
-    /// array index the original intends, and a provider handing over a one-based market item is off
-    /// by one: escape pods yielded radioactives rather than the slaves the source's own comment
-    /// promises, splinters yielded minerals rather than furs, and thargons alien items rather than
-    /// gem-stones.
-    ///
-    /// The conversion therefore belongs here, at the point of use, rather than in the data: the
-    /// blueprint byte means what it means, and it is the hold's indexing that differs from it.
+    /// The numbering is the original's market item numbering, which it also uses directly as the
+    /// hold's slot number: item 3 is slaves, item 12 is furs, item 16 is alien items. The source's own
+    /// comments for the three scoopable ships are what fix the convention — the escape pod's nibble
+    /// gives 3 and it says slaves, the thargon's gives 16 and it says alien items — and 0 means the
+    /// blueprint names no commodity, which for a cargo canister is what sends the game to the
+    /// original's own random-contents path.
     /// </remarks>
     public Func<Ship, int> ScoopItemProvider { get; set; } = _ => 0;
 

@@ -1142,23 +1142,24 @@ public class DebrisTests
     }
 
     [Fact]
-    public void SplintersScoopAsFurs()
+    public void SplintersScoopAsMinerals()
     {
         Commander commander = Commander.CreateDefault();
         commander.FuelScoops = true;
         var splinter = new Ship(Debris.Splinter, "splinter", "Splinter");
 
-        // The splinter's blueprint gives market item 12, which is furs; the hold index is 11
-        (int Item, int Amount)? scooped = Debris.TryScoop(splinter, commander, marketItem: 11);
+        // The source gives this one explicitly: "Market item when scooped = 11 + 1 = 12 (minerals)".
+        // The item number doubles as the hold's slot number, so the value goes through unchanged
+        (int Item, int Amount)? scooped = Debris.TryScoop(splinter, commander, marketItem: 12);
         Assert.NotNull(scooped);
-        Assert.Equal(11, scooped!.Value.Item); // furs, from the splinter's blueprint
-        Assert.Equal(1, commander.GetCargo(11));
+        Assert.Equal(12, scooped!.Value.Item); // minerals, from the splinter's blueprint
+        Assert.Equal(1, commander.GetCargo(12));
 
         // And with no blueprint, a splinter still scoops as minerals
         var bare = new Ship(Debris.Splinter, "splinter", "Splinter");
         var commander2 = Commander.CreateDefault();
         commander2.FuelScoops = true;
-        Assert.Equal(11, Debris.TryScoop(bare, commander2, marketItem: 0)!.Value.Item);
+        Assert.Equal(12, Debris.TryScoop(bare, commander2, marketItem: 0)!.Value.Item);
     }
 
     [Fact]
@@ -1175,7 +1176,7 @@ public class DebrisTests
         // A cargo canister's contents come from the original's own random path rather than from its
         // blueprint — its scoop nibble is zero — so the game layer supplies the commodity. The
         // provider gives a hold index, not the blueprint's one-based market item.
-        sim.ScoopItemProvider = _ => 3;   // slaves
+        sim.ScoopItemProvider = _ => 3;   // slaves, by the original's item numbering
 
         // A canister just ahead of us, inside the scooping range
         var canister = new Ship(Debris.Canister, "canister", "Cargo canister");

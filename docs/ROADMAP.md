@@ -3027,3 +3027,40 @@ AI and the renderer.
 **The pattern this round is the cheapest kind of verification**: not a new test but the same question —
 *what does this number mean* — asked of every place two systems meet. It found nothing, which after last
 round is the answer to hope for, and it cost less than the fault it was looking for would have.
+
+## Correction: the splinter scoops as minerals, and I had it wrong twice
+
+Chasing the Thargon's scoop item meant reading all three scoopable ships' comments in full, and one of
+them contradicts what the last two rounds asserted:
+
+```
+                        \ Market item when scooped = 11 + 1 = 12 (minerals)
+```
+
+**The splinter gives minerals.** Round 119 says in this file that it gives furs, and I changed the
+fallback constant from 12 to 11 to match that belief — which was wrong, on no better evidence than my
+own arithmetic about what `high + 1` ought to mean. The constant is back at 12 and the test is named
+`SplintersScoopAsMinerals` again, which is what it was called before I renamed it a round ago.
+
+**What the three actually are**, all three now confirmed by the source's own words rather than by
+inference:
+
+| ship | nibble | item | the source says |
+| --- | --- | --- | --- |
+| escape pod | 2 | 3 | slaves |
+| splinter | 11 | 12 | minerals |
+| thargon | 15 | 16 | alien items |
+
+And the value passes through **unchanged**: the original's item numbering doubles as the hold's slot
+numbering, so there is no minus one anywhere. That is the part round 119 got wrong in the other
+direction, and the part this round restores.
+
+**The real bug this round was worth finding**: `Debris.Thargon` was **20**, which is the Adder, so
+Thargons were not scoopable at all. The one that is fixed.
+
+**Three rounds on one five-line rule, with two wrong turns**, and the difference between the turns and
+the answer is entirely a matter of evidence: I inferred twice from arithmetic and a half-remembered
+comment, and got it wrong both times; the three comments taken together state it outright. The lesson
+is not subtle but it is expensive: **a comment that names a value is evidence, and arithmetic about
+what a value ought to be is not.** I had that written down after the RUPLA round and did not apply it
+here.

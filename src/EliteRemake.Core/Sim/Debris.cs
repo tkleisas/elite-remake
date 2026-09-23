@@ -47,7 +47,11 @@ public static class Debris
     public const int EscapePod = 3;
 
     /// <summary>The Thargon's ship type, which scoops as alien items.</summary>
-    public const int Thargon = 20;
+    /// <summary>
+    /// The Thargon, the Thargoid's small companion. Its type is 30 — 20 is the Adder, which is not
+    /// scoopable and left Thargons unscoopable for as long as it stood.
+    /// </summary>
+    public const int Thargon = 30;
 
     /// <summary>
     /// True for the types that can be scooped up. The disc version does not keep a list of these:
@@ -156,9 +160,12 @@ public static class Debris
             ? marketItem
             : item.Type switch
             {
-                Splinter => 11,      // market item 12, furs
-                EscapePod => 2,      // market item 3, slaves
-                Thargon => 15,       // market item 16, gem-stones
+                // The source gives the first two explicitly: "Market item when scooped = 11 + 1 = 12
+                // (minerals)" for the splinter, and the escape pod's comment says slaves. The thargon's
+                // nibble of 15 gives 16, alien items, which its comment confirms.
+                Splinter => 12,      // minerals
+                EscapePod => 3,      // slaves
+                Thargon => 16,       // alien items
                 _ => 0,
             };
 

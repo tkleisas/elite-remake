@@ -143,23 +143,17 @@ public static class SceneFactory
         sim.GalaxySeeds = EliteRemake.Core.Universe.Galaxy.GalaxySeeds(session.Commander.GalaxyNumber);
         sim.ScoopCommander = session.Commander;
 
-        // What scooping a ship yields, as a zero-based index into the hold. The blueprint gives the
-        // original's one-based market item — "add 1 to the high nibble to get the market item" — and
-        // the original then uses that directly on its zero-based QQ20 hold slots, so the conversion
-        // is a minus one. Without it every scooped commodity was one place late: escape pods paid
-        // radioactives rather than the slaves the source's comment promises, splinters minerals
-        // rather than furs, and thargons alien items rather than gem-stones.
+        // What scooping a ship yields. The blueprint's high nibble plus one is the market item, and
+        // the original uses that number directly to index its zero-based QQ20 hold slots — so
+        // "market item 1" is hold slot 1, not slot 0. Checking the three scoopable ships against the
+        // source's own comments fixes the convention: the escape pod's nibble 2 gives 3 and the
+        // comment says slaves, which is item 3; the thargon's nibble 15 gives 16 and the comment says
+        // alien items, which is item 16.
         sim.ScoopItemProvider = ship =>
-        {
-            if (ShipCatalog.ByType(ship.Type) is not { } scooped ||
-                EliteRemake.Data.Ships.ShipData.ById(scooped.Id) is not { } scoopBlueprint)
-            {
-                return 0;
-            }
-
-            int marketItem = scoopBlueprint.Header.ScoopMarketItem;
-            return marketItem == 0 ? 0 : marketItem - 1;
-        };
+            ShipCatalog.ByType(ship.Type) is { } scooped &&
+            EliteRemake.Data.Ships.ShipData.ById(scooped.Id) is { } scoopBlueprint
+                ? scoopBlueprint.Header.ScoopMarketItem
+                : 0;
 
         // Give any ship that spawns a name and a blueprint from the catalogue, so it can be drawn
         sim.ShipSpawned = ship =>
