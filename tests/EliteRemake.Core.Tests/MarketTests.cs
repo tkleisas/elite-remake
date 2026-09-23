@@ -900,6 +900,50 @@ public class TacticsTests
     /// nothing, so every ship in the sky flew at a constant speed: nothing closed on us, nothing
     /// braked to turn, and being shot at did not make a ship come at us any faster.
     /// </remarks>
+    /// <summary>
+    /// A destroyed ship is a cloud for about sixty iterations and then it is gone. The cloud counter
+    /// starts at 18 and DOEXP adds 4 every time the cloud is drawn; when the addition overflows, EX2
+    /// sets the killed bit, which is what removes the wreck.
+    /// </summary>
+    /// <remarks>
+    /// The counter was never run: the exploding flag was set and the counter left at zero, so a
+    /// destroyed ship stayed in the bubble for ever — motionless, because MVEIT skips an exploding
+    /// ship, and permanently on fire, until it happened to drift out of range.
+    /// </remarks>
+    [Fact]
+    public void ADestroyedShipIsACloudAndThenItIsGone()
+    {
+        var (sim, enemy) = CreateSim();
+        enemy.Energy = 1;
+
+        // Shoot it until it dies
+        for (int i = 0; i < 200 && !enemy.IsExploding; i++)
+        {
+            sim.Step(new FlightInput(Fire: true));
+        }
+
+        Assert.True(enemy.IsExploding, "the Sidewinder should have been destroyed");
+
+        // The counter starts at 18 and has already been ticked once: the original sets it as the ship
+        // is drawn and adds to it on the next draw, while here the cloud starts and ages in one
+        // iteration
+        Assert.Equal(Ship.ExplosionStart + FlightSim.ExplosionTicksPerDraw, enemy.ExplosionCounter);
+
+        // It stays there while the cloud runs: (256 - 18) / 4 = 59 more draws before it overflows
+        for (int i = 0; i < 50; i++)
+        {
+            sim.Step();
+            Assert.Contains(enemy, sim.Bubble);
+        }
+
+        for (int i = 0; i < 20; i++)
+        {
+            sim.Step();
+        }
+
+        Assert.DoesNotContain(enemy, sim.Bubble);
+    }
+
     [Fact]
     public void AThrottleIsSetByTacticsAndAppliedByMveit()
     {
@@ -2862,9 +2906,20 @@ public class EnergyBombTests
         Assert.True(sim.FireEnergyBomb());
         sim.Step();
 
-        Assert.True(pirate.IsKilled, "the pirate should be destroyed");
+        // The pirate is destroyed and left exploding: the wreck is taken away by its own cloud
+        // counter, not by the bomb, so that the player sees it blow up rather than vanish
+        Assert.True(pirate.IsExploding, "the pirate should be destroyed");
+        Assert.False(station.IsExploding, "energy bombs are useless against space stations");
         Assert.False(station.IsKilled, "energy bombs are useless against space stations");
         Assert.Equal(1, sim.BombKillsThisFrame);
+
+        // And the cloud takes it away in its own time
+        for (int i = 0; i < 80; i++)
+        {
+            sim.Step();
+        }
+
+        Assert.DoesNotContain(pirate, sim.Bubble);
     }
 }
 

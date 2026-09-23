@@ -528,6 +528,10 @@ public sealed class FlightSim
         // Scoop anything we are flying at, if we have the equipment for it
         UpdateScooping();
 
+        // Explosion clouds grow and then take the wreck with them, which the original does as it
+        // draws each one: "ADC #4 / BCS EX2" on the cloud counter, and EX2 sets the killed bit
+        UpdateExplosions();
+
         // Ships that have drifted out of range leave the bubble, as they do in the original
         RemoveDistantShips();
 
@@ -960,15 +964,21 @@ public sealed class FlightSim
 
         foreach (Ship ship in _bubble)
         {
-            // Energy bombs are useless against space stations
-            if (ship.Type == Combat.SpaceStationType || ship.IsKilled || IsCelestial(ship.Type))
+            // Energy bombs are useless against space stations, and "ships can't explode more than
+            // once": a ship that is already exploding is left alone
+            if (ship.Type == Combat.SpaceStationType ||
+                ship.IsKilled ||
+                ship.IsExploding ||
+                IsCelestial(ship.Type))
             {
                 continue;
             }
 
-            ship.IsKilled = true;
-            ship.IsExploding = true;
-            ship.Flags |= 0x40;
+            // The bomb does not remove a ship either: it starts its explosion, and the cloud's own
+            // counter is what takes the wreck away about sixty iterations later. The original's
+            // part 5 sets the killed bit and lets LL9 start the cloud as it draws; either way the
+            // player sees the ship blow up rather than vanish.
+            ship.StartExplosion();
             DestroyedThisFrame = ship;
             BombKillsThisFrame++;
         }
@@ -1260,6 +1270,36 @@ public sealed class FlightSim
         }
     }
 
+    /// <summary>
+    /// Ages the explosion clouds: DOEXP adds 4 to a ship's cloud counter each time it draws the
+    /// cloud, and when the addition overflows, EX2 sets the status byte's exploding and killed bits
+    /// together. The killed bit is what removes the wreck, which is why a destroyed ship is a cloud
+    /// for about sixty iterations and then is not there at all.
+    /// </summary>
+    private void UpdateExplosions()
+    {
+        foreach (Ship ship in _bubble)
+        {
+            if (!ship.IsExploding || ship.IsKilled)
+            {
+                continue;
+            }
+
+            int counter = ship.ExplosionCounter + ExplosionTicksPerDraw;
+            if (counter > 255)
+            {
+                ship.IsKilled = true;   // EX2's "ORA #%10100000", the killed half
+            }
+            else
+            {
+                ship.ExplosionCounter = (byte)counter;
+            }
+        }
+    }
+
+    /// <summary>How much the cloud counter advances each time the cloud is drawn: DOEXP's "ADC #4".</summary>
+    public const int ExplosionTicksPerDraw = 4;
+
     /// <summary>Takes the sun out of the bubble, as NWSPS clearing the FRIN table's second slot does.</summary>
     private void RemoveTheSun()
     {
@@ -1376,8 +1416,7 @@ public sealed class FlightSim
 
             if (Combat.ApplyHit(ship, CollisionDamageToThem))
             {
-                ship.IsExploding = true;
-                ship.Flags |= 0x40;
+                ship.StartExplosion();
                 DestroyedThisFrame = ship;
                 DropsThisFrame = Debris.DestructionDrops(ship.Type, 0, Random);
             }
@@ -1535,8 +1574,7 @@ public sealed class FlightSim
                 {
                     if (Combat.ApplyHit(hit, Missiles.DirectHitDamage))
                     {
-                        hit.IsExploding = true;
-                        hit.Flags |= 0x40;
+                        hit.StartExplosion();
                         DestroyedThisFrame = hit;
                         DropsThisFrame = Debris.DestructionDrops(hit.Type, 0, Random);
                     }
@@ -2059,8 +2097,7 @@ public sealed class FlightSim
                     else
                     {
                         // The hit destroyed it, so start its explosion and report the kill
-                        ship.IsExploding = true;
-                        ship.Flags |= 0x40; // the original's bit 6: an explosion is running
+                        ship.StartExplosion();
                         DestroyedThisFrame = ship;
 
                         // Rocks and ships leave something behind when they are destroyed

@@ -1259,7 +1259,10 @@ public sealed class FlightScene : IScene
                 continue;
             }
 
-            float radius = Camera.FocalLength * (200 + (ship.Energy * 4)) / z;
+            // The cloud grows as it ages, which is DOEXP's own size: the counter it ticks up by four
+            // a draw is what the cloud's radius is worked out from, "as the cloud counter ticks
+            // onward, the cloud expands"
+            float radius = Camera.FocalLength * (200 + (ship.ExplosionCounter * 4)) / z;
             if (radius < 1)
             {
                 continue;

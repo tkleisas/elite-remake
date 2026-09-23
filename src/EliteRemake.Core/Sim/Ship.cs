@@ -270,6 +270,39 @@ public sealed class Ship
         set => Flags = value ? (byte)(Flags | ShipDataBlock.FlagExploding) : (byte)(Flags & ~ShipDataBlock.FlagExploding);
     }
 
+    /// <summary>
+    /// The explosion cloud counter (byte #34), which starts at <see cref="ExplosionStart"/> and ticks
+    /// up by four every time the cloud is drawn until it overflows and the wreck is removed.
+    /// </summary>
+    public byte ExplosionCounter
+    {
+        get => _data[ShipDataBlock.ExplosionCounter];
+        set => _data[ShipDataBlock.ExplosionCounter] = value;
+    }
+
+    /// <summary>The cloud counter a new explosion starts at: LL9 part 1's "LDA #18 / STA INWK+34".</summary>
+    public const byte ExplosionStart = 18;
+
+    /// <summary>
+    /// Starts the ship's explosion cloud: the exploding flag, and the cloud counter at 18.
+    /// </summary>
+    /// <remarks>
+    /// The original sets the counter when the ship is *drawn* as an explosion — LL9 part 1 — and
+    /// DOEXP then adds 4 to it every time the cloud is drawn, which is once an iteration. When the
+    /// addition overflows it jumps to EX2, which sets bits 5 and 7 of the ship's status byte: the
+    /// ship is exploding *and* killed, and the killed bit is what removes it from the bubble and
+    /// pays the bounty. So a wreck is a cloud for about sixty iterations and then it is gone.
+    ///
+    /// The remake never ran this: it set the exploding flag and left the counter at zero, so a
+    /// destroyed ship stayed in the bubble for ever, motionless and permanently on fire, until it
+    /// happened to drift out of range.
+    /// </remarks>
+    public void StartExplosion()
+    {
+        IsExploding = true;
+        ExplosionCounter = ExplosionStart;
+    }
+
     /// <summary>True if the ship has been killed and should be removed from the bubble.</summary>
     public bool IsKilled
     {

@@ -4718,3 +4718,35 @@ byte had a field, a setter, two writers and a doc comment, and no consumer. The 
 model the field, wire the writer, forget the reader — has now produced the Anaconda's released ship,
 the escape pod's fuel, and this, and it is worth a sweep of every field in the ship data block for who
 reads it.
+
+## The wrecks never went away
+
+**A destroyed ship stayed in the sky for ever.** The remake set the exploding flag and stopped there;
+the cloud counter in byte #34 — which the port had a constant for and nothing else — was never
+started, so a wreck sat motionless, because MVEIT skips an exploding ship, and permanently on fire,
+until it happened to drift out of range. Explosions were drawn from `ship.Energy`, which is zero, so
+they were also all the same size.
+
+The original's lifecycle is three steps and runs through the drawing code:
+
+* something kills the ship — a laser, a missile, a collision, the energy bomb — which sets byte #31's
+  killed bit;
+* **LL9 part 1** sees a ship that is killed but not yet exploding, and starts the cloud: bit 5 on, the
+  acceleration and the pitch counter to zero so it stops flying, and the cloud counter to **18**;
+* **DOEXP**, every time it draws the cloud, adds **4** to that counter — "so it ticks onwards every
+  time we redraw it" — and when the addition overflows it jumps to EX2, which sets the exploding and
+  killed bits together; part 12 then pays the bounty and KILLSHP removes the ship.
+
+So a wreck is a cloud for about sixty iterations and then it is gone, and it grows as it ages, because
+the cloud's size is worked out from the same counter. Both are now in: the counter starts at 18, ages
+by four an iteration, and takes the wreck with it when it overflows, and the cloud's radius is the
+counter's rather than the dead ship's energy.
+
+**The energy bomb's victims are part of the same rule.** The bomb sets the killed bit rather than
+removing anything, "and ships can't explode more than once" is why it skips ships that are already
+exploding; its victims used to vanish without a cloud.
+
+Two notes on the original that this turned up, and that we do *not* reproduce: an in-flight message on
+screen when a kill is made suppresses the bounty — the source's own comment calls this "a bug in all
+versions" — and the bounty is paid when the cloud finishes rather than when the ship dies. Ours pays
+at once, which is recorded in `DIVERGENCES.md`.
