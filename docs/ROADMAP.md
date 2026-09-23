@@ -2394,3 +2394,41 @@ so the fix's effect is not confined to the docking slots that led to it.
 The two changes that could account for it are the visibility scale (round 97) and the rigid frame
 (round 96), and only someone looking at the screen can say. The measurements say the frame is now
 rigid and the slots now draw; they cannot say that the picture is right.
+
+## Looking for flicker, and not finding it
+
+The reported wobble is the one thing left that only a player can settle, so the next best move is to
+test the mechanism that would cause a *changing shape* rather than a subtle one: faces flipping
+visibility at boundary angles.
+
+**Counting faces is the wrong instrument, and the count even looks alarming.** Sweeping the Coriolis
+in five-degree steps, the number of faces the renderer keeps jumps by two at a time — 6, 4 at
+thirty degrees, and 6 again at sixty-five. For a body with parallel faces that is expected: two faces
+sharing a normal cross their boundary together. But the count says nothing about what is on screen,
+because a back-facing face contributes no pixels whether it was culled or not.
+
+**So the image was measured instead.** Rendering every two degrees from 26 to 40 and counting how many
+pixels differ between consecutive frames:
+
+| headings | pixels differing |
+| --- | --- |
+| 26 → 28 | 270 |
+| 28 → 30 | 308 |
+| 30 → 32 | 322 |
+| 32 → 34 | 318 |
+| 34 → 36 | 312 |
+| 36 → 38 | 334 |
+| 38 → 40 | 322 |
+
+**Smooth across the face-count jump**, which is the answer: the faces that appear and disappear there
+were behind the ones facing us, so they never reached the screen. A flicker would have shown as one
+step being several times its neighbours, and the largest step here is a fifth above the smallest.
+
+That does not prove the picture is right, but it does eliminate the one mechanism that would produce a
+*changing shape* as opposed to a static inaccuracy. What remains for the wobble is either something
+only a person can see, or something in the simulation rather than the renderer.
+
+**The instrument lesson is the same one, one level up.** Last round I measured the outline and missed
+a hole in the middle; this round the obvious instrument — how many faces are drawn — is blind to
+everything on screen, and the count's alarm was an artefact of parallel faces. Measuring a feature
+means measuring the thing the player sees, which for a renderer is pixels.
