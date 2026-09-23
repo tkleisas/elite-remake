@@ -1298,8 +1298,9 @@ missile on `M`, target on `T`, E.C.M. on `E`, the bomb on TAB, and the four flig
 keys the original gives them, `,` `.` `X` `S` with SPACE and `?` for the throttle.
 
 **The screen is reached from the status screen rather than taking a red function key**, so the
-original's own screens keep the keys they had. It walks the twelve bindings with up and down, rebinds
-on ENTER, resets to the originals on `R`, saves on CTRL-S, and leaves on ESCAPE. Escape during a
+original's own screens keep the keys they had — and since the in-system jump, the unarming key and the
+escape pod were added it walks sixteen bindings rather than twelve. It walks them with up and down,
+rebinds on ENTER, resets to the originals on `R`, saves on CTRL-S, and leaves on ESCAPE. Escape during a
 rebind cancels it rather than binding Escape, which a player would otherwise do by accident and then
 be stuck with.
 
