@@ -40,8 +40,27 @@ public static class Debris
     /// <summary>How close an item must be to scoop it.</summary>
     public const int ScoopRange = 200;
 
-    /// <summary>True for the types that count as junk for the original's limit.</summary>
-    public static bool IsJunk(int shipType) => shipType is Canister or Boulder or Asteroid or Splinter;
+    /// <summary>True for the types that count as junk in the original's JUNK counter.</summary>
+    /// <remarks>
+    /// The disc version does not test a list: NWSHP counts a new ship as junk when its type falls in
+    /// the range <c>JL</c> to <c>JH - 1</c>, and the source defines those as <c>JL=ESC</c> and
+    /// <c>JH=SHU+2</c> — every type from the escape pod to the transporter. An escape pod, an alloy
+    /// plate, a canister, a boulder, an asteroid, a splinter and the station's own shuttles and
+    /// transporters therefore all count, which matters twice: the limit of three is reached sooner
+    /// while the station is busy, and WARP refuses an in-system jump only for the ships that are
+    /// *not* junk. The list here used to stop at the splinter, which let a shuttle block a jump and
+    /// let junk pile up beside one.
+    /// </remarks>
+    public static bool IsJunk(int shipType) => shipType is >= EscapePod and <= Transporter;
+
+    /// <summary>The alloy plate type number, which a wreck leaves behind and counts as junk.</summary>
+    public const int AlloyPlate = 4;
+
+    /// <summary>The shuttle type number, which the station launches and which counts as junk.</summary>
+    public const int Shuttle = 9;
+
+    /// <summary>The transporter type number, the last of the types that count as junk.</summary>
+    public const int Transporter = 10;
 
     /// <summary>The escape pod's ship type, which scoops as slaves.</summary>
     public const int EscapePod = 3;

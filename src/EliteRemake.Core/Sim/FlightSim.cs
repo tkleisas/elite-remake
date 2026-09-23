@@ -578,6 +578,167 @@ public sealed class FlightSim
     public const int ThargonType = 30;
 
     /// <summary>
+    /// True while we are in witchspace, which is the original's MJ flag.
+    /// </summary>
+    /// <remarks>
+    /// The flag is owned here rather than by the game because the flight routines read it: WARP
+    /// refuses an in-system jump in witchspace, and witchspace is a state of the flight simulation
+    /// rather than of the session around it.
+    /// </remarks>
+    public bool InWitchspace { get; set; }
+
+    /// <summary>How far an in-system jump takes us, in the original's units.</summary>
+    /// <remarks>
+    /// WARP adds <c>&amp;81</c> to the planet's and the sun's z_sign — the top byte of the 24-bit
+    /// coordinate — and throws the low byte of the result away, which is one step of 65536 units. The
+    /// addition is sign-magnitude: against a body in front of us it takes one off the magnitude, and
+    /// against one behind us it adds one, so either way the body moves away along our own z axis.
+    /// That is the whole of the jump: we have travelled forward and the sky has not changed.
+    /// </remarks>
+    public const int InSystemJumpDistance = 65536;
+
+    /// <summary>
+    /// The original's WARP, which the "J" key calls: an in-system jump towards the planet.
+    /// </summary>
+    /// <returns>
+    /// True if we jumped; false if WARP refused, which in the original is the WA1 branch that makes a
+    /// long, low beep. The caller is what plays it.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// A jump is refused when there is anything in the bubble but junk — WARP reads the slot just
+    /// past the junk in the FRIN table, and the original keeps its junk in the first slots — when a
+    /// space station is present, or when we are in witchspace, which has no planet to jump towards.
+    /// It is refused again when we are facing a body and are already too close to it: WARP ORs the
+    /// magnitudes of the three top bytes of the body's position, halves the result and refuses if it
+    /// has become zero, so "too close" means less than two steps of 65536 in every axis.
+    /// </para>
+    /// <para>
+    /// Only the planet and the sun move. Everything else — junk, which the refusal above allows to be
+    /// there, and our own speed and heading — stays exactly where it was, so a rock we were flying
+    /// alongside is still alongside us after the jump.
+    /// </para>
+    /// </remarks>
+    public bool TryInSystemJump()
+    {
+        // "ORA MJ": there is no in-system jump in witchspace, which has neither planet nor sun
+        if (InWitchspace)
+        {
+            return false;
+        }
+
+        // "LDX JUNK / LDA FRIN+2,X / ORA SSPR": anything but junk stops the jump. The two slots in
+        // front of the junk hold the planet and the sun, which is why the original starts its count
+        // at FRIN+2; here they are ordinary members of the bubble, so they are skipped by type.
+        foreach (Ship ship in _bubble)
+        {
+            if (!IsSystemBody(ship.Type) && !Debris.IsJunk(ship.Type))
+            {
+                return false;
+            }
+        }
+
+        // "If we are facing the planet and are too close to it, we can't jump past it"
+        if (TooCloseToJump(SystemArrival.PlanetTypeA) ||
+            TooCloseToJump(SystemArrival.PlanetTypeB) ||
+            TooCloseToJump(ShipTypes.Sun))
+        {
+            return false;
+        }
+
+        bool moved = false;
+        foreach (Ship body in _bubble)
+        {
+            if (!IsSystemBody(body.Type))
+            {
+                continue;
+            }
+
+            (int x, int y, int z) = body.GetPosition();
+            body.SetPosition(x, y, z - InSystemJumpDistance);
+            moved = true;
+        }
+
+        if (!moved)
+        {
+            return false;   // nowhere to jump: no planet and no sun in the bubble
+        }
+
+        // "Set the main loop counter to 1, so the next iteration through the main loop will
+        // potentially spawn ships"
+        MainLoopCounter = 1;
+
+        // "Set EV, the extra vessels spawning counter, to 0"
+        _spawnDelay = 0;
+
+        // The original goes on to LOOK1 with QQ11 forced non-zero, which clears the screen, redraws
+        // the crosshairs and sets up a new stardust field. Clearing the screen here means no more
+        // than returning true: the ships that were drawn are gone from the bubble, and the caller
+        // re-seeds the stardust.
+        return true;
+    }
+
+    /// <summary>
+    /// Whether one of the original's WARP proximity checks applies to a body: it refuses the jump
+    /// when the body is in front of us and closer than two steps of the top byte.
+    /// </summary>
+    /// <remarks>
+    /// WARP tests the body's z_sign first and skips the check when bit 7 is set, which for the
+    /// original's sign-magnitude byte means the body is behind us. The port's coordinates are signed
+    /// integers, so that is a test for a negative z — and a body exactly level with us counts as in
+    /// front, as it does in the original, where z_sign is then +0 with bit 7 clear.
+    /// </remarks>
+    private bool TooCloseToJump(int type)
+    {
+        foreach (Ship body in _bubble)
+        {
+            if (body.Type != type)
+            {
+                continue;
+            }
+
+            (int x, int y, int z) = body.GetPosition();
+
+            if (z < 0)
+            {
+                return false;
+            }
+
+            int topByte = (Math.Abs(x) >> 16) | (Math.Abs(y) >> 16) | (Math.Abs(z) >> 16);
+
+            // "LSR A / BEQ WA1": the original halves the OR of the three magnitudes and refuses the
+            // jump if the result is zero
+            return topByte < 2;
+        }
+
+        return false;
+    }
+
+    /// <summary>True for the planet and the sun, which are the bodies the simulation places itself.</summary>
+    private static bool IsSystemBody(int shipType) =>
+        shipType is SystemArrival.PlanetTypeA or SystemArrival.PlanetTypeB or ShipTypes.Sun;
+
+    /// <summary>
+    /// The original's ABORT, which the "U" key calls: the missile we have locked onto a target is
+    /// unarmed, so the lock is released and the indicator goes back to green.
+    /// </summary>
+    /// <returns>
+    /// True if there was a missile to unarm, which is the original's test of NOMSL; the caller plays
+    /// the long, low beep that tells us the missile is no longer aimed at anything.
+    /// </returns>
+    public bool UnarmMissile()
+    {
+        if (Commander is not { Missiles: > 0 })
+        {
+            return false;
+        }
+
+        MissileLock = null;
+        MissileUnarmedThisFrame = true;
+        return true;
+    }
+
+    /// <summary>
     /// Sets up the witchspace ambush, as the original's MJP does: the bubble is emptied and four
     /// Thargoids appear, each with a Thargon in attendance, and there is no planet or sun.
     /// </summary>
@@ -588,6 +749,8 @@ public sealed class FlightSim
     /// </remarks>
     public void ArriveInWitchspace()
     {
+        InWitchspace = true;
+
         foreach (Ship ship in _bubble.ToArray())
         {
             Remove(ship);

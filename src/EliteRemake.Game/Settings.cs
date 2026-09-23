@@ -41,6 +41,25 @@ public sealed class Settings
     [JsonPropertyName("dockingComputer")]
     public string DockingComputer { get; set; } = nameof(Keys.C);
 
+    /// <summary>The in-system jump, on the original's "J".</summary>
+    [JsonPropertyName("inSystemJump")]
+    public string InSystemJump { get; set; } = nameof(Keys.J);
+
+    /// <summary>Unarm the missile, on the original's "U".</summary>
+    [JsonPropertyName("unarmMissile")]
+    public string UnarmMissile { get; set; } = nameof(Keys.U);
+
+    /// <summary>
+    /// Launch our escape pod, on the original's ESCAPE key.
+    /// </summary>
+    /// <remarks>
+    /// This is the one binding whose key the remake had already given to something else: ESCAPE left
+    /// the game, where the original launches a pod with it. In flight the pod wins, and F10 leaves
+    /// from anywhere, which is a modern addition of the same kind as the bindings themselves.
+    /// </remarks>
+    [JsonPropertyName("escapePod")]
+    public string EscapePod { get; set; } = nameof(Keys.Escape);
+
     /// <summary>Hyperspace. The original uses "H" from the charts; there is no flight key for it.</summary>
     [JsonPropertyName("hyperspace")]
     public string Hyperspace { get; set; } = nameof(Keys.H);
@@ -87,6 +106,9 @@ public sealed class Settings
         ("TARGET", () => Target, v => Target = v),
         ("E.C.M.", () => Ecm, v => Ecm = v),
         ("ENERGY BOMB", () => EnergyBomb, v => EnergyBomb = v),
+        ("IN-SYSTEM JUMP", () => InSystemJump, v => InSystemJump = v),
+        ("UNARM MISSILE", () => UnarmMissile, v => UnarmMissile = v),
+        ("ESCAPE POD", () => EscapePod, v => EscapePod = v),
         ("HYPERSPACE", () => Hyperspace, v => Hyperspace = v),
         ("DOCKING COMPUTER", () => DockingComputer, v => DockingComputer = v),
         ("ROLL LEFT", () => RollLeft, v => RollLeft = v),
@@ -137,6 +159,9 @@ public sealed class Settings
     public Keys EnergyBombKey => Key(EnergyBomb, Keys.Tab);
     public Keys HyperspaceKey => Key(Hyperspace, Keys.H);
     public Keys DockingComputerKey => Key(DockingComputer, Keys.C);
+    public Keys InSystemJumpKey => Key(InSystemJump, Keys.J);
+    public Keys UnarmMissileKey => Key(UnarmMissile, Keys.U);
+    public Keys EscapePodKey => Key(EscapePod, Keys.Escape);
     public Keys RollLeftKey => Key(RollLeft, Keys.OemComma);
     public Keys RollRightKey => Key(RollRight, Keys.OemPeriod);
     public Keys PullUpKey => Key(PullUp, Keys.X);

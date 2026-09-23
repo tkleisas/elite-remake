@@ -26,6 +26,52 @@ public class GameLoopTests
         return new GameSession(Commander.CreateDefault(), new FlightSim(player));
     }
 
+    /// <summary>
+    /// Launching our own escape pod is the original's ESCAPE key: the pod is spent, the cargo goes
+    /// with the ship, and we are picked up at the station with a full tank and a clean record.
+    /// </summary>
+    [Fact]
+    public void LaunchingAnEscapePodLosesTheCargoAndEndsAtTheStation()
+    {
+        GameSession session = NewSession();
+        session.Flight.Commander = session.Commander;
+        session.Commander.EscapePod = true;
+        session.Commander.Cash = 500;
+        session.Commander.Fuel = 12;
+        session.Commander.LegalStatus = 90;
+        session.Commander.AddCargo(5, 3);
+        session.Commander.AddCargo(0, 7);
+
+        Assert.True(session.LaunchEscapePod());
+
+        // The pod is a one-use item, the hold is emptied, the record is wiped and the replacement
+        // ship arrives with a full tank. Cash is untouched: the original salvages the commander, not
+        // the cargo.
+        Assert.False(session.Commander.EscapePod);
+        Assert.Equal(0, session.Commander.GetCargo(5));
+        Assert.Equal(0, session.Commander.GetCargo(0));
+        Assert.Equal(0, session.Commander.LegalStatus);
+        Assert.Equal(EliteRemake.Core.Universe.Outfitting.MaxFuel, session.Commander.Fuel);
+        Assert.Equal(500, session.Commander.Cash);
+
+        // And we are in the station, not left flying
+        Assert.Equal(GameMode.Docked, session.Mode);
+        Assert.Equal("Escape pod launched: cargo lost, but you were picked up at the station.", session.Message);
+    }
+
+    /// <summary>Without a pod the key does nothing at all, as the original's ESCP test does.</summary>
+    [Fact]
+    public void ThereIsNoEscapePodToLaunchWithoutOneFitted()
+    {
+        GameSession session = NewSession();
+        session.Flight.Commander = session.Commander;
+        session.Commander.EscapePod = false;
+
+        Assert.False(session.LaunchEscapePod());
+        Assert.Equal(GameMode.Flying, session.Mode);
+        Assert.False(session.GameOver);
+    }
+
     /// <summary>Runs a hyperspace countdown to its end, returning whether the jump completed.</summary>
     private static bool CompleteJump(GameSession session)
     {
@@ -1069,22 +1115,34 @@ public class StationTacticsTests
 
         Assert.NotNull(launched);
 
+        // Pin the role. A trader — which is what a shuttle is in the NEWB flags — rolls to turn out
+        // to be a pirate, and a pirate flies at us instead of at the planet, so leaving the roll in
+        // makes this test a coin toss that the RNG decides. Measured: the roll came up pirate, and
+        // the ship circled us while the planet drifted no closer. The roll itself is covered by
+        // TacticsTests.
+        launched.NewbFlags &= unchecked((byte)~(Ship.NewbHostile | Ship.NewbTrader));
+
         Ship planet = Assert.Single(sim.Bubble, s => s.Type == SystemArrival.PlanetTypeA);
         (int px, int py, int pz) = planet.GetPosition();
 
-        double Distance() 
+        double Distance()
         {
-            (int x, int y, int z) = launched!.GetPosition();
+            (int x, int y, int z) = launched.GetPosition();
             return Math.Sqrt(Math.Pow(x - px, 2) + Math.Pow(y - py, 2) + Math.Pow(z - pz, 2));
         }
 
         double before = Distance();
-        for (int i = 0; i < 400; i++)
+
+        // A thousand iterations, because the shuttle is launched from the station facing us and has
+        // to come about before it can close on the planet at all: the turn is the original's RAT of
+        // three, which is three steps of 3.58 degrees per eight-iteration tactics cycle. Measured, it
+        // closes 10,500 units over the thousand, so the margin here is wide.
+        for (int i = 0; i < 1000; i++)
         {
             sim.Step();
         }
 
-        Assert.True(Distance() < before,
+        Assert.True(Distance() < before - 5000,
             $"the launched ship should be heading for the planet: {before:0} then {Distance():0}");
     }
 

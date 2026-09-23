@@ -650,6 +650,65 @@ public class TacticsTests
         return (sim, enemy);
     }
 
+    /// <summary>
+    /// A peaceful ship's steering actually turns it onto its target. This is the rule the AI turns
+    /// every trader, shuttle and transporter in the game with, and it is worth testing on its own
+    /// because it is made of three parts that are easy to get subtly wrong: the dot products are the
+    /// original's own bytes, the roll's direction comes from the side dot product combined with the
+    /// pitch the ship has just been given, and a new roll is only started once the last one has
+    /// played out.
+    /// </summary>
+    /// <remarks>
+    /// The failure this catches is not a small error in the turn: with the roll's sign taken from the
+    /// side dot product alone — which is what the port did — the ship rolls the same way it is about
+    /// to pitch, and the nose is driven round the target instead of onto it. Measured, that variant
+    /// sits at 33 degrees from a target 38 degrees off while this one closes to nothing; a station's
+    /// shuttle launched towards a planet 30 degrees off its nose circled it for ever.
+    /// </remarks>
+    [Fact]
+    public void APeacefulShipTurnsOntoItsTarget()
+    {
+        var target = System.Numerics.Vector3.Normalize(new System.Numerics.Vector3(0.5f, 0.35f, 0.79f));
+
+        var ship = Ship.Create(17, "sidewinder", "Trader", 0, 0, 0, 0, 2000);
+        ship.AiFlag = 0;             // no aggression, so TACTICS never makes it attack
+        ship.NewbFlags = 0;          // and no trader bit, so it never rolls to turn pirate
+
+        double Start() => Angle(ship, target);
+
+        double before = Start();
+        Assert.InRange(before, 35, 40);
+
+        // The planet is placed along the target direction, far enough away that the ship's own
+        // position never matters
+        var planet = new System.Numerics.Vector3(target.X * 300000, target.Y * 300000, target.Z * 300000);
+
+        var random = new EliteRandom(7);
+        for (int i = 0; i < 200; i++)
+        {
+            Tactics.Apply(ship, random, ship, 0, 0, planet, null);
+            ShipMovement.RotateShipAboutItself(ship.Orientation, ship.Data);
+        }
+
+        // It does not settle exactly on the target and is not meant to: RAT2 leaves both counters at
+        // zero once the aim error is under about three degrees, and one step of the turn is 3.58
+        // degrees, so a ship on course jitters around its target by a few degrees. Measured over 400
+        // iterations it falls from 37.7 degrees to between 2 and 5 and stays there.
+        double after = Start();
+        Assert.True(after < 8, $"the ship should have turned onto its target, but is {after:0.0} degrees off");
+    }
+
+    /// <summary>How far a ship's nose is from a direction, in degrees.</summary>
+    private static double Angle(Ship ship, System.Numerics.Vector3 direction)
+    {
+        var nose = new System.Numerics.Vector3(
+            (float)ship.Orientation.GetUnity(Orientation.Nosev, Orientation.X),
+            (float)ship.Orientation.GetUnity(Orientation.Nosev, Orientation.Y),
+            (float)ship.Orientation.GetUnity(Orientation.Nosev, Orientation.Z));
+        nose = System.Numerics.Vector3.Normalize(nose);
+        return Math.Acos(Math.Clamp(System.Numerics.Vector3.Dot(nose, direction), -1, 1)) * 180 / Math.PI;
+    }
+
     [Fact]
     public void AggressiveShipsAttackAndPeacefulOnesDoNot()
     {
@@ -1202,6 +1261,27 @@ public class SpawnerTests
 /// </summary>
 public class DebrisTests
 {
+    /// <summary>
+    /// Junk is the range of ship types from the escape pod to the transporter, which is how the disc
+    /// version counts it: <c>JL=ESC</c> and <c>JH=SHU+2</c>. It matters that the range reaches the
+    /// shuttle and the transporter, because WARP lets junk through an in-system jump and the junk
+    /// limit counts it.
+    /// </summary>
+    [Fact]
+    public void JunkIsEveryTypeFromTheEscapePodToTheTransporter()
+    {
+        Assert.False(Debris.IsJunk(Debris.EscapePod - 1));   // the Coriolis
+        Assert.True(Debris.IsJunk(Debris.EscapePod));        // 3, the escape pod
+        Assert.True(Debris.IsJunk(Debris.AlloyPlate));       // 4
+        Assert.True(Debris.IsJunk(Debris.Canister));         // 5
+        Assert.True(Debris.IsJunk(Debris.Boulder));          // 6
+        Assert.True(Debris.IsJunk(Debris.Asteroid));         // 7
+        Assert.True(Debris.IsJunk(Debris.Splinter));         // 8
+        Assert.True(Debris.IsJunk(Debris.Shuttle));          // 9
+        Assert.True(Debris.IsJunk(Debris.Transporter));      // 10
+        Assert.False(Debris.IsJunk(Debris.Transporter + 1)); // 11, the Cobra Mk III
+    }
+
     [Fact]
     public void JunkSpawnsThirteenPercentOfTheTimeAndOnlyThreeAtOnce()
     {

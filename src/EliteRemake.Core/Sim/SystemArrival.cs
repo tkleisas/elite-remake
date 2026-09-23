@@ -28,25 +28,36 @@ public static class SystemArrival
     /// <summary>
     /// Creates the planet for a system, placed as SOLAR places it.
     /// </summary>
-    public static Ship CreatePlanet(StarSystem system)
+    /// <param name="system">The system whose seeds decide where the planet sits.</param>
+    /// <param name="statusCarry">
+    /// The carry flag the original's own halving of our legal status leaves behind, which its planet
+    /// distance picks up. See the remark below.
+    /// </param>
+    /// <remarks>
+    /// The disc version takes the planet's distance from bits 0-1 of s0_hi and adds 3 plus the carry
+    /// flag, giving 3 to 7 in the top byte of the 24-bit coordinate — that is, 3-7 * 65536 units. It
+    /// then halves that value with a ROR, carry clear, and stores it in both the x and y sign bytes,
+    /// so the planet is always ahead of us and up to the right, never behind or to the left.
+    ///
+    /// That carry is not a stray: the instruction before the planet is placed is the LSR that halves
+    /// our legal status, and nothing in between touches the flag, so a commander whose status is odd
+    /// arrives one step further from the planet than one whose status is even. It is a real
+    /// consequence of the original's code rather than a figure invented here, which is why the
+    /// parameter exists instead of the value being guessed.
+    /// </remarks>
+    public static Ship CreatePlanet(StarSystem system, int statusCarry = 0)
     {
         // The planet's type comes from bit 1 of the system's tech level
         int type = (system.TechLevel & 0x02) != 0 ? PlanetTypeB : PlanetTypeA;
 
-        // The original works the distance out from s0_hi and stores it in the planet's z_sign:
-        // bits 0-2, plus 6, halved, then bits 0-1 plus 3, gives 3 to 7 in the top byte. The same
-        // value goes into the x and y sign bytes, so the planet sits ahead of us and only slightly
-        // off to one side — the sign bytes carry the top bits of the coordinate, so a small value
-        // there is a small offset, not a large one. Putting the planet half its distance to the
-        // side instead, as this did, throws it off the corner of the screen and it is never seen.
-        int zSign = (((system.Seeds.S0Hi & 0x07) + 6) >> 1 & 0x03) + 3;
-        int offset = system.Seeds.S1Lo >= 128 ? 1 : 0;
-        int vertical = system.Seeds.S1Hi >= 128 ? 1 : 0;
+        // z_sign = (s0_hi AND %11) + 3 + C; x_sign and y_sign are that value halved
+        int zSign = (system.Seeds.S0Hi & 0x03) + 3 + (statusCarry & 1);
+        int offset = zSign >> 1;
 
         var planet = new Ship(type, string.Empty, $"{system.Name} (planet)");
         planet.SetCoordinate(ShipDataBlock.Z, zSign << 16);
-        planet.SetCoordinate(ShipDataBlock.X, offset);
-        planet.SetCoordinate(ShipDataBlock.Y, vertical);
+        planet.SetCoordinate(ShipDataBlock.X, offset << 16);
+        planet.SetCoordinate(ShipDataBlock.Y, offset << 16);
 
         // The original sets the pitch and roll counters to 127 so the planet turns slowly and
         // never damps to a stop
@@ -61,30 +72,38 @@ public static class SystemArrival
     /// Creates the sun for a system, placed as SOLAR places it: behind us, so the first thing a new
     /// pilot does is turn round to find it.
     /// </summary>
+    /// <remarks>
+    /// The disc version sets z_sign to <c>%10000001 OR (s1_hi AND 7)</c>, so the sun is behind us at
+    /// an odd 1 to 7 in the top byte of the coordinate, and stores s2_hi AND 3 in the x sign byte and
+    /// in the x high byte. The original's comment says y_sign; the instruction is <c>STA INWK+1</c>,
+    /// which is x_hi. Taking the comment at its word would put the sun up to three times its own
+    /// distance above or below us, which is not what "dead centre in our rear laser crosshairs"
+    /// describes.
+    /// </remarks>
     public static Ship CreateSun(StarSystem system)
     {
-        // z_sign = (s1_hi AND %111) OR %10000001, so the sun is behind us at 1 to 7
-        int zSign = (system.Seeds.S1Hi & 0x07) | 0x81;
-
-        // x_sign and y_sign come from the low bits of s2_hi, so the sun is off to one side
+        int zSign = (system.Seeds.S1Hi & 0x07) | 0x01;
         int offset = system.Seeds.S2Hi & 0x03;
 
         var sun = new Ship(ShipTypes.Sun, string.Empty, $"{system.Name} (sun)");
-        // The sign bytes carry the top bits of the coordinate, so a small value there is a small
-        // offset: the sun is behind us, either dead centre in the rear view or off to one side
-        sun.SetCoordinate(ShipDataBlock.Z, -((system.Seeds.S1Hi & 0x07) | 0x01) << 16);
-        sun.SetCoordinate(ShipDataBlock.X, offset);
-        sun.SetCoordinate(ShipDataBlock.Y, offset);
+        sun.SetCoordinate(ShipDataBlock.Z, -(zSign << 16));
+
+        // "STA INWK+2 / STA INWK+1": the offset goes into x_sign *and* into x_hi — INWK+1 is the top
+        // byte of x and not of y, whatever the original's own comment says — so the sun sits off to
+        // one side by 1 to 3 steps of 65536 and dead centre vertically, which is the "dead centre in
+        // our rear laser crosshairs" the same comment describes. Reading the second store as y_sign
+        // instead throws the sun up to three times its own distance above or below us.
+        sun.SetCoordinate(ShipDataBlock.X, (offset << 16) | (offset << 8));
         sun.Energy = 255;
 
         return sun;
     }
 
     /// <summary>Adds the planet and the sun to the simulation, as arriving in a system does.</summary>
-    public static void AddSystemBodies(FlightSim sim, StarSystem system)
+    public static void AddSystemBodies(FlightSim sim, StarSystem system, int statusCarry = 0)
     {
         sim.Spawn(CreateSun(system));
-        sim.Spawn(CreatePlanet(system));
+        sim.Spawn(CreatePlanet(system, statusCarry));
     }
 
     /// <summary>
@@ -103,14 +122,19 @@ public static class SystemArrival
         FlightSim sim,
         StarSystem system,
         int stationDistance,
-        byte stationSpinRoll)
+        byte stationSpinRoll,
+        int statusCarry = 0)
     {
         foreach (Ship ship in sim.Bubble.ToArray())
         {
             sim.Remove(ship);
         }
 
-        AddSystemBodies(sim, system);
+        // Arriving anywhere but witchspace means we are no longer in it, which is the original's own
+        // clearing of MJ as the hyperspace routines hand over to the arrival
+        sim.InWitchspace = false;
+
+        AddSystemBodies(sim, system, statusCarry);
         sim.Spawn(CreateStation(stationDistance, stationSpinRoll));
     }
 

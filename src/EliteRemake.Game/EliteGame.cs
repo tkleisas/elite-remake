@@ -4,6 +4,7 @@ using EliteRemake.Game.Rendering;
 using EliteRemake.Game.Scenes;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 
 namespace EliteRemake.Game;
 
@@ -81,6 +82,19 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
         if (_options.SimWarmupFrames > 0 && _scene is Scenes.FlightScene flight)
         {
             flight.Warmup(_options.SimWarmupFrames, _options.WarmupInput);
+        }
+
+        // --in-system-jump: the "J" key's own mechanic, from the command line. It runs after the
+        // warmup, because a jump needs an empty sky: the station is in the bubble until we have
+        // flown far enough away from it, which is exactly the original's rule.
+        if (_options.InSystemJumps > 0 && _scene is Scenes.FlightScene jumping)
+        {
+            for (int i = 0; i < _options.InSystemJumps; i++)
+            {
+                Console.WriteLine(jumping.InSystemJump()
+                    ? $"In-system jump {i + 1} made."
+                    : $"In-system jump {i + 1} refused.");
+            }
         }
     }
 
@@ -198,7 +212,13 @@ public sealed class EliteGame : Microsoft.Xna.Framework.Game
 
     protected override void Update(GameTime gameTime)
     {
-        if (Microsoft.Xna.Framework.Input.Keyboard.GetState().IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape))
+        // ESCAPE leaves the game except in flight, where the original launches an escape pod with it
+        // and a faithful remake has to let it; F10 leaves from anywhere, and the game-over screen
+        // still answers to ESCAPE because there is no ship left to leave.
+        KeyboardState pressed = Microsoft.Xna.Framework.Input.Keyboard.GetState();
+        bool inFlight = _session.Mode == GameMode.Flying && !_session.GameOver;
+        if (pressed.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.F10) ||
+            (pressed.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !inFlight))
         {
             Exit();
         }

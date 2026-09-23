@@ -217,10 +217,12 @@ public sealed class GameSession
         Market = Universe.Market.Build(System, _random.Next());
         SyncSimulationToUniverse();
 
-        // Arriving somewhere new improves our record: the original's SOLAR halves our legal status
-        // with an LSR every time we arrive in a system, so a commander who lies low and keeps
-        // jumping works his way back to clean. Bit 0 is lost, which is why a status of 1 becomes 0
-        // rather than staying at 1.
+        // Arriving somewhere new improves our record: SOLAR halves our legal status with an LSR every
+        // time we arrive in a system, so a commander who lies low and keeps jumping works his way
+        // back to clean. Bit 0 is lost, and it is not lost silently: the carry from that same shift
+        // is what SOLAR's planet distance adds to its 3 to 7, so it decides whether the planet sits
+        // one step of 65536 further away. The bit is kept here for the sky that is built next.
+        ArrivalStatusCarry = Commander.LegalStatus & 1;
         if (Commander.LegalStatus > 0)
         {
             Commander.LegalStatus /= 2;
@@ -231,6 +233,12 @@ public sealed class GameSession
     }
 
     /// <summary>
+    /// The bit our legal status loses when the arrival halves it, which the original's planet
+    /// distance is built from. See <see cref="SystemArrival.CreatePlanet"/>.
+    /// </summary>
+    public int ArrivalStatusCarry { get; private set; }
+
+    /// <summary>
     /// True when the last jump went wrong and we are in witchspace.
     /// </summary>
     /// <remarks>
@@ -238,8 +246,15 @@ public sealed class GameSession
     /// comment gives as a 0.78% chance. A mis-jump leaves us where we were: MJP loads the Thargoid
     /// blueprints, shows the tunnel again, resets the flight variables, sets its MJ flag and spawns
     /// four Thargoids, each with a Thargon in attendance, and there is no planet or sun to be seen.
+    ///
+    /// The flag lives on the flight simulation, which is what reads it: WARP refuses an in-system
+    /// jump while it is set.
     /// </remarks>
-    public bool InWitchspace { get; private set; }
+    public bool InWitchspace
+    {
+        get => Flight.InWitchspace;
+        private set => Flight.InWitchspace = value;
+    }
 
     /// <summary>The random byte at or above which a jump mis-jumps: the original's <c>CMP #253</c>.</summary>
     public const int MisjumpThreshold = 253;
@@ -632,6 +647,28 @@ public sealed class GameSession
     }
 
     /// <summary>
+    /// Launches our own escape pod, which is what the original's ESCAPE key does: the pod is spent,
+    /// the cargo is lost with the ship, and we are picked up at the station.
+    /// </summary>
+    /// <returns>True if the pod was launched; false if we have none fitted, or are not flying.</returns>
+    /// <remarks>
+    /// The original refuses the key when ESCP is clear and does nothing else at all — there is no
+    /// message and no beep — which is what this returns false for. It shows our abandoned Cobra
+    /// drifting away first, through ninety-seven passes of its inner loop; the remake goes straight
+    /// to the station, which is recorded as a departure.
+    /// </remarks>
+    public bool LaunchEscapePod()
+    {
+        if (Mode != GameMode.Flying || !Commander.EscapePod)
+        {
+            return false;
+        }
+
+        HandlePlayerDeath();
+        return true;
+    }
+
+    /// <summary>
     /// Handles the destruction of our ship. With an escape pod fitted the commander survives, loses
     /// the cargo and wakes up in the station, as the original does; without one it is game over,
     /// and the commander is rebuilt from scratch (until save and load arrive, this stands in for
@@ -660,7 +697,7 @@ public sealed class GameSession
         }
 
         GameOver = true;
-        Message = "GAME OVER - press ESC to leave, or N for a new commander";
+        Message = "GAME OVER - press ESC or F10 to leave, or N for a new commander";
     }
 
     /// <summary>Starts again with a fresh commander, as reloading a save does.</summary>

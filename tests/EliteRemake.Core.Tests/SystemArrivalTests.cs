@@ -117,4 +117,84 @@ public class SystemArrivalTests
         Ship station = Assert.Single(sim.Bubble, s => s.Type == ShipTypes.Coriolis);
         Assert.Equal(9000, station.GetPosition().Z);
     }
+    /// <summary>
+    /// The planet sits ahead of us and up to the right at 3 to 7 steps of 65536, as SOLAR places it:
+    /// the distance comes from bits 0-1 of s0_hi plus 3 plus the carry, and the same value halved
+    /// goes into both the x and y sign bytes.
+    /// </summary>
+    [Theory]
+    [InlineData(0, 3)]
+    [InlineData(1, 4)]
+    [InlineData(2, 5)]
+    [InlineData(3, 6)]
+    public void ThePlanetIsPlacedWhereSolarPlacesIt(int seedBits, int expectedDistance)
+    {
+        FlightSim sim = CreateSim();
+        StarSystem system = WithS0Hi(TwoSystems()[0], seedBits);
+
+        SystemArrival.AddSystemBodies(sim, system);
+
+        Ship planet = Assert.Single(sim.Bubble, s => s.Type == SystemArrival.PlanetTypeA);
+        (int x, int y, int z) = planet.GetPosition();
+
+        Assert.Equal(expectedDistance << 16, z);
+        Assert.Equal(expectedDistance / 2 << 16, x);
+        Assert.Equal(expectedDistance / 2 << 16, y);
+    }
+
+    /// <summary>
+    /// The carry flag SOLAR's halving of our legal status leaves behind is added to the planet's
+    /// distance, so a commander with an odd record arrives one step further out.
+    /// </summary>
+    [Fact]
+    public void TheCarryFromHalvingOurRecordMovesThePlanetAStepFurtherOut()
+    {
+        StarSystem system = WithS0Hi(TwoSystems()[0], 0);   // a distance of 4
+
+        FlightSim even = CreateSim();
+        SystemArrival.AddSystemBodies(even, system, statusCarry: 0);
+
+        FlightSim odd = CreateSim();
+        SystemArrival.AddSystemBodies(odd, system, statusCarry: 1);
+
+        int evenZ = Assert.Single(even.Bubble, s => s.Type == SystemArrival.PlanetTypeA).GetPosition().Z;
+        int oddZ = Assert.Single(odd.Bubble, s => s.Type == SystemArrival.PlanetTypeA).GetPosition().Z;
+
+        Assert.Equal(3 << 16, evenZ);
+        Assert.Equal(4 << 16, oddZ);
+    }
+
+    /// <summary>
+    /// The sun is behind us at an odd 1 to 7 steps of 65536, off to one side in x by up to three
+    /// steps — in the sign byte and in the high byte, as SOLAR stores it — and dead centre in y.
+    /// </summary>
+    [Fact]
+    public void TheSunIsPlacedBehindUsWhereSolarPlacesIt()
+    {
+        FlightSim sim = CreateSim();
+        StarSystem system = TwoSystems()[0];
+
+        SystemArrival.AddSystemBodies(sim, system);
+
+        Ship sun = Assert.Single(sim.Bubble, s => s.Type == ShipTypes.Sun);
+        (int x, int y, int z) = sun.GetPosition();
+
+        Assert.Equal(-(((system.Seeds.S1Hi & 0x07) | 0x01) << 16), z);
+        Assert.True(z < 0, "the sun is behind us");
+
+        int offset = system.Seeds.S2Hi & 0x03;
+        Assert.Equal((offset << 16) | (offset << 8), x);
+        Assert.Equal(0, y);
+
+        // Every seed gives a sun within three steps of the centre line in x, which is what the
+        // original's "dead centre in our rear laser crosshairs" describes
+        Assert.True(Math.Abs(x) <= 3 << 16);
+    }
+
+    /// <summary>A system whose seeds have had their s0_hi replaced, so a placement can be pinned.</summary>
+    private static StarSystem WithS0Hi(StarSystem system, int s0Hi)
+    {
+        SystemSeeds seeds = system.Seeds with { S0 = (ushort)((system.Seeds.S0 & 0x00FF) | (s0Hi << 8)) };
+        return system with { Seeds = seeds };
+    }
 }

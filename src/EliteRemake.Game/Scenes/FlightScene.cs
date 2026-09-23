@@ -56,6 +56,9 @@ public sealed class FlightScene : IScene
     private bool _ecmPressed;
     private bool _jumpPressed;
     private bool _bombPressed;
+    private bool _unarmPressed;
+    private bool _inSystemJumpPressed;
+    private bool _escapePodPressed;
 
     /// <summary>
     /// Runs the original's docking checks: fly through the station's slot and we dock, hit the
@@ -350,7 +353,8 @@ public sealed class FlightScene : IScene
             _sim,
             system,
             stationDistance,
-            SystemArrival.StationRollCounter);
+            SystemArrival.StationRollCounter,
+            Session?.ArrivalStatusCarry ?? 0);
 
         _system = system;
 
@@ -395,6 +399,23 @@ public sealed class FlightScene : IScene
 
         LastInput = input;
         _starfield.Update(_sim.Speed * frames);
+    }
+
+    /// <summary>
+    /// Makes one in-system jump, giving the sky a new stardust field if it happened. The "J" key and
+    /// the command line's <c>--in-system-jump</c> both come through here, so that what the key does
+    /// and what the development command does cannot drift apart.
+    /// </summary>
+    /// <returns>True if we jumped; false if it was refused and the caller should beep.</returns>
+    public bool InSystemJump()
+    {
+        if (!_sim.TryInSystemJump())
+        {
+            return false;
+        }
+
+        _starfield.Reset();
+        return true;
     }
 
     /// <summary>
@@ -707,6 +728,51 @@ public sealed class FlightScene : IScene
             else if (!keys.IsKeyDown(Settings.EcmKey))
             {
                 _ecmPressed = false;
+            }
+
+            // U unarms the missile, which the original answers with a long, low beep whether or not
+            // it was aimed at anything
+            if (keys.IsKeyDown(Settings.UnarmMissileKey) && !_unarmPressed)
+            {
+                _unarmPressed = true;
+                if (Session.Flight.UnarmMissile())
+                {
+                    Sounds?.Play(Core.Audio.SoundEffect.Boop);
+                }
+            }
+            else if (!keys.IsKeyDown(Settings.UnarmMissileKey))
+            {
+                _unarmPressed = false;
+            }
+
+            // J is the in-system jump. The original refuses one with a low beep when there is a ship
+            // or a station about, or when we are already too close to the planet or the sun, and it
+            // answers a jump with a new stardust field, which is the one visible part of it.
+            if (keys.IsKeyDown(Settings.InSystemJumpKey) && !_inSystemJumpPressed)
+            {
+                _inSystemJumpPressed = true;
+                if (!InSystemJump())
+                {
+                    Sounds?.Play(Core.Audio.SoundEffect.Boop);
+                }
+            }
+            else if (!keys.IsKeyDown(Settings.InSystemJumpKey))
+            {
+                _inSystemJumpPressed = false;
+            }
+
+            // ESCAPE launches our escape pod, as it does in the original, provided we have one; the
+            // game itself leaves on F10 so that the two do not fight over the key. The disc version's
+            // ESCAPE makes no sound — the noise in the routine belongs to the NES version — so
+            // neither does ours.
+            if (keys.IsKeyDown(Settings.EscapePodKey) && !_escapePodPressed)
+            {
+                _escapePodPressed = true;
+                Session.LaunchEscapePod();
+            }
+            else if (!keys.IsKeyDown(Settings.EscapePodKey))
+            {
+                _escapePodPressed = false;
             }
 
             // Destroying a ship pays its bounty and counts the kill, and the energy bomb's

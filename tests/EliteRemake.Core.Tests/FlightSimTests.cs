@@ -1,5 +1,6 @@
 using EliteRemake.Core.Maths;
 using EliteRemake.Core.Sim;
+using EliteRemake.Core.Universe;
 using Xunit;
 
 namespace EliteRemake.Core.Tests;
@@ -277,5 +278,163 @@ public class FlightSimTests
 
         Assert.False(sim.Spawn(new Ship(17, "sidewinder", "Sidewinder")));
         Assert.Equal(FlightSim.MaxShipsInBubble, sim.Bubble.Count);
+    }
+    /// <summary>
+    /// The in-system jump, WARP: the planet and the sun move one step of 65536 away along our own z
+    /// axis, and nothing else in the sky moves at all.
+    /// </summary>
+    [Fact]
+    public void AnInSystemJumpMovesThePlanetAndTheSunBackwards()
+    {
+        var (sim, planet, sun) = CreateSystemSim();
+        (int px, int py, int pz) = planet.GetPosition();
+        (_, _, int sz) = sun.GetPosition();
+
+        Assert.True(sim.TryInSystemJump());
+
+        Assert.Equal((px, py, pz - FlightSim.InSystemJumpDistance), planet.GetPosition());
+        Assert.Equal(sz - FlightSim.InSystemJumpDistance, sun.GetPosition().Z);
+
+        // "Set the main loop counter to 1, so the next iteration through the main loop will
+        // potentially spawn ships"
+        Assert.Equal(1, sim.MainLoopCounter);
+    }
+
+    /// <summary>Junk rides along with us: WARP's ship check starts past the junk in the FRIN table.</summary>
+    [Fact]
+    public void JunkDoesNotStopAnInSystemJump()
+    {
+        var (sim, planet, _) = CreateSystemSim();
+        sim.Spawn(Debris.CreateJunk(Debris.Canister, sim.Random));
+
+        // The disc's junk is every type from the escape pod to the transporter, so the shuttle and
+        // the transporter the station launches count too — a list that stopped at the splinter let a
+        // shuttle block a jump
+        sim.Spawn(new Ship(Debris.Shuttle, "shuttle", "Shuttle"));
+        sim.Spawn(new Ship(Debris.Transporter, "transporter", "Transporter"));
+
+        int before = planet.GetCoordinate(ShipDataBlock.Z);
+        Assert.True(sim.TryInSystemJump());
+        Assert.Equal(before - FlightSim.InSystemJumpDistance, planet.GetCoordinate(ShipDataBlock.Z));
+    }
+
+    [Fact]
+    public void AShipInTheBubbleStopsAnInSystemJump()
+    {
+        var (sim, planet, sun) = CreateSystemSim();
+        sim.Spawn(new Ship(17, "sidewinder", "Sidewinder"));
+
+        Assert.False(sim.TryInSystemJump());
+        Assert.Equal(5 << 16, planet.GetCoordinate(ShipDataBlock.Z));
+        Assert.Equal(-(3 << 16), sun.GetCoordinate(ShipDataBlock.Z));
+    }
+
+    [Fact]
+    public void ASpaceStationStopsAnInSystemJump()
+    {
+        var (sim, planet, _) = CreateSystemSim();
+        sim.Spawn(SystemArrival.CreateStation(3000, SystemArrival.StationRollCounter));
+
+        Assert.False(sim.TryInSystemJump());
+        Assert.Equal(5 << 16, planet.GetCoordinate(ShipDataBlock.Z));
+    }
+
+    [Fact]
+    public void ThereIsNoInSystemJumpInWitchspace()
+    {
+        var (sim, planet, _) = CreateSystemSim();
+        sim.InWitchspace = true;
+
+        Assert.False(sim.TryInSystemJump());
+        Assert.Equal(5 << 16, planet.GetCoordinate(ShipDataBlock.Z));
+    }
+
+    /// <summary>
+    /// A body we are facing and already too close to refuses the jump: WARP ORs the magnitudes of the
+    /// three top bytes and refuses when halving that leaves zero, so anything under two steps of 65536
+    /// in every axis is too close to jump past.
+    /// </summary>
+    [Theory]
+    [InlineData(1 << 16)]
+    [InlineData(0)]
+    public void APlanetWeAreTooCloseToStopsAnInSystemJump(int distance)
+    {
+        var (sim, planet, _) = CreateSystemSim();
+        planet.SetPosition(0, 0, distance);
+
+        Assert.False(sim.TryInSystemJump());
+        Assert.Equal(distance, planet.GetCoordinate(ShipDataBlock.Z));
+    }
+
+    /// <summary>A body behind us is not checked at all, however close it is.</summary>
+    [Fact]
+    public void ABodyBehindUsIsNotTooCloseToJumpPast()
+    {
+        var (sim, planet, _) = CreateSystemSim();
+        planet.SetPosition(0, 0, -1);
+
+        Assert.True(sim.TryInSystemJump());
+        Assert.Equal(-1 - FlightSim.InSystemJumpDistance, planet.GetCoordinate(ShipDataBlock.Z));
+    }
+
+    /// <summary>A ship that is not under pilot control — a missile, or a rock — is still a ship.</summary>
+    [Fact]
+    public void EvenAMissileStopsAnInSystemJump()
+    {
+        var (sim, _, _) = CreateSystemSim();
+        sim.Spawn(new Ship(1, "missile", "Missile"));
+
+        Assert.False(sim.TryInSystemJump());
+    }
+
+    /// <summary>
+    /// Unarming the missile releases the lock and asks for the indicator to be redrawn, which is the
+    /// original's ABORT reached from the "U" key.
+    /// </summary>
+    [Fact]
+    public void UnarmingTheMissileReleasesTheLock()
+    {
+        var (sim, _) = CreateSim();
+        sim.Commander = Commander.CreateDefault();
+        sim.MissileLock = sim.Bubble[0];
+
+        Assert.True(sim.UnarmMissile());
+        Assert.Null(sim.MissileLock);
+        Assert.True(sim.MissileUnarmedThisFrame);
+    }
+
+    [Fact]
+    public void AMissileWeDoNotHaveCannotBeUnarmed()
+    {
+        var (sim, _) = CreateSim();
+        sim.Commander = Commander.CreateDefault();
+        sim.Commander.Missiles = 0;
+        sim.MissileLock = sim.Bubble[0];
+
+        Assert.False(sim.UnarmMissile());
+        Assert.NotNull(sim.MissileLock);
+    }
+
+    /// <summary>
+    /// A simulation holding the planet and the sun where the original places them: the planet ahead
+    /// at 5 steps of 65536 and slightly up and to the right, the sun behind at 3.
+    /// </summary>
+    private static (FlightSim Sim, Ship Planet, Ship Sun) CreateSystemSim()
+    {
+        var sim = new FlightSim(new Ship(11, "cobra-mk-3", "Cobra Mk III"))
+        {
+            SpawningEnabled = false,
+        };
+
+        StarSystem lave = Galaxy.GenerateGalaxy(Galaxy.GalaxySeeds(0))[7];
+        SystemArrival.AddSystemBodies(sim, lave);
+
+        Ship planet = sim.Bubble.Single(s => s.Type == SystemArrival.PlanetTypeA);
+        Ship sun = sim.Bubble.Single(s => s.Type == ShipTypes.Sun);
+
+        // Pin both to known distances, so the jump is measured rather than read off the seeds
+        planet.SetPosition(2 << 16, 2 << 16, 5 << 16);
+        sun.SetPosition(1 << 16, 0, -(3 << 16));
+        return (sim, planet, sun);
     }
 }

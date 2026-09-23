@@ -183,7 +183,22 @@ public sealed class SettingsScene : IScene
         int scale = Math.Max(1, (int)(Camera.ViewportHeight * 0.9f / rows) / 10);
         int textHeight = TextRenderer.CellHeight(scale) + (2 * scale);
         int left = (int)(Camera.CentreX - (10 * 8 * scale));
-        int nameColumn = left + (17 * 8 * scale);
+
+        // The value column starts past the longest label rather than at a fixed seventeen characters,
+        // which is what ran "DOCKING COMPUTER" into its own key. The marker and a space come first,
+        // and two clear columns are left between the two.
+        int widest = 0;
+        foreach ((string label, _, _) in _settings.Bindings)
+        {
+            widest = Math.Max(widest, label.Length);
+        }
+
+        foreach (Extra extra in _extras)
+        {
+            widest = Math.Max(widest, extra.Name.Length);
+        }
+
+        int nameColumn = left + ((widest + 4) * 8 * scale);
 
         int blockHeight = rows * textHeight;
         int line = (int)((Camera.ViewportHeight - blockHeight) / 2);

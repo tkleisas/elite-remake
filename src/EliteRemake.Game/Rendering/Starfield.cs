@@ -37,6 +37,16 @@ public sealed class Starfield
     public Starfield(int seed = 0x5A4A)
     {
         _random = new Random(seed);
+        Reset();
+    }
+
+    /// <summary>
+    /// Throws the whole field away and makes a new one, which is the original's NWSTARS: LOOK1 reaches
+    /// it every time the space view is set up, and an in-system jump goes through LOOK1 with the view
+    /// type forced non-zero so that the screen is cleared and the dust is new.
+    /// </summary>
+    public void Reset()
+    {
         for (int i = 0; i < StarCount; i++)
         {
             _stars[i] = NewStar(anyDepth: true);

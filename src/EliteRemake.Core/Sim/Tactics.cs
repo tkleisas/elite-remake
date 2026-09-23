@@ -471,6 +471,7 @@ public static class Tactics
         // sky in a straight line and never come back, and it left the shuttles a station launches
         // with nowhere to go.
         System.Numerics.Vector3 steer;
+        bool steeringToThePlanet = false;
         if (attack)
         {
             steer = towardsUs;
@@ -482,6 +483,7 @@ public static class Tactics
         else if (planetPosition is { } planetAim)
         {
             steer = DirectionTo(x, y, z, planetAim, towardsUs);
+            steeringToThePlanet = true;
         }
         else
         {
@@ -492,18 +494,38 @@ public static class Tactics
         float aimY = System.Numerics.Vector3.Dot(steer, roof);
         float aimZ = System.Numerics.Vector3.Dot(towardsUs, nose);
 
-        // Roll towards the target if it is off to one side, pitch if it is above or below. The
-        // counters are sign-magnitude bytes, and the original gives them the opposite sign to the
-        // dot product: as TACTICS puts it, "set the ship's pitch counter to 3, with the opposite
-        // sign to the dot product result".
-        //
-        // The magnitude is the original's nroll, not a flat RAT. nroll doubles the dot product and
-        // compares it against RAT2: below the threshold the counter is left at zero with only the
-        // sign set, which stops a ship twitching at an aim it is already close to, and at or above
-        // it the counter is the full RAT. The dot product is the original's, where a unit vector's
-        // component runs to 96, so the comparison is against RAT2 in those units.
-        byte roll = CounterFor(aimX);
-        byte pitch = CounterFor(aimY);
+        // The three dot products the original works from, as the bytes it holds them in. A unit
+        // vector's component is 96 there, so the dot product of two of them has a high byte that runs
+        // to 36, and it is that byte which nroll and RAT2 are compared against. Scaling a normalised
+        // float by 96 instead — which is what this did — makes the threshold 96/36 times as easy to
+        // pass, so every ship turned at full rate at aim errors the original would have ignored.
+        byte dotNose = DotByte(System.Numerics.Vector3.Dot(steer, nose));
+        byte dotRoof = DotByte(aimY);
+        byte dotSide = DotByte(aimX);
+
+        // TA151: steering towards the planet lowers RAT2 to zero when the nose dot product is
+        // negative — the planet is behind or abeam — so that roll and pitch are always applied.
+        // Without it a ship whose target is behind it sets both counters to zero at the moment it is
+        // broadside on, and drifts on instead of coming round.
+        int threshold = steeringToThePlanet && dotNose >= 128 ? 0 : TurnThreshold;
+
+        // Pitch first, as the original does, and then the roll from the pitch it has just asked for.
+        byte pitch = Nroll(dotRoof, threshold);
+
+        // The roll is only started when the ship is not already rolling: the original doubles the
+        // current roll counter and leaves the roll alone when the result reaches 32, so a counter of
+        // 16 or more plays out before a new roll is considered.
+        byte roll = ship.Data[ShipDataBlock.RollCounter];
+        if ((byte)(roll << 1) < 32)
+        {
+            // nroll takes its magnitude from the side dot product but its sign from that dot product
+            // combined with the pitch counter, and then inverts it along with everything else. The
+            // combination is the point: rolling the way the side dot product alone says rolls the
+            // ship the wrong way whenever it is about to pitch the other way, and the nose then
+            // swings round the target instead of settling on it.
+            roll = Nroll((byte)(dotSide ^ pitch), threshold, dotSide);
+        }
+
         ship.Data[ShipDataBlock.RollCounter] = roll;
         ship.Data[ShipDataBlock.PitchCounter] = pitch;
 
@@ -545,26 +567,41 @@ public static class Tactics
     /// nroll: the turn counter for one axis, from the original's own routine.
     /// </summary>
     /// <remarks>
-    /// The original works in 8-bit signed arithmetic on the dot product of the ship's vector with
-    /// the direction to the target, where a unit vector's component is 96 - so the largest dot
-    /// product of two unit vectors has a magnitude of 36 after the shift the routine applies. Here
-    /// the same direction comes from a normalised float, so its component is scaled back into those
-    /// units before the comparison, which keeps RAT and RAT2 in the original's terms.
+    /// The original works on the byte that holds the high byte of the dot product of two 96-scaled
+    /// unit vectors, which runs to 36; <see cref="DotByte"/> produces the same value from the
+    /// normalised float this code steers by, which keeps RAT and RAT2 in the original's terms.
     /// </remarks>
-    private static byte CounterFor(float aim)
+    private static byte Nroll(byte dot, int threshold, byte? magnitudeFrom = null)
     {
-        int scaled = (int)(aim * UnitComponent);
+        // "EOR #%10000000 / AND #%10000000": the counter's sign is the opposite of the byte's bit 7,
+        // so a dot product of exactly zero also comes out with the sign bit set
+        byte sign = (byte)((dot ^ 0x80) & 0x80);
 
-        // nroll doubles the value and drops the sign bit, then compares against RAT2
-        int doubled = Math.Abs(scaled) * 2;
-        bool negative = scaled > 0;
+        // "TXA / ASL A / CMP RAT2 / BCC nroll2": twice the byte, compared as an unsigned value. A
+        // negative dot product shifts up to something above 128 and so always passes, which is why a
+        // threshold of zero means "always apply roll and pitch" and why the threshold really only
+        // holds back a ship that is already nearly lined up — on the nose side of the line.
+        byte doubled = (byte)((magnitudeFrom ?? dot) << 1);
+        byte magnitude = doubled >= threshold ? (byte)TurnRate : (byte)0;
 
-        byte magnitude = doubled >= TurnThreshold ? (byte)TurnRate : (byte)0;
-        return (byte)(magnitude | (negative ? 0x80 : 0x00));
+        return (byte)(magnitude | sign);
     }
 
-    /// <summary>What a unit vector's component is in the original's units.</summary>
-    private const int UnitComponent = 96;
+    /// <summary>
+    /// One of the original's dot products as the byte it holds it in: the high byte of the 16-bit sum
+    /// of the products of two 96-scaled unit vectors, which is a signed byte running to 36.
+    /// </summary>
+    /// <remarks>
+    /// The original's MULT12 and MAD return a 16-bit two's complement result, and the routines that
+    /// steer a ship read its high byte — so the value is floored rather than truncated towards zero,
+    /// which is what an arithmetic shift of a negative product does.
+    /// </remarks>
+    private static byte DotByte(float aim) => (byte)(int)Math.Floor(aim * DotScale);
+
+    /// <summary>
+    /// What the high byte of a dot product of two 96-scaled unit vectors is worth: 96 * 96 / 256.
+    /// </summary>
+    private const int DotScale = 36;
 
     /// <summary>
     /// Whether a ship has a pilot who can decide to manoeuvre. Missiles, cargo, asteroids, escape

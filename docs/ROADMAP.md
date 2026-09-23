@@ -4360,3 +4360,107 @@ screen as well, so the key does what a player expects rather than nothing.
 against the port's screens turned up no absent screen: the market prices (f7) and the cargo list `TT210`
 are one screen for us, the inventory and the status screen are one screen for us, and the charts, the
 data on system and the launch are all present.
+
+## The in-system jump, and three keys that were not wired
+
+**WARP was missing outright.** The original's flight loop reads three keys the remake had never heard
+of: **J** calls `WARP` for an in-system jump, **U** calls `ABORT` to unarm the missile we have locked
+on, and **ESCAPE** launches our own escape pod when one is fitted. Only U's effect existed at all —
+`MissileUnarmedThisFrame` was already set by firing a missile and by losing a lock — and nothing could
+set it from the keyboard.
+
+**The jump is small, and that is the point.** WARP adds `&81` to the planet's and the sun's z_sign —
+the top byte of the 24-bit coordinate, with the low byte of the sum thrown away — which is one step of
+**65536 units**. It leaves everything else exactly where it is: our speed, our heading, the junk, the
+scanner. Measured from the command line, four jumps take Lave's planet from z = 262144 to z = 0 while
+its x and y stay at 131072, and the sun goes from −327680 to −589824 behind us.
+
+**It refuses far more often than it fires**, and every refusal is the original's own:
+
+* anything in the bubble that is **not junk** stops it, which in practice means the space station —
+  so the in-system jump is a deep-space manoeuvre, not a taxi ride from the station's doorstep;
+* so does witchspace, which has no planet to jump towards;
+* and so does a body we are **facing and already close to**: WARP ORs the magnitudes of the three top
+  bytes of the body's position, halves the result and refuses if that leaves zero, so "too close"
+  means under two steps of 65536 in every axis.
+
+The last one has a consequence worth writing down, because it looks like a bug and is not: Lave's
+planet sits at (2, 2, 4) steps, so its x and y keep the OR at 2 for ever and the jump is **never**
+refused however far past the planet we go — the fourth jump puts it at z = 0, abeam, and the fifth
+behind us. In a system whose seeds put the planet at (1, 1, 3) the same arithmetic refuses the jump
+once z reaches 1. That difference is the original's.
+
+**A jump also resets the sky**: `MCNT` to 1 so the next iteration can spawn ships, `EV` to 0, and the
+screen cleared through `LOOK1` with the view type forced non-zero — which is `NWSTARS`, a whole new
+stardust field. Ours re-seeds the starfield, and the refusals make the original's long, low beep
+(sound 40, the same one the missile's unarming uses).
+
+**The junk check was wrong, and it mattered here.** The disc does not keep a list of junk types: NWSHP
+counts a ship as junk when its type falls between `JL` and `JH - 1`, and the source defines those as
+`JL=ESC` and `JH=SHU+2` — **every type from the escape pod (3) to the transporter (10)**. Ours stopped
+at the splinter (8), so a shuttle or a transporter blocked an in-system jump it should have allowed,
+and the limit of three bits of junk was reached later than the original reaches it.
+
+## The AI steered its ships round their targets instead of onto them
+
+**This was found by a test failing for the right reason.** Moving the planet to where SOLAR actually
+puts it (below) broke `WhatAStationLaunchesHeadsForThePlanet`, and the ship in the failure was not
+heading for the planet at all — it was circling *us*. Two faults came out of that, and only one of
+them was the test's.
+
+**The steering law was rolling the wrong way.** The original's `nroll` takes the pitch counter's
+magnitude from the roof dot product but the **roll counter's direction from the side dot product
+combined with the pitch it has just asked for** — `EOR INWK+30` — and then inverts it. The port took
+the roll's sign from the side dot product alone. Measured on a ship 38 degrees off its target, with
+the counters applied every iteration: the original's rule closes to nothing, and the port's sits at 33
+degrees for ever, with the side error *growing* (-0.501 → -0.544) — a nose driven round its target
+rather than onto it. Three smaller rules were missing with it:
+
+* the dot products are the original's **bytes**, the high byte of two 96-scaled unit vectors, which
+  runs to **36**. The port scaled a normalised float by 96 instead, making RAT2's threshold 96/36
+  times as easy to pass, so every ship turned at full rate at errors the original ignored;
+* a **new roll is only started when the current roll counter is under 16** — the original doubles the
+  counter and skips the roll calculation at 32 or more, so a roll plays out before another begins;
+* steering towards the planet **lowers RAT2 to zero when the nose dot product is negative** (TA151),
+  so roll and pitch are always applied when the target is behind or abeam. Without it a ship broadside
+  on to its target set both counters to zero and drifted on.
+
+**`WhatAStationLaunchesHeadsForThePlanet` was measuring the wrong thing**, and had been passing by
+luck. A shuttle carries the trader bit in its NEWB flags, so it rolls — 61% of the time it stays a
+trader, and otherwise it **turns out to be a pirate** and flies at us. The test stepped until a launch
+happened and then asserted the distance to the planet fell, which with the planet dead ahead happened
+to be true of a ship attacking us. It now pins the role, and asserts something a circling ship cannot
+do: a fall of more than 5000 units over a thousand iterations.
+
+## The planet and the sun are placed where SOLAR places them
+
+**The planet sits 3 to 7 steps of 65536 ahead and half that distance up and to the right**, from bits
+0-1 of s0_hi plus 3 plus the carry, halved into both the x and y sign bytes. The port had it dead
+ahead with a one-unit offset, on a reading of `STA INWK+2` as "a small offset rather than a big one" —
+which is true of the *value* and false of the *byte*: it is the sign byte, so 2 there is two steps of
+65536, not two units.
+
+**Which puts the planet off the top of the arrival view, and that is correct.** With x and y both half
+of z, the planet is 26.6 degrees above the axis; the original's vertical field of view is only ±20.6°
+(focal length 256 for a 192-line view, the projection this port already uses). At Lave it is at
+(131072, 131072, 262144), its centre 32 pixels above the top of the original's screen with a radius of
+24, so it is out of sight until we pitch up — and in a system whose distance works out at 3 steps it
+is just inside the top edge. Putting it back in the middle of the view, as the port did, changes the
+number of in-system jumps a system allows and the geometry of the whole approach.
+
+**The carry is real, and it comes from our own record.** The instruction before SOLAR places the planet
+is the `LSR FIST` that halves our legal status, and nothing between it and the `ADC #3` touches the
+flag — so a commander whose status is odd arrives **one step further out** than one whose status is
+even. Our planet's distance now takes that bit, and the halving and the distance can no longer drift
+apart: the session halves the status as it completes a jump and keeps the bit it shifted out.
+
+**The sun's second store is not y_sign.** Its offset goes into x_sign (`STA INWK+2`) and then into
+`INWK+1` — which is **x_hi**, not y_sign as the original's own comment says — so the sun sits off to
+one side and dead centre vertically, "dead centre in our rear laser crosshairs". Reading the comment
+instead of the instruction puts the sun up to three times its own distance above or below us.
+
+**The method rule this round earned: when a test fails, find out what the code was doing before
+changing the test.** The station test looked like an RNG wobble — a trader's pirate roll decides which
+way the ship flies — and it was also pointing at a control law that drove every AI ship in the game
+round its target rather than onto it. Pinning the RNG first and asking why the ship was circling would
+have found it a round earlier.

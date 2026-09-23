@@ -68,6 +68,12 @@ public sealed class GameOptions
     /// <summary>If non-zero, fill the bubble with this many ships, to measure the frame cost.</summary>
     public int StressShips { get; private set; }
 
+    /// <summary>
+    /// How many in-system jumps to make as the flight scene starts, so the "J" key's own mechanic
+    /// can be looked at from the command line.
+    /// </summary>
+    public int InSystemJumps { get; private set; }
+
     /// <summary>If set, start docked at the station rather than in flight.</summary>
     public bool StartDocked { get; private set; }
 
@@ -211,6 +217,10 @@ public sealed class GameOptions
                     options.StressShips = int.Parse(Next() ?? "12");
                     options.ShowTitle = false;
                     break;
+                case "--in-system-jump":
+                    options.InSystemJumps = int.Parse(Next() ?? "1");
+                    options.ShowTitle = false;
+                    break;
                 case "--help":
                 case "-h":
                     PrintHelp();
@@ -277,6 +287,7 @@ public sealed class GameOptions
               --autopilot             hand the ship to the docking computer at once
               --sim-rate <hz>         main loop iterations a second (default 12.5, the disc's own)
               --jump                  begin a hyperspace jump at once, to see the tunnel
+              --in-system-jump <n>    make n in-system jumps as the flight scene starts
               --dock [screen]         start docked, at the market or the equipment shop
               --laser <type>          fit a pulse, beam, military or none laser to the front
               --fully-equipped        start with every piece of equipment
