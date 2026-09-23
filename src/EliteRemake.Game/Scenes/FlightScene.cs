@@ -33,7 +33,6 @@ public sealed class FlightScene : IScene
     private readonly HudRenderer _hud;
     private readonly Dictionary<string, ShipMesh> _meshes = [];
     private float _accumulator;
-    private bool _stationSpawned;
     private bool _dockingRequested;
     private bool _targetPressed;
     private bool _missilePressed;
@@ -200,21 +199,9 @@ public sealed class FlightScene : IScene
     /// </summary>
     public void ArriveInWitchspace()
     {
+        // Witchspace has no station and no system bodies: only the ambush waiting for us
         _sim.ArriveInWitchspace();
-        _stationSpawned = true;   // there is no station here, and none should be added
         Sounds?.Play(Core.Audio.SoundEffect.Hyperspace);
-    }
-
-    /// <summary>Clears the local bubble, as arriving in a new system does.</summary>
-    public void ResetBubble()
-    {
-        foreach (Ship ship in _sim.Bubble.ToArray())
-        {
-            _sim.Remove(ship);
-        }
-
-        _stationSpawned = false;
-        SpawnStationAhead();
     }
 
     /// <summary>The ship in our crosshairs, which a missile can lock onto.</summary>
@@ -317,13 +304,24 @@ public sealed class FlightScene : IScene
     public void RegisterMesh(string blueprintId, ShipMesh mesh) => _meshes[blueprintId] = mesh;
 
     /// <summary>
-    /// Places the planet and the sun for a system, as arriving in it does. Their colours come from
-    /// the system's seeds, so every system looks a little different.
+    /// Arrives in a system: the old bubble goes, and the new system's planet, sun and station
+    /// arrive. Their colours come from the system's seeds, so every system looks a little
+    /// different.
     /// </summary>
-    public void ArriveInSystem(EliteRemake.Core.Universe.StarSystem system)
+    /// <param name="system">The system we have arrived in.</param>
+    /// <param name="stationDistance">How far ahead to place the station, in the original's units.</param>
+    public void ArriveInSystem(EliteRemake.Core.Universe.StarSystem system, int stationDistance = 3000)
     {
+        // The Coriolis gets a random clockwise roll, as the original's main game loop gives it: a
+        // random value with bit 7 cleared. It matters for docking, because the slot's orientation
+        // changes as the station turns and the docking computer's first phase matches its roll.
+        SystemArrival.ArriveInSystem(
+            _sim,
+            system,
+            stationDistance,
+            (byte)(Random.Shared.Next(64, 128) & 0x7F));
+
         _system = system;
-        SystemArrival.AddSystemBodies(_sim, system);
 
         // Derive a muted colour for the planet from the seeds, so systems differ but stay tasteful
         int hue = (system.Seeds.S2Lo * 360) / 256;
@@ -350,24 +348,6 @@ public sealed class FlightScene : IScene
 
         return new Color(r + m, g + m, b + m);
     }
-
-    /// <summary>Places the space station ahead of us, as the original does when we arrive in a system.</summary>
-    public void SpawnStationAhead(int distance = 3000)
-    {
-        if (_stationSpawned)
-        {
-            return;
-        }
-
-        // The Coriolis gets a random clockwise roll, as the original's main game loop gives it: a
-        // random value with bit 7 cleared. It matters for docking, because the slot's orientation
-        // changes as the station turns and the docking computer's first phase matches its roll.
-        var station = SystemArrival.CreateStation(distance, (byte)(Random.Shared.Next(64, 128) & 0x7F));
-        SceneFactory.ApplyBlueprint(station);
-        _sim.Spawn(station);
-        _stationSpawned = true;
-    }
-
 
     /// <summary>
     /// Runs the simulation for a number of frames with a fixed input, so a screenshot can show the
@@ -423,7 +403,6 @@ public sealed class FlightScene : IScene
                 else
                 {
                     ArriveInSystem(Session.System);
-                    ResetBubble();
                 }
             }
 

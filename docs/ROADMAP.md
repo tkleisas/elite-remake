@@ -3770,3 +3770,44 @@ system and galaxy, its debrief paid at 5000 credits and 256 kill points; mission
 its plans and delivery in the right systems of the right galaxy, its Thargoid intercepts triggered by
 carrying them. That is the whole of the disc's mission content, and it is now exercised end to end
 rather than in pieces.
+
+## Every hyperspace jump arrived at an empty sky
+
+**The fault**: arriving in a system cleared the local bubble *after* filling it. The planet and the sun
+are held in the same bubble as the ships — the dashboard draws them by iterating it — so the arrival
+added them and then threw them away, and every jump ended at a station hanging in front of nothing. The
+galactic hyperdrive had the same two lines in the same wrong order, so both ways of leaving a system
+were affected.
+
+**It was found by flying the path and looking at the pixels**, which is the third time a fault in this
+port has been found that way and the third time reading the code had not. The two screenshots are the
+evidence: 80 frames after a jump, one with the jump and one without, and only the second had a planet.
+
+**Three measurements were needed to be sure of it**, because a planet that is missing and a planet that
+is behind us look identical:
+
+1. The console line that lists the bubble prints at frame 2 — *before* the jump resolves — so it showed
+   Lave's own sun and planet and said nothing about the arrival. Reading it as the arrival state would
+   have been wrong. (This is the same trap as reading mixed CLI output while the game was running.)
+2. A system we jump to could legitimately place its planet out of view, so the absence of a planet
+   proves nothing on its own.
+3. Asking for `--station-distance 9000` and getting a byte-identical image to the default run is what
+   settled it: the station we asked for had been destroyed and replaced, so the arrival path had run.
+
+Afterwards the same frame shows the new system's planet, in a different colour from Lave's, which is
+positive evidence of arrival rather than an absence.
+
+**The fix removes the ordering from the callers entirely.** `SystemArrival.ArriveInSystem` now clears the
+bubble, then adds the sun, the planet and the station, in that order, in one place; the scene delegates
+to it instead of clearing and filling in two steps. Clearing first also fixes a second fault in the same
+lines: `Spawn` refuses past the slot limit, so arriving with a full bubble could not have added the
+bodies at all. `SpawnStationAhead` and `ResetBubble` are gone with it — they were two more writers of
+state that only one thing should write.
+
+**Five tests cover the arrival**, and reversing the order fails all five. They assert the count of each
+body, that the system we left leaves nothing behind, that a full bubble still gets its sky, and that the
+station lands where it was asked for.
+
+**Also fixed: the help text lied.** `--station-distance` was documented as defaulting to 6000, and its
+parse fallback said 6000, but the option's own default is 3000 — so the documented default was not the
+default. Both now say 3000.

@@ -75,7 +75,6 @@ public sealed class StatusScene : IScene
             // We are in a different galaxy now, so the sky has to be rebuilt: the new system's
             // planet, sun and station, and nothing left of the old
             _flight?.ArriveInSystem(_session.System);
-            _flight?.ResetBubble();
         }
 
         if (IsNewPress(keys, Keys.F1))

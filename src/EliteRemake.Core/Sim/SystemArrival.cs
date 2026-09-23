@@ -88,6 +88,33 @@ public static class SystemArrival
     }
 
     /// <summary>
+    /// Arrives in a system: the old bubble is thrown away and the new system's sun, planet and
+    /// station take its place.
+    /// </summary>
+    /// <remarks>
+    /// This exists as one method because the order is load-bearing and was got wrong twice by
+    /// callers that cleared the bubble themselves. The planet and the sun live in the same bubble
+    /// as the ships — they are drawn by iterating it — so adding them and clearing afterwards
+    /// throws them away again: every hyperspace jump, and every galactic jump, used to arrive at a
+    /// station hanging in an empty sky. Clearing first also keeps the sun and planet from being
+    /// refused by the slot limit when a full bubble of ships is being replaced.
+    /// </remarks>
+    public static void ArriveInSystem(
+        FlightSim sim,
+        StarSystem system,
+        int stationDistance,
+        byte stationSpinRoll)
+    {
+        foreach (Ship ship in sim.Bubble.ToArray())
+        {
+            sim.Remove(ship);
+        }
+
+        AddSystemBodies(sim, system);
+        sim.Spawn(CreateStation(stationDistance, stationSpinRoll));
+    }
+
+    /// <summary>
     /// Creates the space station for a system, placed ahead of us as the original does.
     /// </summary>
     /// <param name="distance">How far ahead of us to put the station, in the original's units.</param>

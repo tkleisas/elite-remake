@@ -124,7 +124,7 @@ public sealed class GameOptions
                     options.ViewerDistance = float.Parse(Next() ?? "0");
                     break;
                 case "--station-distance":
-                    options.StationDistance = int.Parse(Next() ?? "6000");
+                    options.StationDistance = int.Parse(Next() ?? "3000");
                     break;
                 case "--empty":
                     options.EmptySystem = true;
@@ -225,7 +225,7 @@ public sealed class GameOptions
               --viewer-heading <deg>  hold the viewed ship at this heading
               --viewer-pitch <deg>    hold the viewed ship at this pitch
               --viewer-distance <d>   place the viewed ship this far away
-              --station-distance <d>  place the space station this far ahead (default 6000)
+              --station-distance <d>  place the space station this far ahead (default 3000)
               --empty                 start the flight scene with an empty system
               --sim-warmup <frames>   run the flight simulation this many frames before drawing
               --hold <controls>       hold controls during the warmup: left, right, up, down,
