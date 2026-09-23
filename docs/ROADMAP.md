@@ -2575,3 +2575,35 @@ of work than the one just finished.
 the cause, and the thing that found the cause was **tracing the queue's visits** rather than reasoning
 about the code: the trace showed hint 10 visiting and its five candidates being pushed, and then
 nothing — which located the `continue` immediately. Two rounds of reading the walk had not.
+
+## Correction: there is no system-name substitution to make
+
+Last round ended with a note that every hint reads "APPEARED AT ERRIUS" because token 209 is a
+placeholder and the original substitutes the real system name when it prints. **That is wrong**, and
+the source says so plainly:
+
+```
+ ECHR ' '               \ Token 209:    " ERRIUS"
+ ETWO 'E', 'R'          \
+ ECHR 'R'               \ Encoded as:   " <244>RI<236>"
+ ECHR 'I'
+ ETWO 'U', 'S'
+```
+
+There is no control code in it. Token 209 is the literal string `" ERRIUS"`, and the original's own
+decoded comment for token 106 reads *"I HEAR A [130-134] LOOKING SHIP APPEARED AT ERRIUS"* — the word
+is in the text.
+
+**And ERRIUS is a real system**: galaxy 1, index 253, at (184,149). Index 253 is one of the mission
+trail's own hint systems, so the phrase names a place a player can actually be sent to, which is what a
+placeholder in a mission hint would be for. The tables were authored with the real galaxy in front of
+them.
+
+So the hints are now correct and complete: `I HEAR A FUNNY LOOKING SHIP APPEARED AT ERRIUS`, with all
+five of the phrases the random element can pick reachable. There is no follow-up to do.
+
+**The lesson is about the last step of a fix, not the first.** Having found and repaired a genuine
+traversal fault, I looked at the output, saw something that *looked* unfinished, and wrote down a
+plausible next step rather than checking it — and the plausible next step was wrong. A note that
+promises work which does not exist is a cost to whoever reads it next, and it is avoidable by reading
+the four lines of source that settle it, which is exactly what the round after it did.
