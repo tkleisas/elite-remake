@@ -1,5 +1,16 @@
 <Project>
   <PropertyGroup>
+    <!--
+      The remake's version, written here and nowhere else: GameVersion reads it back off the assembly
+      at run time and the title screen shows it, so there is no second copy to drift out of step. The
+      release tags follow it. The scheme is semantic versioning, and what the three numbers mean for
+      a faithful port is written down in docs/VERSIONING.md — the short version is that MAJOR waits
+      for the port to be complete against the disc version, MINOR is for a mechanic or a screen the
+      original has and we did not, and PATCH is for fixing something we already claimed to do.
+    -->
+    <Version>1.0.0</Version>
+    <Product>Elite Remake</Product>
+    <Description>A modern remake of BBC Micro disc Elite, rebuilt from the original 6502 sources.</Description>
     <TargetFramework>net10.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>

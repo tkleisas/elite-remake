@@ -297,13 +297,24 @@ public sealed class TitleScene : IScene
             scale,
             Palette.Cyan);
 
+        // The version, in the corner where a bug report can find it. It is read off the assembly
+        // rather than written here, so it cannot fall behind the build
+        _text.Draw(
+            spriteBatch,
+            Core.GameVersion.Display,
+            scale * 4,
+            (int)Camera.ViewportHeight - TextRenderer.CellHeight(scale) - (scale * 2),
+            scale,
+            Palette.Cyan);
+
         spriteBatch.End();
     }
 
     public string Name => "Title";
 
     public string StatusLine =>
-        $"Title: selected {SelectedOption}, music {(_settings.Music ? "on" : "off")} " +
+        $"Title: version {Core.GameVersion.Number}, selected {SelectedOption}, " +
+        $"music {(_settings.Music ? "on" : "off")} " +
         $"({(_sound is { MusicPlaying: true } ? "playing" : "silent")}), " +
         $"save {(GameSession.HasSave ? "present" : "absent")}";
 }

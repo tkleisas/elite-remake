@@ -158,11 +158,13 @@ public sealed class MarketScene : IScene
         _text.DrawCentred(spriteBatch, heading, left + (width / 2), top, scale, title);
         int y = top + (cellHeight * 2);
 
-        // The original's column positions: name at 1, price at 14, availability after that
+        // The original's column positions: name at 1, price at 14, availability after that. The
+        // headings have to fit the columns the rows use, and "FOR SALE" is two characters too wide
+        // for its six: it ran into HELD and the screen read "FOR SALEBLD"
         _text.Draw(spriteBatch, "ITEM", left + cellWidth, y, scale, normal);
         _text.Draw(spriteBatch, Pad("PRICE", 6), left + (cellWidth * 14), y, scale, normal);
-        _text.Draw(spriteBatch, Pad("FOR SALE", 6), left + (cellWidth * 21), y, scale, normal);
-        _text.Draw(spriteBatch, "HELD", left + (cellWidth * 28), y, scale, normal);
+        _text.Draw(spriteBatch, "FOR SALE", left + (cellWidth * 21), y, scale, normal);
+        _text.Draw(spriteBatch, "HELD", left + (cellWidth * 30), y, scale, normal);
         y += cellHeight;
 
         for (int i = 0; i < _session.Market.Length; i++)
