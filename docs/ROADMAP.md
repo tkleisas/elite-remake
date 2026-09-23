@@ -3001,3 +3001,29 @@ original skips its market-item path entirely and gives a random commodity instea
 `0` sentinel cannot simply become "food": zero means "this blueprint names no commodity", not "item
 zero". The test that had been passing a zero provider was modelling a canister with no contents at all,
 which the game never produces.
+
+## Every index space, checked against the source's own numbering
+
+Last round's fault was a one-based number used as a zero-based index, so every crossing between the
+game's index spaces was checked the same way.
+
+| space | the source's numbering | ours | verdict |
+| --- | --- | --- | --- |
+| galaxy system number | zero-based — RUPLA names Lave as 7, Teorge as 211, Xeer as 150 | `StarSystem.Index` is zero-based | match |
+| market items | one-based, 1 to 17 | our list is zero-based, so `index = item - 1` | match |
+| the cargo hold | zero-based QQ20 slots | zero-based | match, and the conversion from a market item is now explicit at the scoop |
+| equipment | the original's item 0 is fuel | `Items[index]`, selected straight from the digit keys | match |
+| two-letter name tokens | masked to 0 to 31 | a 32-entry table | match |
+
+Five spaces, one conversion that was wrong, and it is the only one where two numbering schemes meet
+without a named boundary — which is exactly what last round's commit gave it.
+
+**And the loop still flies.** The suite passes, the extractor verifies byte for byte, and a run reports
+6 objects in the bubble and 52 triangles drawn at 9.08 ms a frame — 110 fps against a 50 Hz simulation,
+with our own work inside a fifth of the 20 ms budget. That last number has not been re-taken since
+round 65, so it is worth having again after thirty rounds of changes to the market, the missions, the
+AI and the renderer.
+
+**The pattern this round is the cheapest kind of verification**: not a new test but the same question —
+*what does this number mean* — asked of every place two systems meet. It found nothing, which after last
+round is the answer to hope for, and it cost less than the fault it was looking for would have.
