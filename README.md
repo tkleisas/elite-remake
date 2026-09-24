@@ -71,8 +71,9 @@ block.
 
 ## Status
 
-**v1.0.0** — the whole loop is playable end to end: launch, fly, fight, trade, jump, dock, take
-missions, die. What is left is the long tail, and it is listed rather than hidden.
+**v1.2.1** — the whole loop is playable end to end: launch, fly, fight, trade, jump, dock, take
+missions, die. The long tail is the machinery that has no screen of its own, and it is listed rather
+than hidden.
 
 | Area | State |
 |---|---|
@@ -87,7 +88,7 @@ missions, die. What is left is the long tail, and it is listed rather than hidde
 | Missions: offer rules, hints, briefings and debriefings **as text** | complete |
 | Missions: the briefing *screens* (incoming message, rotating ship, key waits) | complete — staged as the disc's BRIEF and BRP run them; the bay's backdrop picture is the one image not shipped |
 | Rendering: authentic dial geometry | complete — the altitude bar, the E.C.M. and station bulbs, the disc's cross crosshair and the planet's meridians |
-| Death sequence, some rare-state behaviour | not yet |
+| Rare-state behaviour: the enemy E.C.M. answering ours, and the disc's scooped-and-docked flag (NEWB bit 7), which the drawing code and the scanner read to remove a ship one last time | not yet — the E.C.M.'s answer is named in the port's own remarks as "a nice touch for later" |
 | Audio | complete — all ten of the disc's SFX entries, byte-verified in the tests, with every trigger wired |
 
 A measured way to read that table: the disc's flight, docked and loader code carries **382 routine
@@ -98,7 +99,7 @@ under modern names rather than routine for routine. [`docs/COVERAGE.md`](docs/CO
 table — every routine, classified, with the method.
 
 The engineering log, round by round, with the mistakes and how they were found, is in
-[`docs/ROADMAP.md`](docs/ROADMAP.md) (4,800 lines of it).
+[`docs/ROADMAP.md`](docs/ROADMAP.md) (4,800 lines of it, one round at a time).
 
 ## Quick start
 
@@ -188,6 +189,7 @@ dotnet run --project src/EliteRemake.Game -- --dock status --fully-equipped --ex
 | `--in-system-jump <n>` | jump `n` times in system |
 | `--view <front\|rear\|left\|right>` | which view to start in |
 | `--buy <item>[,<view>]` | buy equipment at the start, for testing a fitted ship |
+| `--laser <none\|pulse\|beam\|military>` | fit a laser to the front mount at the start |
 | `--fully-equipped`, `--empty`, `--new-commander` | starting states |
 | `--sim-rate <hz>` | run the simulation faster than real time (used by the smoke tests) |
 | `--sim-warmup <n>`, `--hold`, `--stress <n>`, `--jump` | development hooks |
@@ -273,10 +275,11 @@ dotnet run --project tools/EliteDataExtractor -- all \
     --source ~/elite-source-code-library     # or set ELITE_SOURCE_LIBRARY
 ```
 
-`all` extracts the blueprints, the galaxy seeds, the market and equipment tables and the token
-tables, and then **verifies the blueprints against the original's own binaries** — 17 ship sets, 527
-`XX21` slots, 204 blueprints compared, 0 mismatches. The verifier is the point: extraction that
-nobody checks is just a story about a data file.
+`all` extracts the blueprints and the token and description tables, and then **verifies the
+blueprints against the original's own binaries** — 17 ship sets, 527 `XX21` slots, 204 blueprints
+compared, 0 mismatches. The galaxy's seed triple and the market and equipment tables are constants
+the port carries in code, written from the source library and pinned by the tests. The verifier is
+the point: extraction that nobody checks is just a story about a data file.
 
 ## Fidelity, and how it is checked
 
@@ -307,7 +310,7 @@ dotnet test tests/EliteRemake.Core.Tests                    # 437 tests, ~20 s
 
 # the game runs, draws a frame and reports what it did
 dotnet run --project src/EliteRemake.Game -- --title --screenshot /tmp/title.png --frame 30
-#   -> Final: Title: version 1.0.0, selected START, music on (playing), save absent
+#   -> Final: Title: version 1.2.1, selected START, music on (playing), save absent
 
 # a flight in front of the station, then the docking computer takes us in: --sim-rate runs the
 # simulation faster than real time so the whole approach fits in twenty seconds
@@ -339,7 +342,7 @@ The pipeline does the rest:
 So a release is one command, after the version and the changelog are committed:
 
 ```bash
-git tag -a v1.0.1 -m "v1.0.1" && git push origin master --follow-tags
+git tag -a v1.2.2 -m "v1.2.2" && git push origin master --follow-tags
 ```
 
 ## Documentation

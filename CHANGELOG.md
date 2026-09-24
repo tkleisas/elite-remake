@@ -5,6 +5,25 @@ All notable changes to this project are recorded here. The format follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html) — see [`docs/VERSIONING.md`](docs/VERSIONING.md)
 for what the three numbers mean for a faithful port.
 
+## [1.2.1] — 2026-09-24
+
+Documentation only: the release notes are now as honest as the code. No code changes; the tests are
+the same 437.
+
+* The screenshots in the README are regenerated from the 1.2.0 build, so they show the altitude bar,
+  the E.C.M. and station bulbs, the disc's cross crosshair and the planet's meridians — the dashboard
+  the release notes describe, rather than v1.0.0's.
+* The status table's rare-state row names its two deferred pieces: the enemy E.C.M. answering ours,
+  which the port's own remarks call "a nice touch for later", and the disc's scooped-and-docked flag
+  (NEWB bit 7), which the disc's drawing code and scanner read to remove a ship one last time and
+  which the port does not carry. The old row claimed both were named in the remarks; only the first
+  is.
+* `docs/DIVERGENCES.md` loses its "detail edges not yet drawn" row — they have been drawn with the
+  original's per-edge visibility since the 1.0.0 milestone, and the row was a claim the code had
+  outgrown. It gains the gamepad as a deliberate choice, with the disc's Bitstik as its precedent.
+* The versioning examples track the release rather than trail it: the title screen and the status
+  line print v1.2.1, and the next patch is tagged v1.2.2.
+
 ## [1.2.0] — 2026-09-24
 
 The dashboard, the sound table and the planet, drawn as the disc draws them: the altitude bar and

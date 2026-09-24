@@ -13,7 +13,7 @@ A remake is not a library, so "breaking change" needs translating. For this proj
 
 | Part | Bumped when | Examples |
 |---|---|---|
-| **MAJOR** | The port is complete against the disc version, or the shape of the game changes for a player (a save file that no longer loads, a screen reorganised so muscle memory breaks) | `1.0.0` — the first release: the whole flight and docked loop, playable end to end. `2.0.0` would be the port declared complete against the original's 447 subroutines |
+| **MAJOR** | The port is complete against the disc version, or the shape of the game changes for a player (a save file that no longer loads, a screen reorganised so muscle memory breaks) | `1.0.0` — the first release: the whole flight and docked loop, playable end to end. `2.0.0` would be the port declared complete against the disc's own 382 routine files |
 | **MINOR** | Something the original has and we did not: a mechanic, a screen, a mission, a sound, a piece of the interface | the mission briefing screens, the ship's catalogue of close-range detail lines, the death sequence |
 | **PATCH** | A fix to something we already claimed to do, with no new behaviour: a wrong constant, a rule running on the wrong clock, a rendering fault | the recharge rate running eight times too fast, the docking range tested as a distance instead of per axis, the black triangle on the start screen's ship |
 
@@ -28,8 +28,8 @@ Two consequences worth stating plainly:
 
 ## Where the version appears
 
-* The title screen, bottom left, as `v1.0.0`.
-* The title screen's status line (`Title: version 1.0.0, ...`), which the screenshot harness prints
+* The title screen, bottom left, as `v1.2.1`.
+* The title screen's status line (`Title: version 1.2.1, ...`), which the screenshot harness prints
   so an automated run can say which build it exercised.
 * The assembly informational version, so `EliteRemake.Game.dll` and any bug report carry it too.
 
@@ -44,7 +44,7 @@ that does not agree with the build:
 4. Tag and push:
 
 ```bash
-git tag -a v1.0.1 -m "v1.0.1"
+git tag -a v1.2.2 -m "v1.2.2"
 git push origin master --follow-tags
 ```
 
