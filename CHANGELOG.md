@@ -5,6 +5,27 @@ All notable changes to this project are recorded here. The format follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html) — see [`docs/VERSIONING.md`](docs/VERSIONING.md)
 for what the three numbers mean for a faithful port.
 
+## [1.2.0] — 2026-09-24
+
+The dashboard, the sound table and the planet, drawn as the disc draws them: the altitude bar and
+the two indicator bulbs, the disc's own cross crosshair, the planet's meridians, the sound table
+audited byte for byte, and the gamepad's remaining flight keys.
+
+* **The dashboard is the disc's own.** The altitude bar arrives — part 15's ALTIT, the square root of
+  the sum of the squared high bytes less the 37 the SBC takes with it, which also pins the crash test
+  to the disc's own boundary — and the two indicator bulbs above the energy banks light as the disc's
+  ECBLB and SPBLB light theirs: "E" while the E.C.M. runs, "S" while the station is about. The laser
+  crosshair is the disc's own cross, SIGHT's two size-20 crosses leaving the four arms with a gap in
+  the middle, drawn only when the view we are looking through has a laser fitted. The planet shows
+  PL9 part 2's two meridians through its disc, from its own orientation vectors — which on the disc
+  are ZINF's identity, so the planet's look is the cross.
+* **The sound table is audited and complete.** All ten of the disc's SFX entries were already
+  byte-verified against `variable/sfx.asm` in the tests; the audit wired the last trigger the disc's
+  own code makes — the docking dent's EXNO3 pair — and the status table says so.
+* The gamepad maps the rest of the flight's keys: the left shoulder locks a missile, X fires one, Y
+  fires the E.C.M., Start engages the docking computer, Back cancels it, and the right stick looks
+  through the four windows.
+
 ## [1.1.0] — 2026-09-24
 
 The mission screens, the death and the docked flow, measured against the disc sources: the flight
@@ -117,20 +138,6 @@ them — with a development harness to drive the live game and check all of it.
   ends at the Status Mode screen, as BRP does. Finding it fixed a latent bug in the printer: the
   event positions were recorded before the tidy, and the briefing's last event fell past the end of
   the tidied text, which crashed the pagination.
-* **The dashboard is the disc's own.** The altitude bar arrives — part 15's ALTIT, the square root of
-  the sum of the squared high bytes less the 37 the SBC takes with it, which also pins the crash test
-  to the disc's own boundary — and the two indicator bulbs above the energy banks light as the disc's
-  ECBLB and SPBLB light theirs: "E" while the E.C.M. runs, "S" while the station is about. The laser
-  crosshair is the disc's own cross, SIGHT's two size-20 crosses leaving the four arms with a gap in
-  the middle, drawn only when the view we are looking through has a laser fitted. The planet shows
-  PL9 part 2's two meridians through its disc, from its own orientation vectors — which on the disc
-  are ZINF's identity, so the planet's look is the cross.
-* **The sound table is audited and complete.** All ten of the disc's SFX entries were already
-  byte-verified against `variable/sfx.asm` in the tests; the audit wired the last trigger the disc's
-  own code makes — the docking dent's EXNO3 pair — and the status table says so.
-* The gamepad maps the rest of the flight's keys: the left shoulder locks a missile, X fires one, Y
-  fires the E.C.M., Start engages the docking computer, Back cancels it, and the right stick looks
-  through the four windows.
 * CTRL-L loads the commander from any docked screen, which is the load half of the disc's docked
   file menu; CTRL-S already saves from all of them.
 * **The development harness.** `--dev-server <port>` runs a small HTTP server that drives the live
