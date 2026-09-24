@@ -301,14 +301,8 @@ public sealed class FlightSim
         (int x, int y, int z) = ship.GetPosition();
         pod.SetPosition(x, y, z + 256);
 
-        if (Spawn(pod))
-        {
-            EscapePodLaunchedThisFrame = ship;
-        }
+        Spawn(pod);
     }
-
-    /// <summary>The ship that launched an escape pod this frame, for the game to report.</summary>
-    public Ship? EscapePodLaunchedThisFrame { get; private set; }
 
     /// <summary>
     /// A ship fires a missile at us, as the original's SFRMIS does: the missile is spawned as a child
@@ -458,7 +452,6 @@ public sealed class FlightSim
 
         DamageTakenThisFrame = 0;
         MissileUnarmedThisFrame = false;
-        EscapePodLaunchedThisFrame = null;
         MissileFiredAtUsThisFrame = null;
         StationLaunchedThisFrame = null;
         ScoopedFuelFromTheSun = false;

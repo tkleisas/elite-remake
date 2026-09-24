@@ -46,6 +46,7 @@ are listed too, so the fidelity of the simulation is never in doubt.
 
 ## Open questions
 
-* Whether the flight loop should also reproduce the original's practice of tidying one ship per frame
-  (12 ships over 16 frames) — currently `TIDY` runs on the original's schedule via the main loop
-  counter, which we track.
+None outstanding. The last one — whether the flight loop should reproduce the original's practice of
+tidying one ship per frame — was answered by the schedule already in place: `TIDY` runs when
+`(MCNT ^ slot) & 15` reaches zero, the disc's own gate, which tidies each ship on the original's
+cadence rather than the whole bubble at once.

@@ -392,9 +392,6 @@ public sealed class GameSession
         return true;
     }
 
-    /// <summary>True when the commander is wanted, which the status screen shows.</summary>
-    public bool IsWanted => Commander.LegalStatus > 0;
-
     /// <summary>The two missions the original offers, and the state they are in.</summary>
     public Missions Missions { get; private set; }
 

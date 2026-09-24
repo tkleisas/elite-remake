@@ -90,11 +90,12 @@ missions, die. What is left is the long tail, and it is listed rather than hidde
 | Death sequence, some rare-state behaviour | not yet |
 | Audio | complete — all ten of the disc's SFX entries, byte-verified in the tests, with every trigger wired |
 
-A measured way to read that table: the disc version consists of **447 distinct subroutines**; 161 of
-them are named in this repository. That is a lower bound rather than a coverage figure — many of the
-rest are 6502 drawing primitives, text helpers or main-loop slices whose behaviour exists here under
-modern names — but it is the honest shape of the remaining work. Turning it into a real number is the
-next piece of work: a coverage table marking every routine *ported*, *equivalent* or *out of scope*.
+A measured way to read that table: the disc's flight, docked and loader code carries **382 routine
+files** in the source library, and **112 of them are named in this repository** — the flight model,
+the flight loop's parts, the mission machinery and the screens. The rest are the disc's own
+machinery: its drawing, text and sound primitives and its loader, whose behaviour this port carries
+under modern names rather than routine for routine. [`docs/COVERAGE.md`](docs/COVERAGE.md) is the
+table — every routine, classified, with the method.
 
 The engineering log, round by round, with the mistakes and how they were found, is in
 [`docs/ROADMAP.md`](docs/ROADMAP.md) (4,800 lines of it).
@@ -113,7 +114,7 @@ git clone https://github.com/tkleisas/elite-remake.git
 cd elite-remake
 
 dotnet build EliteRemake.slnx
-dotnet test  tests/EliteRemake.Core.Tests        # 412 tests, about 20 seconds
+dotnet test  tests/EliteRemake.Core.Tests        # 437 tests, about 20 seconds
 dotnet run --project src/EliteRemake.Game        # play
 ```
 
@@ -245,7 +246,7 @@ EliteRemake.slnx
 ├── src/EliteRemake.Data        the extracted tables, embedded as resources
 ├── src/EliteRemake.Game        MonoGame: scenes, renderer, dashboard, input, sound, settings
 ├── tools/EliteDataExtractor    reads the assembly sources and writes data/*.json, then verifies
-└── tests/EliteRemake.Core.Tests 412 tests over the simulation and the data
+└── tests/EliteRemake.Core.Tests 437 tests over the simulation and the data
 ```
 
 The split is deliberate. `EliteRemake.Core` has no dependency on MonoGame, so the simulation can be
@@ -302,7 +303,7 @@ point) and the modern choices (widescreen, a title menu, JSON saves).
 ## Verifying a build
 
 ```bash
-dotnet test tests/EliteRemake.Core.Tests                    # 412 tests, ~20 s
+dotnet test tests/EliteRemake.Core.Tests                    # 437 tests, ~20 s
 
 # the game runs, draws a frame and reports what it did
 dotnet run --project src/EliteRemake.Game -- --title --screenshot /tmp/title.png --frame 30
@@ -332,7 +333,7 @@ The pipeline does the rest:
 
 | Workflow | When | What it does |
 |---|---|---|
-| [`ci.yml`](.github/workflows/ci.yml) | every push and pull request | builds and runs the 412 tests on Linux, Windows and macOS, then publishes the Linux build, runs the game under a virtual display and checks it reported its version and drew a frame |
+| [`ci.yml`](.github/workflows/ci.yml) | every push and pull request | builds and runs the 437 tests on Linux, Windows and macOS, then publishes the Linux build, runs the game under a virtual display and checks it reported its version and drew a frame |
 | [`release.yml`](.github/workflows/release.yml) | pushing a `v*` tag | checks the tag matches `<Version>` and that the changelog has an entry for it, runs the tests, builds self-contained artifacts for Windows (`win-x64`) and Linux (`linux-x64`), and publishes them to a GitHub release with a `SHA256SUMS` file |
 
 So a release is one command, after the version and the changelog are committed:
@@ -347,6 +348,7 @@ git tag -a v1.0.1 -m "v1.0.1" && git push origin master --follow-tags
 |---|---|
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | the engineering log by round: what was ported, what was wrong, how it was found |
 | [`docs/DIVERGENCES.md`](docs/DIVERGENCES.md) | every deliberate difference from the original, and the quirks reproduced on purpose |
+| [`docs/COVERAGE.md`](docs/COVERAGE.md) | the disc's own routines, classified: which the port names, which are carried whole, which are the loader's |
 | [`docs/VERSIONING.md`](docs/VERSIONING.md) | the versioning scheme and what a release has to satisfy |
 | [`CHANGELOG.md`](CHANGELOG.md) | what changed in each release |
 

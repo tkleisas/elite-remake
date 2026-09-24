@@ -50,9 +50,6 @@ public sealed class ShipViewerScene : IScene
     /// <summary>True to rotate the ship; set false for a still frame.</summary>
     public bool Animate { get; set; } = true;
 
-    /// <summary>Draws the ship's edges as well as its faces, for checking the blueprint data.</summary>
-    public bool Wireframe { get; set; }
-
     public void Update(float elapsedSeconds)
     {
         _time += elapsedSeconds;
@@ -83,10 +80,9 @@ public sealed class ShipViewerScene : IScene
             Palette.StationSlot);
         _renderer.End();
 
-        if (Wireframe)
-        {
-            DrawWireframe(spriteBatch, pixel);
-        }
+        // The wireframe pass shows the blueprint's own edges on top of the fill, for checking the
+        // extracted geometry against the original's models
+        DrawWireframe(spriteBatch, pixel);
     }
 
     private void DrawWireframe(SpriteBatch spriteBatch, Texture2D pixel)

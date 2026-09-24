@@ -832,7 +832,7 @@ public class GameLoopTests
     /// byte was written on every save and never read back.
     /// </remarks>
     [Fact]
-    public void LoadingACOmmanderRestoresHisMissions()
+    public void LoadingACommanderRestoresHisMissions()
     {
         GameSession session = NewSession();
 

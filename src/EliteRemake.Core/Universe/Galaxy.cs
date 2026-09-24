@@ -341,15 +341,40 @@ public static class Galaxy
         return root * 4;
     }
 
-    /// <summary>The distance between two systems in light years, for display.</summary>
-    public static double DistanceLightYears(StarSystem from, StarSystem to) =>
-        DistanceTenths(from, to) / 10.0;
-
     /// <summary>The plain coordinate distance between two systems, which is what the charts plot.</summary>
     public static double CoordinateDistance(StarSystem from, StarSystem to)
     {
         double dx = to.X - from.X;
         double dy = to.Y - from.Y;
         return Math.Sqrt((dx * dx) + (dy * dy));
+    }
+
+    /// <summary>
+    /// The nearest system the fuel will reach, which is where the H key takes us and where the
+    /// charts' defaults land: the closest other system by the original's distance, within the tank.
+    /// One rule, one home — the port wrote it twice, in the flight scene and in the scene factory,
+    /// and each copy could have drifted.
+    /// </summary>
+    public static StarSystem NearestReachable(StarSystem from, IReadOnlyList<StarSystem> galaxy, int fuel)
+    {
+        StarSystem best = from;
+        int bestDistance = int.MaxValue;
+
+        foreach (StarSystem candidate in galaxy)
+        {
+            if (candidate.Seeds == from.Seeds)
+            {
+                continue;
+            }
+
+            int distance = DistanceTenths(from, candidate);
+            if (distance <= fuel && distance < bestDistance)
+            {
+                bestDistance = distance;
+                best = candidate;
+            }
+        }
+
+        return best;
     }
 }

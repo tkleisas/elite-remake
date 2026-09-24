@@ -14,7 +14,11 @@ namespace EliteDataExtractor;
 /// </summary>
 internal static class Program
 {
-    private const string DefaultSourceLibrary = "/home/tkleisas/Projects/elite-source-code-library";
+    /// <summary>
+    /// Where the extractor looks for the Elite source code library when no path was given. There is
+    /// no sensible absolute default — the clone lives wherever its owner cloned it — so the command
+    /// explains what it needs rather than guessing.
+    /// </summary>
     private const string SourceLibraryEnvironmentVariable = "ELITE_SOURCE_LIBRARY";
     private const string DefaultOutputDirectory = "data";
     private const string JsonFileName = "ships.json";
@@ -120,7 +124,7 @@ internal static class Program
     {
         public string Command { get; private init; } = "all";
 
-        public string Source { get; private init; } = DefaultSourceLibrary;
+        public string Source { get; private init; } = string.Empty;
 
         public string OutputDirectory { get; private init; } = DefaultOutputDirectory;
 
@@ -142,7 +146,7 @@ internal static class Program
         public static CliOptions? Parse(string[] args)
         {
             string command = "all";
-            string source = Environment.GetEnvironmentVariable(SourceLibraryEnvironmentVariable) ?? DefaultSourceLibrary;
+            string source = Environment.GetEnvironmentVariable(SourceLibraryEnvironmentVariable) ?? string.Empty;
             string output = DefaultOutputDirectory;
             bool quiet = false;
             bool commandSeen = false;
@@ -218,6 +222,14 @@ internal static class Program
                 }
             }
 
+            if (string.IsNullOrEmpty(source))
+            {
+                Console.Error.WriteLine(
+                    "error: no source library given. Clone Mark Moxon's elite-source-code-library " +
+                    "and pass its path with --source, or set the ELITE_SOURCE_LIBRARY environment variable.");
+                return null;
+            }
+
             if (!Directory.Exists(source))
             {
                 Console.Error.WriteLine($"error: source library not found: {source}");
@@ -252,8 +264,7 @@ internal static class Program
 
                 Options:
                   --source <path>   Mark Moxon's elite-source-code-library
-                                    (default: $ELITE_SOURCE_LIBRARY or
-                                     /home/tkleisas/Projects/elite-source-code-library)
+                                    (default: $ELITE_SOURCE_LIBRARY)
                   --out <path>      output directory, or a .json file path (default: data)
                   --quiet, -q       suppress progress output
                   --help, -h        show this help

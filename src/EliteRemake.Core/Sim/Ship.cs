@@ -64,9 +64,6 @@ public static class ShipDataBlock
 
     /// <summary>Flag bit: the ship has been killed and should be removed.</summary>
     public const byte FlagKilled = 0x80;
-
-    /// <summary>Flag bit: the ship is docking or has docked.</summary>
-    public const byte FlagDocking = 0x01;
 }
 
 /// <summary>
@@ -136,13 +133,6 @@ public sealed class Ship
     }
 
     /// <summary>The ship's flags (INWK+31).</summary>
-    /// <summary>
-    /// The roll the space station was created with. The original gives a station a random clockwise
-    /// roll — a random value with bit 7 cleared, so 0 to 127 — and the station turns for as long as
-    /// it is there.
-    /// </summary>
-    public byte SpinRoll { get; set; }
-
     /// <summary>True when this ship belongs on the 3D scanner.</summary>
     public bool ShowOnScanner
     {

@@ -69,7 +69,13 @@ public static class RigidFrame
             roof = Vector3.Normalize(roof);
         }
 
-        // The side is exactly perpendicular to both, which is what makes the frame rigid
+        // The side is exactly perpendicular to both, which is what makes the frame rigid. It is
+        // roof x nose — the negative of the disc's own sidev, which ZINF's identity and the
+        // normalisation both build as nose x roof. The renderer folds that sign into its own x
+        // axis: the vertex stream is transformed with this side, and the ship viewer has verified
+        // the whole pipeline against the disc's own models, so this sign is the drawing's
+        // convention rather than a slip. Changing it here would mirror every model on its own
+        // sideways axis.
         return (nose, roof, Vector3.Cross(roof, nose));
     }
 }

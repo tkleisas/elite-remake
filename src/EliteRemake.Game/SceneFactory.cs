@@ -9,16 +9,6 @@ namespace EliteRemake.Game;
 /// <summary>Builds the scene the game should start in.</summary>
 public static class SceneFactory
 {
-    public static IScene Create(GameOptions options, GraphicsDevice device, ViewCamera camera, ScreenLayout layout, TextRenderer text)
-    {
-        if (options.ViewerShip is not null)
-        {
-            return CreateViewer(options, device, camera);
-        }
-
-        return CreateFlightScene(options, device, camera, layout, text, CreateSession(options), new Settings());
-    }
-
     /// <summary>
     /// Builds the development ship viewer, which shows one blueprint turning on the spot so the
     /// extracted geometry can be checked against the original's own models.
@@ -321,7 +311,8 @@ public static class SceneFactory
         if (options.StartHyperspace)
         {
             session.SelectedSystem = session.System.Seeds == session.Commander.CurrentSystem.Seeds
-                ? FindNearestReachable(session)
+                ? EliteRemake.Core.Universe.Galaxy.NearestReachable(
+                    session.System, session.SystemsInGalaxy, session.Commander.Fuel)
                 : session.SelectedSystem;
 
             if (!session.StartHyperspace())
@@ -332,31 +323,6 @@ public static class SceneFactory
         }
 
         return scene;
-    }
-
-    /// <summary>The nearest system the commander's fuel will reach, for the --jump option.</summary>
-    private static EliteRemake.Core.Universe.StarSystem FindNearestReachable(GameSession session)
-    {
-        EliteRemake.Core.Universe.StarSystem best = session.System;
-        int bestDistance = int.MaxValue;
-
-        foreach (EliteRemake.Core.Universe.StarSystem candidate in
-                 session.SystemsInGalaxy)
-        {
-            if (candidate.Seeds == session.System.Seeds)
-            {
-                continue;
-            }
-
-            int distance = EliteRemake.Core.Universe.Galaxy.DistanceTenths(session.System, candidate);
-            if (distance <= session.Commander.Fuel && distance < bestDistance)
-            {
-                bestDistance = distance;
-                best = candidate;
-            }
-        }
-
-        return best;
     }
 
     /// <summary>Copies a blueprint's stats onto a spawned ship, as the original's NWSHP does.</summary>

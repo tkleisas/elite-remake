@@ -217,29 +217,11 @@ public sealed class FlightScene : IScene
     private bool _hyperspaceSoundPlayed;
 
     /// <summary>The nearest system we have the fuel to reach, which is where H takes us.</summary>
-    private EliteRemake.Core.Universe.StarSystem NearestReachableSystem()
-    {
-        EliteRemake.Core.Universe.StarSystem best = Session!.System;
-        int bestDistance = int.MaxValue;
-
-        foreach (EliteRemake.Core.Universe.StarSystem candidate in
-                 Session.SystemsInGalaxy)
-        {
-            if (candidate.Seeds == Session.System.Seeds)
-            {
-                continue;
-            }
-
-            int distance = EliteRemake.Core.Universe.Galaxy.DistanceTenths(Session.System, candidate);
-            if (distance <= Session.Commander.Fuel && distance < bestDistance)
-            {
-                bestDistance = distance;
-                best = candidate;
-            }
-        }
-
-        return best;
-    }
+    private EliteRemake.Core.Universe.StarSystem NearestReachableSystem() =>
+        EliteRemake.Core.Universe.Galaxy.NearestReachable(
+            Session!.System,
+            Session.SystemsInGalaxy,
+            Session.Commander.Fuel);
 
     /// <summary>
     /// Arrives in witchspace, where the ambush waits and there is no station to be found.
@@ -441,14 +423,10 @@ public sealed class FlightScene : IScene
         SetView(SpaceView.Front);
         _starfield.Reset();
 
-        _system = system;
-
         // Derive a muted colour for the planet from the seeds, so systems differ but stay tasteful
         int hue = (system.Seeds.S2Lo * 360) / 256;
         _celestial.PlanetColour = FromHue(hue, 0.30f, 0.80f);
     }
-
-    private EliteRemake.Core.Universe.StarSystem? _system;
 
     /// <summary>Converts a hue, saturation and value into a colour.</summary>
     private static Color FromHue(float hue, float saturation, float value)

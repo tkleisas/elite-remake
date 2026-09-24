@@ -234,10 +234,7 @@ public static class SystemArrival
     /// </remarks>
     public static Ship CreateStation(int distance, byte spinRoll)
     {
-        var station = new Ship(Combat.SpaceStationType, "coriolis", "Coriolis space station")
-        {
-            SpinRoll = spinRoll,
-        };
+        var station = new Ship(Combat.SpaceStationType, "coriolis", "Coriolis space station");
 
         station.SetCoordinate(ShipDataBlock.Z, distance);
 
